@@ -42,6 +42,7 @@
     "db:sync-positions": "bash scripts/sync-positions.sh",
     "db:check-consistency": "tsx --env-file=.env ./scripts/check-consistency.ts",
     "db:migrate:peak-pnl": "tsx --env-file=.env ./src/database/add-peak-pnl-column.ts",
+    "db:migrate:partial-close": "tsx --env-file=.env ./src/database/migrate-add-partial-close.ts",
     "demo:calculate-pnl": "tsx ./scripts/calculate-pnl-demo.ts",
     "pm2:start": "pm2 start ecosystem.config.cjs --only open-nof1.ai",
     "pm2:start:dev": "pm2 start ecosystem.config.cjs --only open-nof1.ai-dev",

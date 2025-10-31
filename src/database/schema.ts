@@ -54,6 +54,7 @@ export interface Position {
   confidence?: number;
   risk_usd?: number;
   peak_pnl_percent?: number; // 历史最高盈亏百分比（考虑杠杆）
+  partial_close_percentage?: number; // 已通过分批止盈平掉的百分比 (0-100)
 }
 
 export interface AccountHistory {
@@ -141,7 +142,8 @@ CREATE TABLE IF NOT EXISTS positions (
   opened_at TEXT NOT NULL,
   confidence REAL,
   risk_usd REAL,
-  peak_pnl_percent REAL DEFAULT 0
+  peak_pnl_percent REAL DEFAULT 0,
+  partial_close_percentage REAL DEFAULT 0
 );
 
 -- 账户历史表
