@@ -584,9 +584,9 @@ function generateInstructions(strategy: TradingStrategy, intervalMinutes: number
   * **重要说明**：这里的 pnl_percent 同样是考虑杠杆后的盈亏百分比
   * **峰值回撤保护**：如果持仓曾达到峰值盈利，但当前盈利回撤超过峰值的30%，立即平仓
 - **硬止盈规则（自动分批止盈，无需AI干预）**：
-  * 当 pnl_percent ≥ +35% 时，系统自动平掉 30% 仓位（锁定部分利润）
-  * 当 pnl_percent ≥ +50% 时，系统自动平掉 40% 仓位（累计平掉 70%）
-  * 当 pnl_percent ≥ +70% 时，系统自动平掉剩余仓位（全部清仓）
+  * 当 pnl_percent ≥ +30% 时，系统自动平掉 50% 仓位（锁定一半利润）
+  * 当 pnl_percent ≥ +40% 时，系统自动平掉 50% 仓位（累计平掉 100%，但如果+30%时已平50%，则此时平剩余50%）
+  * 当 pnl_percent ≥ +50% 时，系统自动平掉剩余仓位（确保全部清仓）
   * **时间止盈**：如果 pnl_percent > 20% 且持仓时间 ≥ 2 小时，系统强制全部平仓
   * 这些规则由系统自动执行，AI 无需主动调用平仓
 - **账户级风控保护**：
@@ -620,9 +620,9 @@ function generateInstructions(strategy: TradingStrategy, intervalMinutes: number
         * 如果当前 pnl_percent < +15%，立即平仓（移动止损触发）
    
    c) **硬止盈规则**（系统自动执行，AI无需干预）：
-      - pnl_percent ≥ +35%：系统自动平掉 30% 仓位（锁定部分利润）
-      - pnl_percent ≥ +50%：系统自动平掉 40% 仓位（累计平掉 70%）
-      - pnl_percent ≥ +70%：系统自动平掉剩余仓位（全部清仓）
+      - pnl_percent ≥ +30%：系统自动平掉 50% 仓位（锁定一半利润）
+      - pnl_percent ≥ +40%：系统自动平掉剩余 50% 仓位（累计 100%）
+      - pnl_percent ≥ +50%：系统确保全部清仓
       - **时间止盈**：pnl_percent > 20% 且持仓 ≥ 2 小时，系统强制全部平仓
       - ⚠️ 这些规则由系统自动触发，AI 无需主动调用 closePosition
    

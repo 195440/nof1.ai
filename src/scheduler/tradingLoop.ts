@@ -653,7 +653,7 @@ async function syncPositionsFromGate(cachedPositions?: any[]) {
   try {
     // 如果提供了缓存数据，使用缓存；否则重新获取
     const gatePositions = cachedPositions || await gateClient.getPositions();
-    const dbResult = await dbClient.execute("SELECT symbol, sl_order_id, tp_order_id, stop_loss, profit_target, entry_order_id, opened_at FROM positions");
+    const dbResult = await dbClient.execute("SELECT symbol, sl_order_id, tp_order_id, stop_loss, profit_target, entry_order_id, opened_at, peak_pnl_percent, partial_close_percentage FROM positions");
     const dbPositionsMap = new Map(
       dbResult.rows.map((row: any) => [row.symbol, row])
     );
@@ -712,8 +712,8 @@ async function syncPositionsFromGate(cachedPositions?: any[]) {
       await dbClient.execute({
         sql: `INSERT INTO positions 
               (symbol, quantity, entry_price, current_price, liquidation_price, unrealized_pnl, 
-               leverage, side, stop_loss, profit_target, sl_order_id, tp_order_id, entry_order_id, opened_at)
-              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+               leverage, side, stop_loss, profit_target, sl_order_id, tp_order_id, entry_order_id, opened_at, peak_pnl_percent, partial_close_percentage)
+              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         args: [
           symbol,
           quantity,
@@ -729,6 +729,8 @@ async function syncPositionsFromGate(cachedPositions?: any[]) {
           dbPos?.tp_order_id || null,
           entryOrderId, // 保留原有的订单ID
           dbPos?.opened_at || new Date().toISOString(), // 保留原有的开仓时间
+          dbPos?.peak_pnl_percent || 0, // 保留峰值盈利
+          dbPos?.partial_close_percentage || 0, // 保留已平仓百分比 🔥 关键修复
         ],
       });
       
@@ -1302,22 +1304,22 @@ async function executeTradingDecision() {
         let partialClosePercent = 0;
         let partialCloseReason = "";
         
-        // 🎯 分批止盈规则
-        if (pnlPercent >= 70 && partialClosedPercent < 100) {
-          // 达到 +70%，平掉剩余仓位（全部清仓）
+        // 🎯 分批止盈规则（更激进的止盈策略）
+        if (pnlPercent >= 50 && partialClosedPercent < 100) {
+          // 达到 +50%，平掉剩余仓位（全部清仓）
           partialClosePercent = 100 - partialClosedPercent;
           shouldPartialClose = true;
-          partialCloseReason = `分批止盈: 达到+70%，平掉剩余${partialClosePercent.toFixed(0)}%仓位（全部清仓）`;
-        } else if (pnlPercent >= 50 && partialClosedPercent < 70) {
-          // 达到 +50%，平掉40%仓位（累计70%）
-          partialClosePercent = Math.min(40, 70 - partialClosedPercent);
+          partialCloseReason = `分批止盈: 达到+50%，平掉剩余${partialClosePercent.toFixed(0)}%仓位（全部清仓）`;
+        } else if (pnlPercent >= 40 && partialClosedPercent < 50) {
+          // 达到 +40%，平掉50%仓位（如果第一次已平50%，则不再执行）
+          partialClosePercent = Math.min(50, 100 - partialClosedPercent);
           shouldPartialClose = true;
-          partialCloseReason = `分批止盈: 达到+50%，平掉${partialClosePercent.toFixed(0)}%仓位（累计${(partialClosedPercent + partialClosePercent).toFixed(0)}%）`;
-        } else if (pnlPercent >= 35 && partialClosedPercent < 30) {
-          // 达到 +35%，平掉30%仓位
-          partialClosePercent = 30;
+          partialCloseReason = `分批止盈: 达到+40%，平掉${partialClosePercent.toFixed(0)}%仓位（累计${(partialClosedPercent + partialClosePercent).toFixed(0)}%）`;
+        } else if (pnlPercent >= 30 && partialClosedPercent < 50) {
+          // 达到 +30%，平掉50%仓位
+          partialClosePercent = 50;
           shouldPartialClose = true;
-          partialCloseReason = `分批止盈: 达到+35%，平掉${partialClosePercent.toFixed(0)}%仓位，锁定部分利润`;
+          partialCloseReason = `分批止盈: 达到+30%，平掉${partialClosePercent.toFixed(0)}%仓位，锁定一半利润`;
         }
         
         // 执行部分平仓
@@ -1350,6 +1352,30 @@ async function executeTradingDecision() {
             
             logger.info(`${symbol} 已平仓百分比更新: ${partialClosedPercent.toFixed(0)}% → ${newPartialClosedPercent.toFixed(0)}%`);
             
+            // 同步最新的持仓数量到数据库（分批止盈后，Gate.io 的数量已经减少）
+            try {
+              const updatedPositions = await gateClient.getPositions();
+              const updatedPos = updatedPositions.find((p: any) => 
+                p.contract.replace("_USDT", "") === symbol && Number.parseInt(p.size || "0") !== 0
+              );
+              
+              if (updatedPos) {
+                const updatedQuantity = Math.abs(Number.parseInt(updatedPos.size || "0"));
+                await dbClient.execute({
+                  sql: "UPDATE positions SET quantity = ?, current_price = ?, unrealized_pnl = ? WHERE symbol = ?",
+                  args: [
+                    updatedQuantity,
+                    Number.parseFloat(updatedPos.markPrice || "0"),
+                    Number.parseFloat(updatedPos.unrealisedPnl || "0"),
+                    symbol
+                  ],
+                });
+                logger.info(`${symbol} 持仓数量已更新: ${pos.quantity} → ${updatedQuantity}`);
+              }
+            } catch (syncError: any) {
+              logger.warn(`同步持仓数量失败 ${symbol}: ${syncError.message}`);
+            }
+            
             // 如果已经全部平仓，标记为需要关闭
             if (newPartialClosedPercent >= 100) {
               shouldClose = true;
@@ -1361,10 +1387,10 @@ async function executeTradingDecision() {
         }
       }
       
-      // f) 时间止盈检查（盈利 > 20% 且持仓 > 24 小时）
+      // f) 时间止盈检查（盈利 > 20% 且持仓 > 2 小时）
       if (!shouldClose && pnlPercent > 20 && holdingHours >= 2) {
         shouldClose = true;
-        closeReason = `时间止盈: 盈利${pnlPercent.toFixed(2)}% > 25% 且持仓${holdingHours.toFixed(1)}小时 ≥ 2小时，强制获利了结`;
+        closeReason = `时间止盈: 盈利${pnlPercent.toFixed(2)}% > 20% 且持仓${holdingHours.toFixed(1)}小时 ≥ 2小时，强制获利了结`;
       }
       
       // 执行强制平仓
