@@ -46,9 +46,17 @@ CREATE TABLE IF NOT EXISTS positions (
     unrealized_pnl REAL NOT NULL,
     leverage INTEGER NOT NULL,
     side TEXT NOT NULL,
+    profit_target REAL,
+    stop_loss REAL,
+    tp_order_id TEXT,
+    sl_order_id TEXT,
     entry_order_id TEXT,
     opened_at TEXT NOT NULL,
-    closed_at TEXT
+    closed_at TEXT,
+    confidence REAL,
+    risk_usd REAL,
+    peak_pnl_percent REAL DEFAULT 0,
+    partial_close_percentage REAL DEFAULT 0
 );
 
 CREATE TABLE IF NOT EXISTS trading_signals (

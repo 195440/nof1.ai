@@ -64,7 +64,11 @@ async function syncPositionsOnly() {
           sl_order_id TEXT,
           entry_order_id TEXT,
           opened_at TEXT NOT NULL,
-          closed_at TEXT
+          closed_at TEXT,
+          confidence REAL,
+          risk_usd REAL,
+          peak_pnl_percent REAL DEFAULT 0,
+          partial_close_percentage REAL DEFAULT 0
         )
       `);
       logger.info("✅ 数据库表创建完成");
