@@ -1486,21 +1486,33 @@ async function executeTradingDecision() {
           const step = steps[i];
           logger.debug(`处理步骤 ${i + 1}/${steps.length}`);
           
-          if (step.content) {
+          let stepText = "";
+          
+          // 优先从 step.content 中提取文本
+          if (step.content && Array.isArray(step.content)) {
             logger.debug(`  内容项数量: ${step.content.length}`);
+            const textItems: string[] = [];
             for (const item of step.content) {
               if (item.type === 'text' && item.text) {
                 const textLength = item.text.length;
                 logger.debug(`  提取文本内容，长度: ${textLength}`);
-                allTexts.push(item.text.trim());
+                textItems.push(item.text.trim());
               }
+            }
+            if (textItems.length > 0) {
+              stepText = textItems.join('\n\n');
             }
           }
           
-          // 同时检查 step 的其他可能字段
-          if (step.text && typeof step.text === 'string') {
+          // 如果 step.content 中没有内容，才检查 step.text
+          if (!stepText && step.text && typeof step.text === 'string') {
             logger.debug(`  从 step.text 提取内容，长度: ${step.text.length}`);
-            allTexts.push(step.text.trim());
+            stepText = step.text.trim();
+          }
+          
+          // 只添加非空文本，避免重复
+          if (stepText) {
+            allTexts.push(stepText);
           }
         }
         
