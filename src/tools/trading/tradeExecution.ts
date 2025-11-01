@@ -196,7 +196,7 @@ export const openPositionTool = createTool({
       
       // 2. 检查订单簿深度（确保有足够流动性）
       try {
-        const orderBook = await client.getFuturesOrderBook(contract, 5); // 获取前5档订单
+        const orderBook = await client.getOrderBook(contract, 5); // 获取前5档订单
         
         if (orderBook && orderBook.bids && orderBook.bids.length > 0) {
           // 计算买单深度（前5档）

@@ -165,17 +165,6 @@ export class GateClient {
           return symbol && allowedSymbols.includes(symbol);
         }) || [];
         
-        // 优化日志：只记录关键信息
-        logger.info(`获取持仓完成 (API返回${allPositions?.length || 0}个, 过滤后${filteredPositions.length}个)`);
-        
-        // 只记录有实际持仓（size != 0）的详细信息
-        const activePositions = filteredPositions.filter((p: any) => p.size && p.size !== 0);
-        if (activePositions.length > 0) {
-          logger.info(`活跃持仓: ${activePositions.map((p: any) => 
-            `${p.contract}(${p.size > 0 ? '多' : '空'}${Math.abs(p.size)}张@${p.entryPrice})`
-          ).join(', ')}`);
-        }
-        
         return filteredPositions;
       } catch (error) {
         lastError = error;
