@@ -1454,42 +1454,71 @@ async function executeTradingDecision() {
     const agent = createTradingAgent(intervalMinutes);
     
     try {
-      const response = await agent.generateText(prompt);
+      // 设置足够大的 maxOutputTokens 以避免输出被截断
+      const response = await agent.generateText(prompt, {
+        maxOutputTokens: 64000,
+        maxSteps: 20,
+        temperature: 0.6,
+      });
       
       // 从响应中提取AI的完整回复，不进行任何切分
       let decisionText = "";
       
+      // 添加调试日志，查看响应的原始结构
+      logger.debug(`响应类型: ${typeof response}`);
+      if (response && typeof response === 'object') {
+        logger.debug(`响应结构: ${JSON.stringify(Object.keys(response))}`);
+        const steps = (response as any).steps || [];
+        logger.debug(`步骤数量: ${steps.length}`);
+      }
+      
       if (typeof response === 'string') {
         decisionText = response;
+        logger.debug(`字符串响应长度: ${decisionText.length}`);
       } else if (response && typeof response === 'object') {
         const steps = (response as any).steps || [];
         
         // 收集所有AI的文本回复（完整保存，不切分）
         const allTexts: string[] = [];
         
-        for (const step of steps) {
+        for (let i = 0; i < steps.length; i++) {
+          const step = steps[i];
+          logger.debug(`处理步骤 ${i + 1}/${steps.length}`);
+          
           if (step.content) {
+            logger.debug(`  内容项数量: ${step.content.length}`);
             for (const item of step.content) {
-              if (item.type === 'text' && item.text && item.text.trim()) {
+              if (item.type === 'text' && item.text) {
+                const textLength = item.text.length;
+                logger.debug(`  提取文本内容，长度: ${textLength}`);
                 allTexts.push(item.text.trim());
               }
             }
+          }
+          
+          // 同时检查 step 的其他可能字段
+          if (step.text && typeof step.text === 'string') {
+            logger.debug(`  从 step.text 提取内容，长度: ${step.text.length}`);
+            allTexts.push(step.text.trim());
           }
         }
         
         // 完整合并所有文本，用双换行分隔
         if (allTexts.length > 0) {
           decisionText = allTexts.join('\n\n');
+          logger.debug(`合并后文本总长度: ${decisionText.length}`);
         }
         
         // 如果没有找到文本消息，尝试其他字段
         if (!decisionText) {
-          decisionText = (response as any).text || (response as any).message || "";
+          decisionText = (response as any).text || (response as any).message || (response as any).content || "";
+          logger.debug(`从备用字段提取，长度: ${decisionText.length}`);
         }
         
         // 如果还是没有文本回复，说明AI只是调用了工具，没有做出决策
         if (!decisionText && steps.length > 0) {
           decisionText = "AI调用了工具但未产生决策结果";
+          logger.warn("AI 响应中未找到任何文本内容");
         }
       }
       
