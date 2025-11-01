@@ -102,14 +102,16 @@ export interface StrategyParams {
 }
 
 /**
- * 根据杠杆动态调整止盈阈值
- * 核心思想：相同的价格波动，高杠杆会产生更高的盈亏百分比
- * 因此高杠杆需要更高的阈值，低杠杆需要更低的阈值
+ * 🔥 已删除：adjustThresholdByLeverage() 函数
+ * 原因：
+ * 1. 函数逻辑错误（公式应为 referenceLeverage / actualLeverage，而非 actualLeverage / referenceLeverage）
+ * 2. 代码中未使用此函数
+ * 3. 策略参数已根据杠杆范围预先优化，无需动态调整
+ * 
+ * 如需未来实现类似功能，请参考正确的公式：
+ * 实际阈值 = 基准阈值 × (参考杠杆 / 实际杠杆)
+ * 示例：15倍杠杆下20%盈利 → 30倍杠杆只需10%盈利（价格波动更小）
  */
-export function adjustThresholdByLeverage(baseThreshold: number, actualLeverage: number, referenceLeverage: number = 15): number {
-  // 调整公式：实际阈值 = 基准阈值 × (实际杠杆 / 参考杠杆)
-  return Math.round(baseThreshold * (actualLeverage / referenceLeverage) * 10) / 10;
-}
 
 /**
  * 获取策略参数（基于 MAX_LEVERAGE 动态计算）
@@ -313,13 +315,68 @@ export function generateTradingPrompt(data: {
   const { minutesElapsed, iteration, intervalMinutes, marketData, accountInfo, positions, tradeHistory, recentDecisions } = data;
   const currentTime = formatChinaTime();
   
-  let prompt = `您已经开始交易 ${minutesElapsed} 分钟。当前时间是 ${currentTime}，您已被调用 ${iteration} 次。下面我们为您提供各种状态数据、价格数据和预测信号，以便您发现阿尔法收益。下面还有您当前的账户信息、价值、表现、持仓等。
+  // 🔥 获取当前策略参数（用于每周期强调风控规则）
+  const strategy = getTradingStrategy();
+  const params = getStrategyParams(strategy);
+  
+  let prompt = `【交易周期 #${iteration}】${currentTime}
+已运行 ${minutesElapsed} 分钟，执行周期 ${intervalMinutes} 分钟
 
-重要说明：
-- 本提示词已经包含了所有必需的市场数据、技术指标、账户信息和持仓状态
-- 您应该**直接分析下面提供的数据**，不需要再调用工具来获取技术指标
-- 请给出**完整的分析和决策**，包括：账户健康检查 → 现有持仓管理 → 市场机会分析 → 具体交易决策
-- 请确保输出完整的决策过程，不要中途停止
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+🎯 当前策略：${params.name}（${params.description}）
+📊 目标月回报：${params.name === '稳健' ? '10-20%' : params.name === '平衡' ? '20-40%' : '40%+'}
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+🛡️ 【硬性风控底线 - 系统强制执行】
+┌─────────────────────────────────────────┐
+│ ⚠️  单笔亏损 ≤ -10%：强制平仓           │
+│ ⏰ 持仓时间 ≥ 36小时：强制平仓          │
+│ 📉 账户回撤 ≥ 10%：禁止新开仓          │
+│ 🚨 账户回撤 ≥ 20%：强制清仓停止交易    │
+└─────────────────────────────────────────┘
+
+⚡ 【AI战术决策 - 强烈建议遵守】
+┌─────────────────────────────────────────┐
+│ 策略止损：${params.stopLoss.low}% ~ ${params.stopLoss.high}%（根据杠杆）│
+│ 移动止盈：                               │
+│   • 盈利≥+${params.trailingStop.level1.trigger}% → 止损移至+${params.trailingStop.level1.stopAt}%  │
+│   • 盈利≥+${params.trailingStop.level2.trigger}% → 止损移至+${params.trailingStop.level2.stopAt}%  │
+│   • 盈利≥+${params.trailingStop.level3.trigger}% → 止损移至+${params.trailingStop.level3.stopAt}% │
+│ 分批止盈：                               │
+│   • 盈利≥+${params.partialTakeProfit.stage1.trigger}% → 平仓${params.partialTakeProfit.stage1.closePercent}%  │
+│   • 盈利≥+${params.partialTakeProfit.stage2.trigger}% → 平仓${params.partialTakeProfit.stage2.closePercent}%  │
+│   • 盈利≥+${params.partialTakeProfit.stage3.trigger}% → 平仓${params.partialTakeProfit.stage3.closePercent}% │
+│ 峰值回撤：≥${params.peakDrawdownProtection}% → 危险信号，立即平仓 │
+└─────────────────────────────────────────┘
+
+📋 【决策流程 - 按优先级执行】
+1️⃣ 持仓管理（最优先）：
+   检查每个持仓的止损/止盈/峰值回撤 → closePosition
+   
+2️⃣ 新开仓评估：
+   分析市场数据 → 识别双向机会（做多/做空） → openPosition
+   
+3️⃣ 加仓评估：
+   盈利>5%且趋势强化 → openPosition（≤50%原仓位，相同或更低杠杆）
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+【数据说明】
+本提示词已预加载所有必需数据：
+• ✅ 所有币种的市场数据和技术指标（多时间框架）
+• ✅ 账户信息（余额、收益率、夏普比率）
+• ✅ 当前持仓状态（盈亏、持仓时间、杠杆）
+• ✅ 历史交易记录（最近10笔）
+
+【您的任务】
+直接基于上述数据做出交易决策，无需重复获取数据：
+1. 分析持仓管理需求（止损/止盈/加仓）→ 调用 closePosition / openPosition 执行
+2. 识别新交易机会（做多/做空）→ 调用 openPosition 执行
+3. 评估风险和仓位管理 → 调用 calculateRisk 验证
+
+⚠️ 关键：您必须实际调用工具执行决策，不要只停留在分析阶段！
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 以下所有价格或信号数据按时间顺序排列：最旧 → 最新
 
