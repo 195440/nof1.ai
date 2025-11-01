@@ -286,10 +286,11 @@ export class GateClient {
         order.tif = "ioc"; // 立即成交或取消
       }
 
-      // Gate API SDK 使用驼峰命名：isReduceOnly -> is_reduce_only, isClose -> is_close
+      // Gate API SDK 使用驼峰命名：isReduceOnly -> is_reduce_only
+      // 注意：只使用 isReduceOnly，不使用 isClose，避免保证金计算冲突
+      // isReduceOnly 已足够确保只减仓不开仓，反向订单本身就会执行平仓
       if (params.reduceOnly === true) {
         order.isReduceOnly = true;
-        order.isClose = true;
       }
 
       // 驼峰命名：autoSize -> auto_size
