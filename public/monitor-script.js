@@ -327,14 +327,10 @@ class TradingMonitor {
                 // 更新决策详细内容
                 if (decisionContent) {
                     const decision = log.decision || log.actionsTaken || '暂无决策内容';
-                    // 保留换行和格式，转换为HTML
-                    const formattedDecision = decision
-                        .replace(/&/g, '&amp;')
-                        .replace(/</g, '&lt;')
-                        .replace(/>/g, '&gt;')
-                        .replace(/\n/g, '<br>');
+                    // 使用 marked 库将 markdown 转换为 HTML
+                    const htmlContent = marked.parse(decision);
                     
-                    decisionContent.innerHTML = `<div class="decision-text">${formattedDecision}</div>`;
+                    decisionContent.innerHTML = `<div class="decision-text markdown-content">${htmlContent}</div>`;
                 }
             } else {
                 if (decisionContent) {

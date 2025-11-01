@@ -317,6 +317,141 @@ body {
     max-width: 100%;
 }
 
+/* Markdown 内容样式 */
+.markdown-content {
+    white-space: normal;
+}
+
+.markdown-content h1,
+.markdown-content h2,
+.markdown-content h3,
+.markdown-content h4,
+.markdown-content h5,
+.markdown-content h6 {
+    color: var(--accent-green);
+    margin-top: 1em;
+    margin-bottom: 0.5em;
+    font-weight: bold;
+}
+
+.markdown-content h1 {
+    font-size: 1.4rem;
+    border-bottom: 2px solid var(--border-color);
+    padding-bottom: 0.3em;
+}
+
+.markdown-content h2 {
+    font-size: 1.2rem;
+    border-bottom: 1px solid var(--border-color);
+    padding-bottom: 0.3em;
+}
+
+.markdown-content h3 {
+    font-size: 1.1rem;
+}
+
+.markdown-content h4 {
+    font-size: 1rem;
+}
+
+.markdown-content h5,
+.markdown-content h6 {
+    font-size: 0.9rem;
+}
+
+.markdown-content p {
+    margin: 0.8em 0;
+    line-height: 1.6;
+}
+
+.markdown-content ul,
+.markdown-content ol {
+    margin: 0.8em 0;
+    padding-left: 2em;
+}
+
+.markdown-content li {
+    margin: 0.4em 0;
+}
+
+.markdown-content strong {
+    color: var(--accent-green);
+    font-weight: bold;
+}
+
+.markdown-content em {
+    color: var(--text-primary);
+    font-style: italic;
+}
+
+.markdown-content code {
+    background-color: var(--bg-tertiary);
+    color: var(--accent-yellow);
+    padding: 0.2em 0.4em;
+    border-radius: 3px;
+    font-family: 'Courier New', monospace;
+    font-size: 0.9em;
+}
+
+.markdown-content pre {
+    background-color: var(--bg-tertiary);
+    border: 1px solid var(--border-color);
+    border-radius: 5px;
+    padding: 1em;
+    overflow-x: auto;
+    margin: 1em 0;
+}
+
+.markdown-content pre code {
+    background-color: transparent;
+    padding: 0;
+    border-radius: 0;
+    color: var(--text-primary);
+}
+
+.markdown-content blockquote {
+    border-left: 3px solid var(--accent-green);
+    padding-left: 1em;
+    margin: 1em 0;
+    color: var(--text-dim);
+    font-style: italic;
+}
+
+.markdown-content a {
+    color: var(--accent-green);
+    text-decoration: underline;
+    transition: all 0.3s;
+}
+
+.markdown-content a:hover {
+    text-shadow: 0 0 5px var(--accent-green);
+}
+
+.markdown-content table {
+    border-collapse: collapse;
+    width: 100%;
+    margin: 1em 0;
+}
+
+.markdown-content table th,
+.markdown-content table td {
+    border: 1px solid var(--border-color);
+    padding: 0.5em;
+    text-align: left;
+}
+
+.markdown-content table th {
+    background-color: var(--bg-tertiary);
+    color: var(--accent-green);
+    font-weight: bold;
+}
+
+.markdown-content hr {
+    border: none;
+    border-top: 1px solid var(--border-color);
+    margin: 1.5em 0;
+}
+
 .decision-content .loading,
 .decision-content .no-data,
 .decision-content .error {
@@ -1122,6 +1257,48 @@ body {
         font-size: 0.75rem;
         word-break: break-word;
         overflow-wrap: break-word;
+    }
+
+    /* 移动端 Markdown 样式 */
+    .markdown-content h1 {
+        font-size: 1.1rem;
+    }
+
+    .markdown-content h2 {
+        font-size: 1rem;
+    }
+
+    .markdown-content h3 {
+        font-size: 0.95rem;
+    }
+
+    .markdown-content h4,
+    .markdown-content h5,
+    .markdown-content h6 {
+        font-size: 0.85rem;
+    }
+
+    .markdown-content ul,
+    .markdown-content ol {
+        padding-left: 1.5em;
+    }
+
+    .markdown-content code {
+        font-size: 0.75rem;
+    }
+
+    .markdown-content pre {
+        padding: 0.6em;
+        font-size: 0.7rem;
+    }
+
+    .markdown-content table {
+        font-size: 0.75rem;
+    }
+
+    .markdown-content table th,
+    .markdown-content table td {
+        padding: 0.3em;
     }
 
     /* Positions Cards */
