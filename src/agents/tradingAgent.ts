@@ -331,7 +331,7 @@ const logger = createPinoLogger({
  */
 export function getTradingStrategy(): TradingStrategy {
   const strategy = process.env.TRADING_STRATEGY || "balanced";
-  if (strategy === "conservative" || strategy === "balanced" || strategy === "aggressive") {
+  if (strategy === "conservative" || strategy === "balanced" || strategy === "aggressive" || strategy === "sure-win") {
     return strategy;
   }
   logger.warn(`未知的交易策略: ${strategy}，使用默认策略: balanced`);
@@ -869,7 +869,7 @@ function generateInstructions(strategy: TradingStrategy, intervalMinutes: number
       - 做多和做空机会的识别：
         * 做多信号：价格突破EMA20/50上方，MACD转正，RSI7 > 50且上升，多个时间框架共振向上
         * 做空信号：价格跌破EMA20/50下方，MACD转负，RSI7 < 50且下降，多个时间框架共振向下
-        * 关键：做空信号和做多信号同样重要！不要只寻找做多机会而忽视做空机会${strategy === 'sure-win' ? '\n        * 稳赢策略额外要求：成交量必须大于平均量1.5倍，确认趋势有强支撑' : ''}
+        * 关键：做空信号和做多信号同样重要！不要只寻找做多机会而忽视做空机会${strategy === 'sure-win' ? '\n        * 稳赢策略额外要求：成交量必须大于平均量1.2倍，确认趋势有强支撑' : ''}
       - 如果满足所有条件：立即调用 openPosition 开仓（不要只说"我会开仓"）
    
 5. 仓位大小和杠杆计算（${params.name}策略）：
