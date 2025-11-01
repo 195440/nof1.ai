@@ -1455,8 +1455,9 @@ async function executeTradingDecision() {
     
     try {
       // 设置足够大的 maxOutputTokens 以避免输出被截断
+      // DeepSeek API 限制: max_tokens 范围为 [1, 8192]
       const response = await agent.generateText(prompt, {
-        maxOutputTokens: 64000,
+        maxOutputTokens: 8192,
         maxSteps: 20,
         temperature: 0.6,
       });
