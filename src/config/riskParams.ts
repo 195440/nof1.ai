@@ -45,10 +45,10 @@ export const RISK_PARAMS = {
   },
   
   // 账户回撤风控阈值
-  // 禁止新开仓的回撤阈值（达到此阈值时，只允许平仓不允许开仓）
+  // 禁止新开仓的回撤阈值（⚠️ 已禁用 - 相关检查已被注释，不再限制开仓）
   ACCOUNT_DRAWDOWN_NO_NEW_POSITION_PERCENT: Number.parseInt(process.env.ACCOUNT_DRAWDOWN_NO_NEW_POSITION_PERCENT || '15', 10),
   
-  // 强制平仓的回撤阈值（达到此阈值时，立即平仓所有持仓并停止交易）
+  // 强制平仓的回撤阈值（⚠️ 已禁用 - 相关检查已被注释，不再强制平仓）
   ACCOUNT_DRAWDOWN_FORCE_CLOSE_PERCENT: Number.parseInt(process.env.ACCOUNT_DRAWDOWN_FORCE_CLOSE_PERCENT || '20', 10),
   
   // 警告提醒的回撤阈值（达到此阈值时，提醒谨慎交易）

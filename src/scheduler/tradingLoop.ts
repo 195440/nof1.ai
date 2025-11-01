@@ -71,7 +71,7 @@ function ensureRange(value: number, min: number, max: number, defaultValue?: num
 
 /**
  * 收集所有市场数据（包含多时间框架分析和时序数据）
- * 🔥 优化：增加数据验证和错误处理，返回时序数据用于提示词
+ * 优化：增加数据验证和错误处理，返回时序数据用于提示词
  */
 async function collectMarketData() {
   const gateClient = createGateClient();
@@ -81,7 +81,7 @@ async function collectMarketData() {
     try {
       const contract = `${symbol}_USDT`;
       
-      // 🔥 获取价格（带重试）
+      // 获取价格（带重试）
       let ticker: any = null;
       let retryCount = 0;
       const maxRetries = 2;
@@ -90,7 +90,7 @@ async function collectMarketData() {
         try {
           ticker = await gateClient.getFuturesTicker(contract);
           
-          // 🔥 验证价格数据有效性
+          // 验证价格数据有效性
           const price = Number.parseFloat(ticker.last || "0");
           if (price === 0 || !Number.isFinite(price)) {
             throw new Error(`价格无效: ${ticker.last}`);
@@ -133,7 +133,7 @@ async function collectMarketData() {
       // 使用5分钟K线数据作为主要指标（兼容性）
       const indicators = indicators5m;
       
-      // 🔥 验证技术指标有效性和数据完整性
+      // 验证技术指标有效性和数据完整性
       const dataTimestamp = new Date().toISOString();
       const dataQuality = {
         price: Number.isFinite(Number.parseFloat(ticker.last || "0")),
@@ -641,7 +641,7 @@ async function getAccountInfo() {
 
 /**
  * 从 Gate.io 同步持仓到数据库
- * 🔥 优化：确保持仓数据的准确性和完整性
+ * 优化：确保持仓数据的准确性和完整性
  * 数据库中的持仓记录主要用于：
  * 1. 保存止损止盈订单ID等元数据
  * 2. 提供历史查询和监控页面展示
@@ -663,7 +663,7 @@ async function syncPositionsFromGate(cachedPositions?: any[]) {
     
     // 如果 Gate.io 返回0个持仓但数据库有持仓，可能是 API 延迟，不清空数据库
     if (activeGatePositions.length === 0 && dbResult.rows.length > 0) {
-      logger.warn(`⚠️  Gate.io 返回0个持仓，但数据库有 ${dbResult.rows.length} 个持仓，可能是 API 延迟，跳过同步`);
+      logger.warn(`Gate.io 返回0个持仓，但数据库有 ${dbResult.rows.length} 个持仓，可能是 API 延迟，跳过同步`);
       return;
     }
     
@@ -730,7 +730,7 @@ async function syncPositionsFromGate(cachedPositions?: any[]) {
           entryOrderId, // 保留原有的订单ID
           dbPos?.opened_at || new Date().toISOString(), // 保留原有的开仓时间
           dbPos?.peak_pnl_percent || 0, // 保留峰值盈利
-          dbPos?.partial_close_percentage || 0, // 保留已平仓百分比 🔥 关键修复
+          dbPos?.partial_close_percentage || 0, // 保留已平仓百分比（关键修复）
         ],
       });
       
@@ -761,7 +761,7 @@ async function getPositions(cachedGatePositions?: any[]) {
     
     // 从数据库获取持仓的开仓时间（数据库中保存了正确的开仓时间）
     const dbResult = await dbClient.execute("SELECT symbol, opened_at FROM positions");
-    const dbOpenedAtMap = new Map(
+      const dbOpenedAtMap = new Map(
       dbResult.rows.map((row: any) => [row.symbol, row.opened_at])
     );
     
@@ -772,7 +772,7 @@ async function getPositions(cachedGatePositions?: any[]) {
         const size = Number.parseInt(p.size || "0");
         const symbol = p.contract.replace("_USDT", "");
         
-        // 🔥 优先从数据库读取开仓时间，确保时间准确
+        // 优先从数据库读取开仓时间，确保时间准确
         let openedAt = dbOpenedAtMap.get(symbol);
         
         // 如果数据库中没有，尝试从Gate.io的create_time获取
@@ -1002,7 +1002,7 @@ async function fixHistoricalPnlRecords() {
 
       // 如果差异超过0.5 USDT，就需要修复
       if (pnlDiff > 0.5 || feeDiff > 0.1) {
-        logger.warn(`🔧 修复交易记录 ID=${id} (${symbol} ${side})`);
+        logger.warn(`修复交易记录 ID=${id} (${symbol} ${side})`);
         logger.warn(`  盈亏: ${recordedPnl.toFixed(2)} → ${correctPnl.toFixed(2)} USDT (差异: ${pnlDiff.toFixed(2)})`);
         
         // 更新数据库
@@ -1016,7 +1016,7 @@ async function fixHistoricalPnlRecords() {
     }
 
     if (fixedCount > 0) {
-      logger.info(`✅ 修复了 ${fixedCount} 条历史盈亏记录`);
+      logger.info(`修复了 ${fixedCount} 条历史盈亏记录`);
     }
   } catch (error) {
     logger.error("修复历史盈亏记录失败:", error as any);
@@ -1090,7 +1090,7 @@ async function checkAccountThresholds(accountInfo: any): Promise<boolean> {
 
 /**
  * 执行交易决策
- * 🔥 优化：增强错误处理和数据验证，确保数据实时准确
+ * 优化：增强错误处理和数据验证，确保数据实时准确
  */
 async function executeTradingDecision() {
   iterationCount++;
@@ -1228,14 +1228,14 @@ async function executeTradingDecision() {
       // b) 极端止损保护（防止爆仓，硬编码底线）
       // 只在极端情况下强制平仓，避免账户爆仓
       // 常规止损由AI决策，这里只是最后的安全网
-      const EXTREME_STOP_LOSS = -10; // 单笔亏损 -10% 强制平仓（专业风控底线）
+      const EXTREME_STOP_LOSS = -30; // 单笔亏损 -30% 强制平仓（专业风控底线）
       
       logger.info(`${symbol} 极端止损检查: 当前盈亏=${pnlPercent.toFixed(2)}%, 极端止损线=${EXTREME_STOP_LOSS}%`);
       
       if (pnlPercent <= EXTREME_STOP_LOSS) {
         shouldClose = true;
         closeReason = `触发极端止损保护 (${pnlPercent.toFixed(2)}% ≤ ${EXTREME_STOP_LOSS}%，防止爆仓)`;
-        logger.error(`🚨 ${closeReason}`);
+        logger.error(`${closeReason}`);
       }
       
       // c) 其他风控检查已移除，交由AI全权决策
@@ -1259,7 +1259,7 @@ async function executeTradingDecision() {
             reduceOnly: true,
           });
           
-          logger.info(`✅ 已下达强制平仓订单 ${symbol}，订单ID: ${order.id}`);
+          logger.info(`已下达强制平仓订单 ${symbol}，订单ID: ${order.id}`);
           
           // 2. 等待订单完成并获取成交信息（最多重试5次）
           let actualExitPrice = 0;
@@ -1308,7 +1308,7 @@ async function executeTradingDecision() {
           
           // 3. 记录到trades表（无论是否成功获取详细信息都要记录）
           try {
-            // 🔥 关键验证：检查盈亏计算是否正确
+            // 关键验证：检查盈亏计算是否正确
             const finalPrice = actualExitPrice || pos.current_price;
             const quantoMultiplier = await getQuantoMultiplier(contract);
             const notionalValue = finalPrice * actualQuantity * quantoMultiplier;
@@ -1319,7 +1319,7 @@ async function executeTradingDecision() {
             
             // 检测盈亏是否被错误地设置为名义价值
             if (Math.abs(pnl - notionalValue) < Math.abs(pnl - expectedPnl)) {
-              logger.error(`🚨 【强制平仓】检测到盈亏计算异常！`);
+              logger.error(`【强制平仓】检测到盈亏计算异常！`);
               logger.error(`  当前pnl: ${pnl.toFixed(2)} USDT 接近名义价值 ${notionalValue.toFixed(2)} USDT`);
               logger.error(`  预期pnl: ${expectedPnl.toFixed(2)} USDT`);
               logger.error(`  开仓价: ${pos.entry_price}, 平仓价: ${finalPrice}, 数量: ${actualQuantity}, 合约乘数: ${quantoMultiplier}`);
@@ -1352,9 +1352,9 @@ async function executeTradingDecision() {
                 orderFilled ? "filled" : "pending",
               ],
             });
-            logger.info(`✅ 已记录强制平仓交易到数据库: ${symbol}, 盈亏=${pnl.toFixed(2)} USDT, 原因=${closeReason}`);
+            logger.info(`已记录强制平仓交易到数据库: ${symbol}, 盈亏=${pnl.toFixed(2)} USDT, 原因=${closeReason}`);
           } catch (dbError: any) {
-            logger.error(`❌ 记录强制平仓交易失败: ${dbError.message}`);
+            logger.error(`记录强制平仓交易失败: ${dbError.message}`);
             // 即使数据库写入失败，也记录到日志以便后续补救
             logger.error(`缺失的交易记录: ${JSON.stringify({
               order_id: order.id,
@@ -1374,7 +1374,7 @@ async function executeTradingDecision() {
             args: [symbol],
           });
           
-          logger.info(`✅ 强制平仓完成 ${symbol}，原因：${closeReason}`);
+          logger.info(`强制平仓完成 ${symbol}，原因：${closeReason}`);
           
         } catch (closeError: any) {
           logger.error(`强制平仓失败 ${symbol}: ${closeError.message}`);
@@ -1395,7 +1395,7 @@ async function executeTradingDecision() {
     //   // 不影响主流程
     // }
     
-    // 5. 🔥 数据完整性最终检查
+    // 5. 数据完整性最终检查
     const dataValid = 
       marketData && Object.keys(marketData).length > 0 &&
       accountInfo && accountInfo.totalBalance > 0 &&
@@ -1445,7 +1445,7 @@ async function executeTradingDecision() {
       recentDecisions,
     });
     
-    // 🔥 输出完整提示词到日志
+    // 输出完整提示词到日志
     logger.info("【入参 - AI 提示词】");
     logger.info("=".repeat(80));
     logger.info(prompt);
@@ -1554,9 +1554,9 @@ async function executeTradingDecision() {
       }
     }
     
-    // 🔥 每个周期结束时自动修复历史盈亏记录
+    // 每个周期结束时自动修复历史盈亏记录
     try {
-      logger.info("🔧 检查并修复历史盈亏记录...");
+      logger.info("检查并修复历史盈亏记录...");
       await fixHistoricalPnlRecords();
     } catch (fixError) {
       logger.error("修复历史盈亏失败:", fixError as any);

@@ -120,30 +120,31 @@ export const openPositionTool = createTool({
       }
       
       // 4. 检查账户回撤（从数据库获取初始净值和峰值净值）
-      const initialBalanceResult = await dbClient.execute(
-        "SELECT total_value FROM account_history ORDER BY timestamp ASC LIMIT 1"
-      );
-      const initialBalance = initialBalanceResult.rows[0]
-        ? Number.parseFloat(initialBalanceResult.rows[0].total_value as string)
-        : totalBalance;
-      
-      const peakBalanceResult = await dbClient.execute(
-        "SELECT MAX(total_value) as peak FROM account_history"
-      );
-      const peakBalance = peakBalanceResult.rows[0]?.peak 
-        ? Number.parseFloat(peakBalanceResult.rows[0].peak as string)
-        : totalBalance;
-      
-      const drawdownFromPeak = peakBalance > 0 
-        ? ((peakBalance - totalBalance) / peakBalance) * 100 
-        : 0;
-      
-      if (drawdownFromPeak >= RISK_PARAMS.ACCOUNT_DRAWDOWN_NO_NEW_POSITION_PERCENT) {
-        return {
-          success: false,
-          message: `账户回撤已达 ${drawdownFromPeak.toFixed(2)}% ≥ ${RISK_PARAMS.ACCOUNT_DRAWDOWN_NO_NEW_POSITION_PERCENT}%，触发风控保护，禁止新开仓`,
-        };
-      }
+      // 注释：已移除回撤10%禁止开仓的限制
+      // const initialBalanceResult = await dbClient.execute(
+      //   "SELECT total_value FROM account_history ORDER BY timestamp ASC LIMIT 1"
+      // );
+      // const initialBalance = initialBalanceResult.rows[0]
+      //   ? Number.parseFloat(initialBalanceResult.rows[0].total_value as string)
+      //   : totalBalance;
+      // 
+      // const peakBalanceResult = await dbClient.execute(
+      //   "SELECT MAX(total_value) as peak FROM account_history"
+      // );
+      // const peakBalance = peakBalanceResult.rows[0]?.peak 
+      //   ? Number.parseFloat(peakBalanceResult.rows[0].peak as string)
+      //   : totalBalance;
+      // 
+      // const drawdownFromPeak = peakBalance > 0 
+      //   ? ((peakBalance - totalBalance) / peakBalance) * 100 
+      //   : 0;
+      // 
+      // if (drawdownFromPeak >= RISK_PARAMS.ACCOUNT_DRAWDOWN_NO_NEW_POSITION_PERCENT) {
+      //   return {
+      //     success: false,
+      //     message: `账户回撤已达 ${drawdownFromPeak.toFixed(2)}% ≥ ${RISK_PARAMS.ACCOUNT_DRAWDOWN_NO_NEW_POSITION_PERCENT}%，触发风控保护，禁止新开仓`,
+      //   };
+      // }
       
       // 5. 检查总敞口（不超过账户净值的15倍）
       let currentTotalExposure = 0;
