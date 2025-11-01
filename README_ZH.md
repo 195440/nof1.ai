@@ -1,5 +1,7 @@
 # open-nof1.ai
 
+> 📖 **完整文档** | 这是完整的中文文档。如需快速了解，请查看[主说明文件](./README.md)。
+
 <div align="center">
 
 [![VoltAgent](https://img.shields.io/badge/Framework-VoltAgent-purple.svg)](https://voltagent.dev)
@@ -9,7 +11,7 @@
 [![Node.js](https://img.shields.io/badge/Runtime-Node.js%2020+-339933.svg?logo=node.js&logoColor=white)](https://nodejs.org)
 [![License](https://img.shields.io/badge/License-AGPL--3.0-blue.svg)](./LICENSE)
 
-| [English](./README.md) | [简体中文](./README_ZH.md) | [日本語](./README_JA.md) |
+| [English](./README_EN.md) | [简体中文](./README_ZH.md) | [日本語](./README_JA.md) |
 |:---:|:---:|:---:|
 
 </div>
@@ -168,6 +170,8 @@ PORT=3100
 # 交易参数
 TRADING_INTERVAL_MINUTES=5      # 交易循环间隔
 MAX_LEVERAGE=10                 # 最大杠杆倍数
+MAX_POSITIONS=5                 # 最大持仓数量
+MAX_HOLDING_HOURS=36            # 最大持有时长(小时)
 INITIAL_BALANCE=2000            # 初始资金(USDT)
 
 # 数据库
@@ -265,6 +269,8 @@ open-nof1.ai/
 | `PORT` | HTTP 服务器端口 | 3100 | 否 |
 | `TRADING_INTERVAL_MINUTES` | 交易循环间隔(分钟) | 5 | 否 |
 | `MAX_LEVERAGE` | 最大杠杆倍数 | 10 | 否 |
+| `MAX_POSITIONS` | 最大持仓数量 | 5 | 否 |
+| `MAX_HOLDING_HOURS` | 最大持有时长(小时) | 36 | 否 |
 | `INITIAL_BALANCE` | 初始资金(USDT) | 2000 | 否 |
 | `DATABASE_URL` | SQLite 数据库文件路径 | file:./.voltagent/trading.db | 否 |
 | `GATE_API_KEY` | Gate.io API 密钥 | - | 是 |
@@ -273,9 +279,9 @@ open-nof1.ai/
 | `OPENAI_API_KEY` | OpenAI 兼容的 API 密钥 | - | 是 |
 | `OPENAI_BASE_URL` | API 基础地址 | https://openrouter.ai/api/v1 | 否 |
 | `AI_MODEL_NAME` | 模型名称 | deepseek/deepseek-v3.2-exp | 否 |
-| `ACCOUNT_DRAWDOWN_WARNING_PERCENT` | 账户回撤警告阈值(%) | 10 | 否 |
-| `ACCOUNT_DRAWDOWN_NO_NEW_POSITION_PERCENT` | 禁止新开仓的回撤阈值(%) | 15 | 否 |
-| `ACCOUNT_DRAWDOWN_FORCE_CLOSE_PERCENT` | 强制平仓的回撤阈值(%) | 20 | 否 |
+| `ACCOUNT_DRAWDOWN_WARNING_PERCENT` | 账户回撤警告阈值：发出风险警告提醒(%) | 20 | 否 |
+| `ACCOUNT_DRAWDOWN_NO_NEW_POSITION_PERCENT` | 禁止开仓阈值：停止开新仓位，只允许平仓(%) | 30 | 否 |
+| `ACCOUNT_DRAWDOWN_FORCE_CLOSE_PERCENT` | 强制平仓阈值：自动平掉所有仓位，保护剩余资金(%) | 50 | 否 |
 
 ### AI 模型配置
 

@@ -174,12 +174,121 @@ export const openPositionTool = createTool({
         logger.warn(`开仓金额 ${amountUsdt.toFixed(2)} USDT 超过建议仓位 ${maxSinglePosition.toFixed(2)} USDT（账户净值的30%）`);
       }
       
-      // ====== 风控检查通过，继续开仓 ======
+      // ====== 流动性保护检查 ======
       
+      // 1. 检查交易时段（UTC时间）
+      const now = new Date();
+      const hourUTC = now.getUTCHours();
+      const dayOfWeek = now.getUTCDay(); // 0=周日，6=周六
+      
+      // 低流动性时段警告（UTC 2:00-6:00，亚洲时段凌晨）
+      if (hourUTC >= 2 && hourUTC <= 6) {
+        logger.warn(`⚠️  当前处于低流动性时段 (UTC ${hourUTC}:00)，建议谨慎交易`);
+        // 在低流动性时段降低仓位
+        amountUsdt = Math.max(10, amountUsdt * 0.7);
+      }
+      
+      // 周末流动性检查
+      if ((dayOfWeek === 5 && hourUTC >= 22) || dayOfWeek === 6 || (dayOfWeek === 0 && hourUTC < 20)) {
+        logger.warn(`⚠️  当前处于周末时段，流动性可能较低`);
+        amountUsdt = Math.max(10, amountUsdt * 0.8);
+      }
+      
+      // 2. 检查订单簿深度（确保有足够流动性）
+      try {
+        const orderBook = await client.getFuturesOrderBook(contract, 5); // 获取前5档订单
+        
+        if (orderBook && orderBook.bids && orderBook.bids.length > 0) {
+          // 计算买单深度（前5档）
+          const bidDepth = orderBook.bids.slice(0, 5).reduce((sum: number, bid: any) => {
+            const price = Number.parseFloat(bid.p);
+            const size = Number.parseFloat(bid.s);
+            return sum + price * size;
+          }, 0);
+          
+          // 要求订单簿深度至少是开仓金额的5倍
+          const requiredDepth = amountUsdt * leverage * 5;
+          
+          if (bidDepth < requiredDepth) {
+            return {
+              success: false,
+              message: `流动性不足：订单簿深度 ${bidDepth.toFixed(2)} USDT < 所需 ${requiredDepth.toFixed(2)} USDT`,
+            };
+          }
+          
+          logger.info(`✅ 流动性检查通过：订单簿深度 ${bidDepth.toFixed(2)} USDT >= 所需 ${requiredDepth.toFixed(2)} USDT`);
+        }
+      } catch (error) {
+        logger.warn(`获取订单簿失败: ${error}`);
+        // 如果无法获取订单簿，发出警告但继续
+      }
+      
+      // ====== 波动率自适应调整 ======
+      
+      // 获取当前策略和市场数据
+      const { getStrategyParams, getTradingStrategy } = await import("../../agents/tradingAgent.js");
+      const strategy = getTradingStrategy();
+      const strategyParams = getStrategyParams(strategy);
+      
+      let adjustedLeverage = leverage;
       let adjustedAmountUsdt = amountUsdt;
       
-      // 设置杠杆
-      await client.setLeverage(contract, leverage);
+      // 从market data中获取ATR（需要从上下文传入）
+      // 这里先计算ATR百分比
+      let atrPercent = 0;
+      let volatilityLevel = "normal";
+      
+      try {
+        // 获取市场数据（包含ATR）
+        const marketDataModule = await import("../trading/marketData.js");
+        const ticker = await client.getFuturesTicker(contract);
+        const currentPrice = Number.parseFloat(ticker.last || "0");
+        
+        // 获取1小时K线计算ATR
+        const candles1h = await client.getFuturesCandles(contract, "1h", 24);
+        if (candles1h && candles1h.length > 14) {
+          // 计算ATR14
+          const trs = [];
+          for (let i = 1; i < candles1h.length; i++) {
+            const high = Number.parseFloat(candles1h[i].h);
+            const low = Number.parseFloat(candles1h[i].l);
+            const prevClose = Number.parseFloat(candles1h[i - 1].c);
+            const tr = Math.max(high - low, Math.abs(high - prevClose), Math.abs(low - prevClose));
+            trs.push(tr);
+          }
+          const atr14 = trs.slice(-14).reduce((a, b) => a + b, 0) / 14;
+          atrPercent = (atr14 / currentPrice) * 100;
+          
+          // 确定波动率级别
+          if (atrPercent > 5) {
+            volatilityLevel = "high";
+          } else if (atrPercent < 2) {
+            volatilityLevel = "low";
+          }
+        }
+      } catch (error) {
+        logger.warn(`计算波动率失败: ${error}`);
+      }
+      
+      // 根据波动率调整参数
+      if (volatilityLevel === "high") {
+        const adjustment = strategyParams.volatilityAdjustment.highVolatility;
+        adjustedLeverage = Math.max(1, Math.round(leverage * adjustment.leverageFactor));
+        adjustedAmountUsdt = Math.max(10, amountUsdt * adjustment.positionFactor);
+        logger.info(`🌊 高波动市场 (ATR ${atrPercent.toFixed(2)}%)：杠杆 ${leverage}x → ${adjustedLeverage}x，仓位 ${amountUsdt.toFixed(0)} → ${adjustedAmountUsdt.toFixed(0)} USDT`);
+      } else if (volatilityLevel === "low") {
+        const adjustment = strategyParams.volatilityAdjustment.lowVolatility;
+        adjustedLeverage = Math.min(RISK_PARAMS.MAX_LEVERAGE, Math.round(leverage * adjustment.leverageFactor));
+        adjustedAmountUsdt = Math.min(totalBalance * 0.32, amountUsdt * adjustment.positionFactor);
+        logger.info(`🌊 低波动市场 (ATR ${atrPercent.toFixed(2)}%)：杠杆 ${leverage}x → ${adjustedLeverage}x，仓位 ${amountUsdt.toFixed(0)} → ${adjustedAmountUsdt.toFixed(0)} USDT`);
+      } else {
+        logger.info(`🌊 正常波动市场 (ATR ${atrPercent.toFixed(2)}%)：保持原始参数`);
+      }
+      
+      // ====== 风控检查通过，继续开仓 ======
+      
+      // 设置杠杆（使用调整后的杠杆）
+      await client.setLeverage(contract, adjustedLeverage);
       
       // 获取当前价格和合约信息
       const ticker = await client.getFuturesTicker(contract);

@@ -1225,173 +1225,24 @@ async function executeTradingDecision() {
         closeReason = `持仓时间已达 ${holdingHours.toFixed(1)} 小时，超过36小时限制`;
       }
       
-      // b) 动态止损检查（根据策略和杠杆）
-      // 从策略配置中获取止损参数
-      const { getStrategyParams, getTradingStrategy } = await import("../agents/tradingAgent.js");
-      const strategy = getTradingStrategy();
-      const params = getStrategyParams(strategy);
+      // b) 极端止损保护（防止爆仓，硬编码底线）
+      // 只在极端情况下强制平仓，避免账户爆仓
+      // 常规止损由AI决策，这里只是最后的安全网
+      const EXTREME_STOP_LOSS = -10; // 单笔亏损 -10% 强制平仓（专业风控底线）
       
-      // 根据杠杆倍数确定止损线
-      const leverageMid = Math.floor((params.leverageMin + params.leverageMax) / 2);
-      const leverageHigh = Math.floor(params.leverageMin + (params.leverageMax - params.leverageMin) * 0.75);
+      logger.info(`${symbol} 极端止损检查: 当前盈亏=${pnlPercent.toFixed(2)}%, 极端止损线=${EXTREME_STOP_LOSS}%`);
       
-      let stopLossPercent = params.stopLoss.low; // 默认使用 low
-      if (leverage >= leverageHigh) {
-        stopLossPercent = params.stopLoss.high; // 高杠杆，严格止损
-      } else if (leverage >= leverageMid) {
-        stopLossPercent = params.stopLoss.mid;   // 中等杠杆
-      } else {
-        stopLossPercent = params.stopLoss.low;   // 低杠杆，宽松止损
-      }
-      
-      logger.info(`${symbol} 止损检查: 策略=${strategy}, 杠杆=${leverage}x, 止损线=${stopLossPercent}%, 当前盈亏=${pnlPercent.toFixed(2)}%`);
-      
-      if (pnlPercent <= stopLossPercent) {
+      if (pnlPercent <= EXTREME_STOP_LOSS) {
         shouldClose = true;
-        closeReason = `触发动态止损 (${pnlPercent.toFixed(2)}% ≤ ${stopLossPercent}%, 策略=${strategy}, 杠杆=${leverage}x)`;
+        closeReason = `触发极端止损保护 (${pnlPercent.toFixed(2)}% ≤ ${EXTREME_STOP_LOSS}%，防止爆仓)`;
+        logger.error(`🚨 ${closeReason}`);
       }
       
-      // c) 移动止盈检查
-      if (!shouldClose) {
-        let trailingStopPercent = stopLossPercent; // 默认使用初始止损
-        
-        if (pnlPercent >= 25) {
-          trailingStopPercent = 15;
-        } else if (pnlPercent >= 15) {
-          trailingStopPercent = 8;
-        } else if (pnlPercent >= 8) {
-          trailingStopPercent = 3;
-        }
-        
-        // 如果当前盈亏低于移动止损线
-        if (pnlPercent < trailingStopPercent && trailingStopPercent > stopLossPercent) {
-          shouldClose = true;
-          closeReason = `触发移动止盈 (当前 ${pnlPercent.toFixed(2)}% < 移动止损线 ${trailingStopPercent}%)`;
-        }
-      }
+      // c) 其他风控检查已移除，交由AI全权决策
+      // AI负责：止损、移动止盈、分批止盈、时间止盈、峰值回撤等策略性决策
+      // 系统只保留底线安全保护（极端止损、36小时强制平仓、账户回撤保护）
       
-      // d) 峰值回撤保护（如果持仓曾盈利）
-      if (!shouldClose && peakPnlPercent > 5) {
-        // 只对曾经盈利超过5%的持仓启用峰值回撤保护
-        const drawdownFromPeak = peakPnlPercent > 0 
-          ? ((peakPnlPercent - pnlPercent) / peakPnlPercent) * 100 
-          : 0;
-        
-        if (drawdownFromPeak >= 30) {
-          shouldClose = true;
-          closeReason = `触发峰值回撤保护 (峰值 ${peakPnlPercent.toFixed(2)}% → 当前 ${pnlPercent.toFixed(2)}%，回撤 ${drawdownFromPeak.toFixed(1)}% ≥ 30%)`;
-        }
-      }
-      
-      // e) 分批止盈检查（当盈利较高时，逐步锁定利润）
-      if (!shouldClose && pnlPercent > 0) {
-        // 获取已平仓百分比
-        let partialClosedPercent = 0;
-        try {
-          const dbPosResult = await dbClient.execute({
-            sql: "SELECT partial_close_percentage FROM positions WHERE symbol = ?",
-            args: [symbol],
-          });
-          
-          if (dbPosResult.rows.length > 0) {
-            partialClosedPercent = Number.parseFloat(dbPosResult.rows[0].partial_close_percentage as string || "0");
-          }
-        } catch (error: any) {
-          logger.warn(`获取已平仓百分比失败 ${symbol}: ${error.message}`);
-        }
-        
-        let shouldPartialClose = false;
-        let partialClosePercent = 0;
-        let partialCloseReason = "";
-        
-        // 🎯 分批止盈规则（更激进的止盈策略）
-        if (pnlPercent >= 50 && partialClosedPercent < 100) {
-          // 达到 +50%，平掉剩余仓位（全部清仓）
-          partialClosePercent = 100 - partialClosedPercent;
-          shouldPartialClose = true;
-          partialCloseReason = `分批止盈: 达到+50%，平掉剩余${partialClosePercent.toFixed(0)}%仓位（全部清仓）`;
-        } else if (pnlPercent >= 40 && partialClosedPercent < 50) {
-          // 达到 +40%，平掉50%仓位（如果第一次已平50%，则不再执行）
-          partialClosePercent = Math.min(50, 100 - partialClosedPercent);
-          shouldPartialClose = true;
-          partialCloseReason = `分批止盈: 达到+40%，平掉${partialClosePercent.toFixed(0)}%仓位（累计${(partialClosedPercent + partialClosePercent).toFixed(0)}%）`;
-        } else if (pnlPercent >= 30 && partialClosedPercent < 50) {
-          // 达到 +30%，平掉50%仓位
-          partialClosePercent = 50;
-          shouldPartialClose = true;
-          partialCloseReason = `分批止盈: 达到+30%，平掉${partialClosePercent.toFixed(0)}%仓位，锁定一半利润`;
-        }
-        
-        // 执行部分平仓
-        if (shouldPartialClose && partialClosePercent > 0) {
-          logger.warn(`【分批止盈】${symbol} ${side} - ${partialCloseReason}`);
-          try {
-            const contract = `${symbol}_USDT`;
-            const closeSize = Math.abs(pos.quantity) * (partialClosePercent / 100);
-            const actualSize = side === 'long' ? -closeSize : closeSize;
-            
-            // 执行部分平仓订单
-            const order = await gateClient.placeOrder({
-              contract,
-              size: actualSize,
-              price: 0,
-              reduceOnly: true,
-            });
-            
-            logger.info(`✅ 已下达分批止盈订单 ${symbol}，平仓${partialClosePercent.toFixed(0)}%，订单ID: ${order.id}`);
-            
-            // 等待订单完成
-            await new Promise(resolve => setTimeout(resolve, 1000));
-            
-            // 更新数据库中的已平仓百分比
-            const newPartialClosedPercent = partialClosedPercent + partialClosePercent;
-            await dbClient.execute({
-              sql: "UPDATE positions SET partial_close_percentage = ? WHERE symbol = ?",
-              args: [newPartialClosedPercent, symbol],
-            });
-            
-            logger.info(`${symbol} 已平仓百分比更新: ${partialClosedPercent.toFixed(0)}% → ${newPartialClosedPercent.toFixed(0)}%`);
-            
-            // 同步最新的持仓数量到数据库（分批止盈后，Gate.io 的数量已经减少）
-            try {
-              const updatedPositions = await gateClient.getPositions();
-              const updatedPos = updatedPositions.find((p: any) => 
-                p.contract.replace("_USDT", "") === symbol && Number.parseInt(p.size || "0") !== 0
-              );
-              
-              if (updatedPos) {
-                const updatedQuantity = Math.abs(Number.parseInt(updatedPos.size || "0"));
-                await dbClient.execute({
-                  sql: "UPDATE positions SET quantity = ?, current_price = ?, unrealized_pnl = ? WHERE symbol = ?",
-                  args: [
-                    updatedQuantity,
-                    Number.parseFloat(updatedPos.markPrice || "0"),
-                    Number.parseFloat(updatedPos.unrealisedPnl || "0"),
-                    symbol
-                  ],
-                });
-                logger.info(`${symbol} 持仓数量已更新: ${pos.quantity} → ${updatedQuantity}`);
-              }
-            } catch (syncError: any) {
-              logger.warn(`同步持仓数量失败 ${symbol}: ${syncError.message}`);
-            }
-            
-            // 如果已经全部平仓，标记为需要关闭
-            if (newPartialClosedPercent >= 100) {
-              shouldClose = true;
-              closeReason = `分批止盈完成，已全部平仓`;
-            }
-          } catch (error: any) {
-            logger.error(`分批止盈失败 ${symbol}: ${error.message}`);
-          }
-        }
-      }
-      
-      // f) 时间止盈检查（盈利 > 20% 且持仓 > 2 小时）
-      if (!shouldClose && pnlPercent > 20 && holdingHours >= 2) {
-        shouldClose = true;
-        closeReason = `时间止盈: 盈利${pnlPercent.toFixed(2)}% > 20% 且持仓${holdingHours.toFixed(1)}小时 ≥ 2小时，强制获利了结`;
-      }
+      logger.info(`${symbol} 持仓监控: 盈亏=${pnlPercent.toFixed(2)}%, 持仓时间=${holdingHours.toFixed(1)}h, 峰值盈利=${peakPnlPercent.toFixed(2)}%, 杠杆=${leverage}x`);
       
       // 执行强制平仓
       if (shouldClose) {

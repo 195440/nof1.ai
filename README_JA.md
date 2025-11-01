@@ -1,5 +1,7 @@
 # open-nof1.ai
 
+> 📖 **完全なドキュメント** | これは完全な日本語ドキュメントです。クイックスタートについては、[メインREADME](./README.md)をご覧ください。
+
 <div align="center">
 
 [![VoltAgent](https://img.shields.io/badge/Framework-VoltAgent-purple.svg)](https://voltagent.dev)
@@ -9,7 +11,7 @@
 [![Node.js](https://img.shields.io/badge/Runtime-Node.js%2020+-339933.svg?logo=node.js&logoColor=white)](https://nodejs.org)
 [![License](https://img.shields.io/badge/License-AGPL--3.0-blue.svg)](./LICENSE)
 
-| [English](./README.md) | [简体中文](./README_ZH.md) | [日本語](./README_JA.md) |
+| [English](./README_EN.md) | [简体中文](./README_ZH.md) | [日本語](./README_JA.md) |
 |:---:|:---:|:---:|
 
 </div>
@@ -168,6 +170,8 @@ PORT=3100
 # 取引パラメータ
 TRADING_INTERVAL_MINUTES=5      # 取引ループ間隔
 MAX_LEVERAGE=10                 # 最大レバレッジ倍率
+MAX_POSITIONS=5                 # 最大ポジション数
+MAX_HOLDING_HOURS=36            # 最大保有時間(時間)
 INITIAL_BALANCE=2000            # 初期資金(USDT)
 
 # データベース
@@ -182,6 +186,12 @@ GATE_USE_TESTNET=true
 OPENAI_API_KEY=your_api_key_here
 OPENAI_BASE_URL=https://openrouter.ai/api/v1  # オプション、OpenRouter、OpenAI、DeepSeek などをサポート
 AI_MODEL_NAME=deepseek/deepseek-v3.2-exp      # モデル名
+
+# アカウントドローダウンリスク管理
+# 口座資産がピーク時から以下の割合で減少した際のリスク管理措置：
+ACCOUNT_DRAWDOWN_WARNING_PERCENT=20          # 警告しきい値：リスク警告を発する
+ACCOUNT_DRAWDOWN_NO_NEW_POSITION_PERCENT=30  # 新規注文停止しきい値：新規ポジションの開設を停止、決済のみ許可
+ACCOUNT_DRAWDOWN_FORCE_CLOSE_PERCENT=50      # 強制決済しきい値：すべてのポジションを自動的に決済し、残り資金を保護
 ```
 
 **API キー取得**:
@@ -265,6 +275,8 @@ open-nof1.ai/
 | `PORT` | HTTP サーバーポート | 3100 | いいえ |
 | `TRADING_INTERVAL_MINUTES` | 取引ループ間隔(分) | 5 | いいえ |
 | `MAX_LEVERAGE` | 最大レバレッジ倍率 | 10 | いいえ |
+| `MAX_POSITIONS` | 最大ポジション数 | 5 | いいえ |
+| `MAX_HOLDING_HOURS` | 最大保有時間(時間) | 36 | いいえ |
 | `INITIAL_BALANCE` | 初期資金(USDT) | 2000 | いいえ |
 | `DATABASE_URL` | SQLite データベースファイルパス | file:./.voltagent/trading.db | いいえ |
 | `GATE_API_KEY` | Gate.io API キー | - | はい |
@@ -273,6 +285,9 @@ open-nof1.ai/
 | `OPENAI_API_KEY` | OpenAI 互換 API キー | - | はい |
 | `OPENAI_BASE_URL` | API ベース URL | https://openrouter.ai/api/v1 | いいえ |
 | `AI_MODEL_NAME` | モデル名 | deepseek/deepseek-v3.2-exp | いいえ |
+| `ACCOUNT_DRAWDOWN_WARNING_PERCENT` | アカウントドローダウン警告しきい値：リスク警告を発する(%) | 20 | いいえ |
+| `ACCOUNT_DRAWDOWN_NO_NEW_POSITION_PERCENT` | 新規注文停止しきい値：新規ポジションの開設を停止、決済のみ許可(%) | 30 | いいえ |
+| `ACCOUNT_DRAWDOWN_FORCE_CLOSE_PERCENT` | 強制決済しきい値：すべてのポジションを自動的に決済し、残り資金を保護(%) | 50 | いいえ |
 
 ### AI モデル設定
 
