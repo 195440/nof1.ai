@@ -50,7 +50,7 @@ export function getAccountRiskConfig(): AccountRiskConfig {
 /**
  * 交易策略类型
  */
-export type TradingStrategy = "conservative" | "balanced" | "aggressive";
+export type TradingStrategy = "conservative" | "balanced" | "aggressive" | "sure-win";
 
 /**
  * 策略参数配置
@@ -128,6 +128,13 @@ export function getStrategyParams(strategy: TradingStrategy): StrategyParams {
   const aggressiveLevNormal = aggressiveLevMin;
   const aggressiveLevGood = Math.ceil((aggressiveLevMin + aggressiveLevMax) / 2);
   const aggressiveLevStrong = aggressiveLevMax;
+  
+  // 稳赢策略：20%-50% 的最大杠杆（比保守策略更低）
+  const sureWinLevMin = Math.max(1, Math.ceil(maxLeverage * 0.2));
+  const sureWinLevMax = Math.max(2, Math.ceil(maxLeverage * 0.5));
+  const sureWinLevNormal = sureWinLevMin;
+  const sureWinLevGood = Math.ceil((sureWinLevMin + sureWinLevMax) / 2);
+  const sureWinLevStrong = sureWinLevMax;
   
   const strategyConfigs: Record<TradingStrategy, StrategyParams> = {
     "conservative": {
@@ -264,6 +271,50 @@ export function getStrategyParams(strategy: TradingStrategy): StrategyParams {
       entryCondition: "至少2个关键时间框架信号一致即可入场",
       riskTolerance: "单笔交易风险可达25-32%，追求高收益",
       tradingStyle: "积极进取，快速捕捉市场机会，追求最大化收益",
+    },
+    "sure-win": {
+      name: "稳赢",
+      description: "极低风险超低杠杆，短线三框架共振，追求高胜率",
+      leverageMin: sureWinLevMin,
+      leverageMax: sureWinLevMax,
+      leverageRecommend: {
+        normal: `${sureWinLevNormal}倍`,
+        good: `${sureWinLevGood}倍`,
+        strong: `${sureWinLevStrong}倍`,
+      },
+      positionSizeMin: 12,
+      positionSizeMax: 18,
+      positionSizeRecommend: {
+        normal: "12-14%",
+        good: "14-16%",
+        strong: "16-18%",
+      },
+      stopLoss: {
+        low: -4,
+        mid: -3.5,
+        high: -3,
+      },
+      trailingStop: {
+        // 稳赢策略：极早锁定利润，快速获利（短线特性）
+        level1: { trigger: 5, stopAt: 1.5 },   // 盈利达到 +5% 时，止损线移至 +1.5%
+        level2: { trigger: 10, stopAt: 5 },    // 盈利达到 +10% 时，止损线移至 +5%
+        level3: { trigger: 15, stopAt: 10 },   // 盈利达到 +15% 时，止损线移至 +10%
+      },
+      partialTakeProfit: {
+        // 稳赢策略：超早分批止盈，快速落袋为安
+        stage1: { trigger: 15, closePercent: 50 },  // +15% 平仓50%
+        stage2: { trigger: 25, closePercent: 50 },  // +25% 平仓剩余50%
+        stage3: { trigger: 35, closePercent: 100 }, // +35% 全部清仓
+      },
+      peakDrawdownProtection: 20, // 稳赢策略：20%峰值回撤保护（最严格保护）
+      volatilityAdjustment: {
+        highVolatility: { leverageFactor: 0.5, positionFactor: 0.6 },   // 高波动：大幅大幅降低
+        normalVolatility: { leverageFactor: 1.0, positionFactor: 1.0 }, // 正常波动：不调整
+        lowVolatility: { leverageFactor: 1.0, positionFactor: 1.0 },    // 低波动：不调整（稳赢不追求）
+      },
+      entryCondition: "必须3分钟、5分钟、15分钟三个时间框架信号完全一致",
+      riskTolerance: "单笔交易风险控制在12-18%之间，极度严格控制",
+      tradingStyle: "只做最确定的短线机会，三框架共振才开仓，追求高胜率而非高频",
     },
   };
 
@@ -813,12 +864,12 @@ function generateInstructions(strategy: TradingStrategy, intervalMinutes: number
    
    b) 新开仓评估（新币种）：
       - 现有持仓数 < ${RISK_PARAMS.MAX_POSITIONS}
-      - ${params.entryCondition}
+      - ${params.entryCondition}${strategy === 'sure-win' ? '\n      - ⚠️ 稳赢策略特殊要求：必须验证3分钟、5分钟、15分钟数据中的EMA20、EMA50、MACD、RSI14四个指标都同向（做多全部看涨，做空全部看跌），缺一不可！' : ''}
       - 潜在利润≥2-3%（扣除0.1%费用后仍有净收益）
       - 做多和做空机会的识别：
         * 做多信号：价格突破EMA20/50上方，MACD转正，RSI7 > 50且上升，多个时间框架共振向上
         * 做空信号：价格跌破EMA20/50下方，MACD转负，RSI7 < 50且下降，多个时间框架共振向下
-        * 关键：做空信号和做多信号同样重要！不要只寻找做多机会而忽视做空机会
+        * 关键：做空信号和做多信号同样重要！不要只寻找做多机会而忽视做空机会${strategy === 'sure-win' ? '\n        * 稳赢策略额外要求：成交量必须大于平均量1.5倍，确认趋势有强支撑' : ''}
       - 如果满足所有条件：立即调用 openPosition 开仓（不要只说"我会开仓"）
    
 5. 仓位大小和杠杆计算（${params.name}策略）：
@@ -846,8 +897,8 @@ function generateInstructions(strategy: TradingStrategy, intervalMinutes: number
 
 交易目标：
 - 最大化风险调整后收益（夏普比率≥1.5）
-- 目标月回报：${params.name === '稳健' ? '10-20%' : params.name === '平衡' ? '20-40%' : '40%+'}
-- 胜率目标：≥55%，盈亏比目标：≥2:1
+- 目标月回报：${params.name === '稳健' ? '10-20%' : params.name === '平衡' ? '20-40%' : params.name === '激进' ? '40%+' : '8-15%（稳赢策略：低频高胜率）'}
+- 胜率目标：${params.name === '稳赢' ? '≥70%（追求极高胜率）' : '≥55%'}，盈亏比目标：≥2:1
 
 风控层级：
 - 系统硬性底线（强制执行）：
