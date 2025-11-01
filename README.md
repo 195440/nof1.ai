@@ -56,6 +56,18 @@ open-nof1.ai 是一个 AI 驱动的加密货币自动交易系统，将大语言
 └────────────────────┘
 ```
 
+### 技术栈
+
+| 组件 | 技术 | 用途 |
+|------|------|------|
+| 框架 | [VoltAgent](https://voltagent.dev) | AI Agent 编排与管理 |
+| AI 提供商 | OpenAI 兼容 API | 支持 OpenRouter、OpenAI、DeepSeek 等兼容供应商 |
+| 交易所 | [Gate.io](https://www.gate.io) | 加密货币交易(测试网 & 正式网) |
+| 数据库 | LibSQL (SQLite) | 本地数据持久化 |
+| Web 服务器 | Hono | 高性能 HTTP 框架 |
+| 开发语言 | TypeScript | 类型安全开发 |
+| 运行时 | Node.js 20+ | JavaScript 运行环境 |
+
 ## 快速开始
 
 ### 前置要求
