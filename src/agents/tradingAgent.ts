@@ -274,7 +274,7 @@ export function getStrategyParams(strategy: TradingStrategy): StrategyParams {
     },
     "ultra-short": {
       name: "超短线",
-      description: "高杠杆日内交易，1/3/5分钟三框架共振开仓，三层时间框架智能平仓，快进快出",
+      description: "高杠杆日内交易，3/5分钟核心共振+1分钟跟随确认，三层时间框架智能平仓，快进快出",
       leverageMin: ultraShortLevMin,
       leverageMax: ultraShortLevMax,
       leverageRecommend: {
@@ -290,9 +290,12 @@ export function getStrategyParams(strategy: TradingStrategy): StrategyParams {
         strong: "24-30%",
       },
       stopLoss: {
-        low: -5,    // 调大止损范围，给交易更多回旋空间
-        mid: -4,
-        high: -3,
+        // 根据杠杆动态调整止损，目标是实际价格波动1-2%触发
+        // 计算公式：止损百分比 = 实际价格波动% × 杠杆倍数
+        // 例如：10倍杠杆，实际价格波动1.5% → 止损设为15%
+        low: Math.min(-10, -(ultraShortLevMin * 1.0)),   // 低杠杆：实际价格波动1.0%
+        mid: Math.min(-12, -(Math.ceil((ultraShortLevMin + ultraShortLevMax) / 2) * 1.2)), // 中杠杆：实际价格波动1.2%
+        high: Math.min(-15, -(ultraShortLevMax * 1.5)),  // 高杠杆：实际价格波动1.5%
       },
       trailingStop: {
         // 超短线策略：调大移动止盈范围，避免过早被噪音震出
@@ -312,9 +315,9 @@ export function getStrategyParams(strategy: TradingStrategy): StrategyParams {
         normalVolatility: { leverageFactor: 1.0, positionFactor: 1.0 }, // 正常波动：不调整
         lowVolatility: { leverageFactor: 1.0, positionFactor: 1.0 },    // 低波动：不调整
       },
-      entryCondition: "必须1分钟、3分钟、5分钟三个时间框架信号完全一致",
+      entryCondition: "3分钟与5分钟核心框架同向共振 + 1分钟跟随确认（允许提前/滞后1-2根K线），添加RSI极值过滤和资金费率检查",
       riskTolerance: "单笔交易风险控制在16-30%之间，使用三层时间框架验证平仓",
-      tradingStyle: "日内超短线交易，使用高杠杆配合严格入场条件（1/3/5分钟三框架共振），平仓时三层验证（1m+3m，3m+5m，5m+15m），3分钟是关键过滤层，快速止损保护本金",
+      tradingStyle: "日内超短线交易，使用高杠杆配合灵活入场条件（3/5分钟核心共振+1分钟跟随），平仓时三层验证（1m+3m，3m+5m，5m+15m），3分钟是关键过滤层，动态止损保护本金",
     },
   };
 
@@ -850,8 +853,9 @@ function generateInstructions(strategy: TradingStrategy, intervalMinutes: number
       - 记住：趋势是你的朋友，反转是你的敌人
       - 反转后想开反向仓位，必须先平掉原持仓（禁止对冲）
    ${strategy === 'ultra-short' ? `
-   f) 超短线策略专属：三层时间框架智能平仓决策
+   f) 超短线策略专属：三层时间框架智能平仓决策（含趋势反转延迟确认机制）
       【核心原则】利用3分钟作为关键过滤层，避免被1分钟噪音震出，同时不错过真正的趋势反转
+      【反转延迟确认】趋势反转信号需要两个周期确认，防止假反转导致过早平仓
       
       【平仓决策流程】（按顺序执行，三层过滤，层层把关）：
       
@@ -879,30 +883,43 @@ function generateInstructions(strategy: TradingStrategy, intervalMinutes: number
           - 如果 3m 转强但 5m 仍弱势（价格<EMA20 且 MACD<0 且 RSI7<50）→ 继续持有（给第二次机会）
           - 如果 3m 和 5m 都转强 → 进入步骤3
       
-      步骤3：最终决策层（5m + 15m 趋势确认）
+      步骤3：最终决策层（5m + 15m 趋势确认 + 延迟确认机制）
       - 调用 getTechnicalIndicators(symbol, "15m") 获取15分钟数据
       - 分析 15m 的趋势方向（最后的保护）
-      - 判断标准：
+      
+      【重要】趋势反转延迟确认机制：
+      - 如果本周期首次检测到趋势反转迹象 → 不要立即平仓！
+      - 在您的分析中记录"疑似反转警告"，说明："{symbol} 检测到趋势反转信号（15m转弱/转强），延迟确认，下周期再次检查"
+      - 等待下一个交易周期，再次检查是否仍然反转
+      - 如果连续两个周期都显示反转 → 才调用 closePosition 平仓（确认真实反转）
+      - 如果下周期反转信号消失 → 继续持有原仓位（避免被假信号震出）
+      
+      判断标准（需要连续两周期确认）：
         * 做多持仓：
-          - 如果 15m 仍然看涨（价格>EMA20 且 MACD>0 且 RSI7>50）→ 不平仓，耐心持有
-          - 如果 15m 也转弱 → 立即调用 closePosition 平仓（确认趋势反转）
+          - 第一次检测：15m 转弱（价格<EMA20 或 MACD<0 或 RSI7<50）→ 记录警告，继续持有
+          - 第二次检测（下周期）：如果 15m 仍然转弱 → 调用 closePosition 平仓（确认趋势反转）
+          - 第二次检测（下周期）：如果 15m 恢复强势 → 取消警告，继续持有
         * 做空持仓：
-          - 如果 15m 仍然看跌（价格<EMA20 且 MACD<0 且 RSI7<50）→ 不平仓，耐心持有
-          - 如果 15m 也转强 → 立即调用 closePosition 平仓（确认趋势反转）
+          - 第一次检测：15m 转强（价格>EMA20 或 MACD>0 或 RSI7>50）→ 记录警告，继续持有
+          - 第二次检测（下周期）：如果 15m 仍然转强 → 调用 closePosition 平仓（确认趋势反转）
+          - 第二次检测（下周期）：如果 15m 恢复弱势 → 取消警告，继续持有
       
       盈利优化策略：
       - 盈利≥5% 且短周期(1/3m)反转 → 考虑部分平仓50%，锁定部分利润
       - 盈利≥10% → 即使趋势未反转，也考虑部分平仓50%，保护利润
       
-      特殊情况处理（无需三层验证，直接决策）：
-      - 亏损≥-4% → 立即止损，无论时间框架
+      特殊情况处理（无需延迟确认，立即平仓）：
+      - 亏损达到动态止损线（低杠杆-10%/中杠杆-12%/高杠杆-15%，对应实际价格波动1-1.5%） → 立即止损
       - 峰值回撤≥20% → 立即平仓保护利润
       - 止损/止盈触发 → 直接平仓
+      - 这些情况无需等待延迟确认，立即执行平仓保护资金
       
       【核心思想】：
       (1) 1分钟看信号，3分钟过滤噪音（关键！）
       (2) 5分钟确认方向，15分钟把控趋势
-      (3) 宁可晚一点平仓，也不要被假信号震出好趋势
+      (3) 趋势反转需要两周期确认，防止假反转
+      (4) 宁可晚一点平仓，也不要被假信号震出好趋势
+      (5) 止损和回撤保护立即执行，不延迟
 ` : ''}
 3. 分析市场数据（必须实际调用工具）：
    - 调用 getTechnicalIndicators 获取技术指标数据
@@ -915,7 +932,7 @@ function generateInstructions(strategy: TradingStrategy, intervalMinutes: number
    a) 加仓评估（对已有盈利持仓）：
       - 该币种已有持仓且方向正确
       - 持仓当前盈利（pnl_percent > 5%，必须有足够利润缓冲）
-      - 趋势继续强化：${strategy === 'ultra-short' ? '必须验证1分钟、3分钟、5分钟三个时间框架共振（调用 getTechnicalIndicators 分别获取1m/3m/5m数据），技术指标增强' : '至少3个时间框架共振，技术指标增强'}
+      - 趋势继续强化：${strategy === 'ultra-short' ? '必须验证3分钟与5分钟核心框架共振（调用 getTechnicalIndicators 分别获取3m/5m数据），1分钟跟随确认，技术指标增强' : '至少3个时间框架共振，技术指标增强'}
       - 可用余额充足，加仓金额≤原仓位的50%
       - 该币种加仓次数 < 2次
       - 加仓后总敞口不超过账户净值的${params.leverageMax}倍
@@ -924,7 +941,7 @@ function generateInstructions(strategy: TradingStrategy, intervalMinutes: number
    
    b) 新开仓评估（新币种）：
       - 现有持仓数 < ${RISK_PARAMS.MAX_POSITIONS}
-      - ${params.entryCondition}${strategy === 'ultra-short' ? '\n      - 超短线策略核心开仓条件（三框架共振，缺一不可）：\n        步骤1：调用 getTechnicalIndicators(symbol, "1m") 获取1分钟数据\n        步骤2：调用 getTechnicalIndicators(symbol, "3m") 获取3分钟数据\n        步骤3：调用 getTechnicalIndicators(symbol, "5m") 获取5分钟数据\n        \n        【三框架必须同时满足以下条件】：\n        做多方向：\n          - 1分钟：价格 > EMA20、MACD > 0、RSI7 > 50\n          - 3分钟：价格 > EMA20、MACD > 0、RSI7 > 50（关键过滤层）\n          - 5分钟：价格 > EMA20、MACD > 0、RSI7 > 50\n          - 成交量：当前成交量 > 平均成交量 × 1.3（确认资金介入）\n        \n        做空方向：\n          - 1分钟：价格 < EMA20、MACD < 0、RSI7 < 50\n          - 3分钟：价格 < EMA20、MACD < 0、RSI7 < 50（关键过滤层）\n          - 5分钟：价格 < EMA20、MACD < 0、RSI7 < 50\n          - 成交量：当前成交量 > 平均成交量 × 1.3（确认资金介入）\n        \n        注意：必须三个时间框架的所有指标都同向，任何一个框架不满足都不能开仓！' : ''}
+      - ${params.entryCondition}${strategy === 'ultra-short' ? '\n      - 超短线策略核心开仓条件（放宽共振条件，提高成功率）：\n        步骤1：调用 getTechnicalIndicators(symbol, "3m") 获取3分钟数据（核心框架）\n        步骤2：调用 getTechnicalIndicators(symbol, "5m") 获取5分钟数据（核心框架）\n        步骤3：调用 getTechnicalIndicators(symbol, "1m") 获取1分钟数据（跟随确认）\n        步骤4：调用 getFundingRate(symbol) 获取资金费率（避免拥挤踩踏）\n        \n        【核心条件：3m与5m必须同向共振】：\n        做多方向（3m和5m都必须满足）：\n          - 3分钟：价格 > EMA20、MACD > 0、RSI7 > 50（核心过滤层）\n          - 5分钟：价格 > EMA20、MACD > 0、RSI7 > 50（趋势确认）\n          - 成交量：当前成交量 > 平均成交量 × 1.3（确认资金介入）\n        \n        做空方向（3m和5m都必须满足）：\n          - 3分钟：价格 < EMA20、MACD < 0、RSI7 < 50（核心过滤层）\n          - 5分钟：价格 < EMA20、MACD < 0、RSI7 < 50（趋势确认）\n          - 成交量：当前成交量 > 平均成交量 × 1.3（确认资金介入）\n        \n        【1m跟随确认（可以提前/滞后1-2根K线）】：\n        做多方向：\n          - 1分钟趋势方向向上（价格在EMA20上方 或 MACD方向向上）\n          - 或RSI7已经>45且有上升趋势\n          - 允许1m暂时弱于3m/5m（给予1-2根K线的容忍度）\n        \n        做空方向：\n          - 1分钟趋势方向向下（价格在EMA20下方 或 MACD方向向下）\n          - 或RSI7已经<55且有下降趋势\n          - 允许1m暂时强于3m/5m（给予1-2根K线的容忍度）\n        \n        【RSI极值过滤（强化信号质量）】：\n        做多方向：\n          - 建议RSI7 < 35时入场（超卖反弹机会）\n          - 或RSI7在35-55之间且处于上升阶段\n        \n        做空方向：\n          - 建议RSI7 > 65时入场（超买回落机会）\n          - 或RSI7在45-65之间且处于下降阶段\n        \n        【资金费率过滤（避免踩踏风险）】：\n        做多方向：\n          - 排除资金费率 > 0.05% 的信号（多头过度拥挤）\n          - 资金费率在-0.05%到0.05%之间为最佳\n        \n        做空方向：\n          - 排除资金费率 < -0.05% 的信号（空头过度拥挤）\n          - 资金费率在-0.05%到0.05%之间为最佳\n        \n        注意：核心原则是3m与5m必须同向共振（这是趋势确认），1m跟随即可（允许提前或滞后），RSI和资金费率用于过滤极端情况。' : ''}
       - 潜在利润≥${strategy === 'ultra-short' ? '1.5-2%（快进快出，小利积累）' : '2-3%（扣除0.1%费用后仍有净收益）'}
       - 做多和做空机会的识别：
         * 做多信号：价格突破EMA20/50上方，MACD转正，RSI7 > 50且上升，多个时间框架共振向上
