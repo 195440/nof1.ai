@@ -50,7 +50,7 @@ export function getAccountRiskConfig(): AccountRiskConfig {
 /**
  * 交易策略类型
  */
-export type TradingStrategy = "conservative" | "balanced" | "aggressive" | "sure-win";
+export type TradingStrategy = "conservative" | "balanced" | "aggressive" | "sure-win" | "ultra-short";
 
 /**
  * 策略参数配置
@@ -135,6 +135,13 @@ export function getStrategyParams(strategy: TradingStrategy): StrategyParams {
   const sureWinLevNormal = sureWinLevMin;
   const sureWinLevGood = Math.ceil((sureWinLevMin + sureWinLevMax) / 2);
   const sureWinLevStrong = sureWinLevMax;
+  
+  // 超短线策略：15%-40% 的最大杠杆（极低杠杆，快进快出）
+  const ultraShortLevMin = Math.max(1, Math.ceil(maxLeverage * 0.15));
+  const ultraShortLevMax = Math.max(2, Math.ceil(maxLeverage * 0.4));
+  const ultraShortLevNormal = ultraShortLevMin;
+  const ultraShortLevGood = Math.ceil((ultraShortLevMin + ultraShortLevMax) / 2);
+  const ultraShortLevStrong = ultraShortLevMax;
   
   const strategyConfigs: Record<TradingStrategy, StrategyParams> = {
     "conservative": {
@@ -316,6 +323,50 @@ export function getStrategyParams(strategy: TradingStrategy): StrategyParams {
       riskTolerance: "单笔交易风险控制在12-18%之间，极度严格控制",
       tradingStyle: "只做最确定的短线机会，三框架共振才开仓，追求高胜率而非高频",
     },
+    "ultra-short": {
+      name: "超短线",
+      description: "极低杠杆日内交易，1/3/5分钟开仓，双层时间框架智能平仓",
+      leverageMin: ultraShortLevMin,
+      leverageMax: ultraShortLevMax,
+      leverageRecommend: {
+        normal: `${ultraShortLevNormal}倍`,
+        good: `${ultraShortLevGood}倍`,
+        strong: `${ultraShortLevStrong}倍`,
+      },
+      positionSizeMin: 8,
+      positionSizeMax: 15,
+      positionSizeRecommend: {
+        normal: "8-10%",
+        good: "10-12%",
+        strong: "12-15%",
+      },
+      stopLoss: {
+        low: -5,    // 调大止损范围，给交易更多回旋空间
+        mid: -4,
+        high: -3,
+      },
+      trailingStop: {
+        // 超短线策略：调大移动止盈范围，避免过早被噪音震出
+        level1: { trigger: 4, stopAt: 1 },     // 盈利达到 +4% 时，止损线移至 +1%
+        level2: { trigger: 8, stopAt: 4 },     // 盈利达到 +8% 时，止损线移至 +4%
+        level3: { trigger: 12, stopAt: 8 },    // 盈利达到 +12% 时，止损线移至 +8%
+      },
+      partialTakeProfit: {
+        // 超短线策略：调大止盈目标，让利润充分奔跑
+        stage1: { trigger: 10, closePercent: 50 },  // +10% 平仓50%
+        stage2: { trigger: 15, closePercent: 50 },  // +15% 平仓剩余50%
+        stage3: { trigger: 20, closePercent: 100 }, // +20% 全部清仓
+      },
+      peakDrawdownProtection: 20, // 超短线策略：20%峰值回撤保护（给予更多容忍度）
+      volatilityAdjustment: {
+        highVolatility: { leverageFactor: 0.4, positionFactor: 0.5 },   // 高波动：大幅降低
+        normalVolatility: { leverageFactor: 1.0, positionFactor: 1.0 }, // 正常波动：不调整
+        lowVolatility: { leverageFactor: 1.0, positionFactor: 1.0 },    // 低波动：不调整
+      },
+      entryCondition: "必须1分钟、3分钟、5分钟三个时间框架信号完全一致",
+      riskTolerance: "单笔交易风险控制在8-15%之间，使用双层时间框架验证平仓",
+      tradingStyle: "日内超短线交易，开仓用1/3/5分钟，平仓时先看1/3/5分钟，不符合再看3/5/15分钟，给交易更多机会，除非确定盈利否则不轻易平仓",
+    },
   };
 
   return strategyConfigs[strategy];
@@ -331,7 +382,7 @@ const logger = createPinoLogger({
  */
 export function getTradingStrategy(): TradingStrategy {
   const strategy = process.env.TRADING_STRATEGY || "balanced";
-  if (strategy === "conservative" || strategy === "balanced" || strategy === "aggressive" || strategy === "sure-win") {
+  if (strategy === "conservative" || strategy === "balanced" || strategy === "aggressive" || strategy === "sure-win" || strategy === "ultra-short") {
     return strategy;
   }
   logger.warn(`未知的交易策略: ${strategy}，使用默认策略: balanced`);
@@ -843,7 +894,41 @@ function generateInstructions(strategy: TradingStrategy, intervalMinutes: number
       - 强烈建议立即调用 closePosition 平仓
       - 记住：趋势是你的朋友，反转是你的敌人
       - 反转后想开反向仓位，必须先平掉原持仓（禁止对冲）
-
+   ${strategy === 'ultra-short' ? `
+   f) 超短线策略专属：双层时间框架智能平仓决策
+      【核心原则】1分钟线噪音大，避免被假信号震出，给交易更多机会
+      
+      【平仓决策流程】（按顺序执行，层层把关）：
+      
+      步骤1 首先检查短周期框架（1m/3m/5m）
+      - 调用 getTechnicalIndicators 获取1分钟、3分钟、5分钟数据
+      - 分析：EMA20、EMA50、MACD、RSI14是否明确反转
+      - 判断标准：
+        * 做多持仓：若3个指标中≥2个转为看跌（价格跌破EMA20、MACD转负、RSI<45）→ 进入步骤2
+        * 做空持仓：若3个指标中≥2个转为看涨（价格突破EMA20、MACD转正、RSI>55）→ 进入步骤2
+      - 如果短周期没有明显反转信号 → 不平仓，继续持有
+      
+      步骤2 验证中长周期框架（3m/5m/15m）- 给交易第二次机会
+      - 调用 getTechnicalIndicators 获取3分钟、5分钟、15分钟数据
+      - 重新分析：EMA20、EMA50、MACD、RSI14的方向
+      - 判断标准：
+        * 做多持仓：若15分钟框架仍然看涨（价格>EMA20、MACD>0、RSI>50）→ 不平仓，继续持有
+        * 做空持仓：若15分钟框架仍然看跌（价格<EMA20、MACD<0、RSI<50）→ 不平仓，继续持有
+      - 只有当15分钟框架也明确反转时，才考虑平仓
+      
+      步骤3 最终平仓决策
+      - 如果短周期(1/3/5m)和中周期(3/5/15m)都显示反转 → 立即调用 closePosition 平仓
+      - 如果已有盈利≥5% → 可考虑部分平仓50%，让剩余仓位继续观察
+      - 如果只有短周期反转，中周期未反转 → 不平仓，耐心持有
+      
+      【特殊情况处理】：
+      - 止损/止盈触发 → 无需双层验证，直接平仓
+      - 盈利≥+10% → 即使短周期反转，也优先考虑部分平仓锁定利润
+      - 亏损≥-4% → 无论时间框架，立即止损
+      - 峰值回撤≥20% → 立即平仓保护利润
+      
+      【核心思想】：宁可多给几次机会，也不要被1分钟噪音误导而错失大趋势
+` : ''}
 3. 分析市场数据（必须实际调用工具）：
    - 调用 getTechnicalIndicators 获取技术指标数据
    - 分析多个时间框架（15分钟、30分钟、1小时、4小时）
@@ -864,12 +949,12 @@ function generateInstructions(strategy: TradingStrategy, intervalMinutes: number
    
    b) 新开仓评估（新币种）：
       - 现有持仓数 < ${RISK_PARAMS.MAX_POSITIONS}
-      - ${params.entryCondition}${strategy === 'sure-win' ? '\n      - ⚠️ 稳赢策略特殊要求：必须验证3分钟、5分钟、15分钟数据中的EMA20、EMA50、MACD、RSI14四个指标都同向（做多全部看涨，做空全部看跌），缺一不可！' : ''}
-      - 潜在利润≥2-3%（扣除0.1%费用后仍有净收益）
+      - ${params.entryCondition}${strategy === 'sure-win' ? '\n      - 稳赢策略特殊要求：必须验证3分钟、5分钟、15分钟数据中的EMA20、EMA50、MACD、RSI14四个指标都同向（做多全部看涨，做空全部看跌），缺一不可！' : ''}${strategy === 'ultra-short' ? '\n      - 超短线策略特殊要求：必须验证1分钟、3分钟、5分钟数据中的EMA20、EMA50、MACD、RSI14四个指标都同向，且价格动能强劲！' : ''}
+      - 潜在利润≥${strategy === 'ultra-short' ? '1.5-2%（快进快出，小利积累）' : '2-3%（扣除0.1%费用后仍有净收益）'}
       - 做多和做空机会的识别：
         * 做多信号：价格突破EMA20/50上方，MACD转正，RSI7 > 50且上升，多个时间框架共振向上
         * 做空信号：价格跌破EMA20/50下方，MACD转负，RSI7 < 50且下降，多个时间框架共振向下
-        * 关键：做空信号和做多信号同样重要！不要只寻找做多机会而忽视做空机会${strategy === 'sure-win' ? '\n        * 稳赢策略额外要求：成交量必须大于平均量1.2倍，确认趋势有强支撑' : ''}
+        * 关键：做空信号和做多信号同样重要！不要只寻找做多机会而忽视做空机会${strategy === 'sure-win' ? '\n        * 稳赢策略额外要求：成交量必须大于平均量1.2倍，确认趋势有强支撑' : ''}${strategy === 'ultra-short' ? '\n        * 超短线策略额外要求：成交量必须大于平均量1.3倍，且最近1分钟有明显价格动能（价格变化率>0.3%），确保趋势正在形成' : ''}
       - 如果满足所有条件：立即调用 openPosition 开仓（不要只说"我会开仓"）
    
 5. 仓位大小和杠杆计算（${params.name}策略）：
@@ -897,8 +982,8 @@ function generateInstructions(strategy: TradingStrategy, intervalMinutes: number
 
 交易目标：
 - 最大化风险调整后收益（夏普比率≥1.5）
-- 目标月回报：${params.name === '稳健' ? '10-20%' : params.name === '平衡' ? '20-40%' : params.name === '激进' ? '40%+' : '8-15%（稳赢策略：低频高胜率）'}
-- 胜率目标：${params.name === '稳赢' ? '≥70%（追求极高胜率）' : '≥55%'}，盈亏比目标：≥2:1
+- 目标月回报：${params.name === '稳健' ? '10-20%' : params.name === '平衡' ? '20-40%' : params.name === '激进' ? '40%+' : params.name === '稳赢' ? '8-15%（稳赢策略：低频高胜率）' : '20-30%（超短线：中频积累，让利润充分奔跑）'}
+- 胜率目标：${params.name === '稳赢' ? '≥70%（追求极高胜率）' : params.name === '超短线' ? '≥60%（双层验证，提高胜率）' : '≥55%'}，盈亏比目标：${params.name === '超短线' ? '≥2:1（调大止盈空间）' : '≥2:1'}
 
 风控层级：
 - 系统硬性底线（强制执行）：
