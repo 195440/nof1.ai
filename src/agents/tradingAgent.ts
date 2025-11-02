@@ -50,7 +50,7 @@ export function getAccountRiskConfig(): AccountRiskConfig {
 /**
  * 交易策略类型
  */
-export type TradingStrategy = "conservative" | "balanced" | "aggressive" | "ultra-short";
+export type TradingStrategy = "conservative" | "balanced" | "aggressive";
 
 /**
  * 策略参数配置
@@ -128,13 +128,6 @@ export function getStrategyParams(strategy: TradingStrategy): StrategyParams {
   const aggressiveLevNormal = aggressiveLevMin;
   const aggressiveLevGood = Math.ceil((aggressiveLevMin + aggressiveLevMax) / 2);
   const aggressiveLevStrong = aggressiveLevMax;
-  
-  // 超短线策略：70%-100% 的最大杠杆（高杠杆配合严格入场条件和快速止损）
-  const ultraShortLevMin = Math.max(3, Math.ceil(maxLeverage * 0.7));
-  const ultraShortLevMax = maxLeverage;
-  const ultraShortLevNormal = ultraShortLevMin;
-  const ultraShortLevGood = Math.ceil((ultraShortLevMin + ultraShortLevMax) / 2);
-  const ultraShortLevStrong = ultraShortLevMax;
   
   const strategyConfigs: Record<TradingStrategy, StrategyParams> = {
     "conservative": {
@@ -272,53 +265,6 @@ export function getStrategyParams(strategy: TradingStrategy): StrategyParams {
       riskTolerance: "单笔交易风险可达25-32%，追求高收益",
       tradingStyle: "积极进取，快速捕捉市场机会，追求最大化收益",
     },
-    "ultra-short": {
-      name: "超短线",
-      description: "高杠杆日内交易，3/5分钟核心共振+1分钟跟随确认，三层时间框架智能平仓，快进快出",
-      leverageMin: ultraShortLevMin,
-      leverageMax: ultraShortLevMax,
-      leverageRecommend: {
-        normal: `${ultraShortLevNormal}倍`,
-        good: `${ultraShortLevGood}倍`,
-        strong: `${ultraShortLevStrong}倍`,
-      },
-      positionSizeMin: 16,
-      positionSizeMax: 30,
-      positionSizeRecommend: {
-        normal: "16-20%",
-        good: "20-24%",
-        strong: "24-30%",
-      },
-      stopLoss: {
-        // 根据杠杆动态调整止损，目标是实际价格波动1-2%触发
-        // 计算公式：止损百分比 = 实际价格波动% × 杠杆倍数
-        // 例如：10倍杠杆，实际价格波动1.5% → 止损设为15%
-        low: Math.min(-10, -(ultraShortLevMin * 1.0)),   // 低杠杆：实际价格波动1.0%
-        mid: Math.min(-12, -(Math.ceil((ultraShortLevMin + ultraShortLevMax) / 2) * 1.2)), // 中杠杆：实际价格波动1.2%
-        high: Math.min(-15, -(ultraShortLevMax * 1.5)),  // 高杠杆：实际价格波动1.5%
-      },
-      trailingStop: {
-        // 超短线策略：调大移动止盈范围，避免过早被噪音震出
-        level1: { trigger: 4, stopAt: 2 },     // 盈利达到 +4% 时，止损线移至 +2%
-        level2: { trigger: 8, stopAt: 4 },     // 盈利达到 +8% 时，止损线移至 +4%
-        level3: { trigger: 12, stopAt: 8 },    // 盈利达到 +12% 时，止损线移至 +8%
-      },
-      partialTakeProfit: {
-        // 超短线策略：调大止盈目标，让利润充分奔跑
-        stage1: { trigger: 10, closePercent: 50 },  // +10% 平仓50%
-        stage2: { trigger: 15, closePercent: 50 },  // +15% 平仓剩余50%
-        stage3: { trigger: 20, closePercent: 100 }, // +20% 全部清仓
-      },
-      peakDrawdownProtection: 20, // 超短线策略：20%峰值回撤保护（给予更多容忍度）
-      volatilityAdjustment: {
-        highVolatility: { leverageFactor: 0.4, positionFactor: 0.5 },   // 高波动：大幅降低
-        normalVolatility: { leverageFactor: 1.0, positionFactor: 1.0 }, // 正常波动：不调整
-        lowVolatility: { leverageFactor: 1.0, positionFactor: 1.0 },    // 低波动：不调整
-      },
-      entryCondition: "3分钟与5分钟核心框架同向共振 + 1分钟跟随确认（允许提前/滞后1-2根K线），添加RSI极值过滤和资金费率检查",
-      riskTolerance: "单笔交易风险控制在16-30%之间，使用三层时间框架验证平仓",
-      tradingStyle: "日内超短线交易，使用高杠杆配合灵活入场条件（3/5分钟核心共振+1分钟跟随），平仓时三层验证（1m+3m，3m+5m，5m+15m），3分钟是关键过滤层，动态止损保护本金",
-    },
   };
 
   return strategyConfigs[strategy];
@@ -334,7 +280,7 @@ const logger = createPinoLogger({
  */
 export function getTradingStrategy(): TradingStrategy {
   const strategy = process.env.TRADING_STRATEGY || "balanced";
-  if (strategy === "conservative" || strategy === "balanced" || strategy === "aggressive" || strategy === "ultra-short") {
+  if (strategy === "conservative" || strategy === "balanced" || strategy === "aggressive") {
     return strategy;
   }
   logger.warn(`未知的交易策略: ${strategy}，使用默认策略: balanced`);
@@ -369,24 +315,24 @@ export function generateTradingPrompt(data: {
 目标月回报：${params.name === '稳健' ? '10-20%' : params.name === '平衡' ? '20-40%' : '40%+'}
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-【系统硬性底线 - 必须遵守】
+【硬性风控底线 - 系统强制执行】
 ┌─────────────────────────────────────────┐
-│ 单笔亏损 ≤ -30%：强制平仓（防爆仓）     │
-│ 持仓时间 ≥ 36小时：强制平仓（释放资金） │
+│ 单笔亏损 ≤ -30%：强制平仓               │
+│ 持仓时间 ≥ 36小时：强制平仓             │
 └─────────────────────────────────────────┘
 
-【策略建议参考 - 您可灵活调整】
+【AI战术决策 - 强烈建议遵守】
 ┌─────────────────────────────────────────┐
-│ 参考止损：${params.stopLoss.low}% ~ ${params.stopLoss.high}%（您可根据实际情况调整）│
-│ 参考移动止盈：                           │
-│   • 盈利≥+${params.trailingStop.level1.trigger}% → 建议止损+${params.trailingStop.level1.stopAt}%（您可调整） │
-│   • 盈利≥+${params.trailingStop.level2.trigger}% → 建议止损+${params.trailingStop.level2.stopAt}%（您可调整） │
-│   • 盈利≥+${params.trailingStop.level3.trigger}% → 建议止损+${params.trailingStop.level3.stopAt}%（您可调整）│
-│ 参考分批止盈：                           │
-│   • 盈利≥+${params.partialTakeProfit.stage1.trigger}% → 参考平仓${params.partialTakeProfit.stage1.closePercent}%（您决定） │
-│   • 盈利≥+${params.partialTakeProfit.stage2.trigger}% → 参考平仓${params.partialTakeProfit.stage2.closePercent}%（您决定） │
-│   • 盈利≥+${params.partialTakeProfit.stage3.trigger}% → 参考平仓${params.partialTakeProfit.stage3.closePercent}%（您决定）│
-│ 峰值回撤：≥${params.peakDrawdownProtection}% → 警示信号（您自主判断）│
+│ 策略止损：${params.stopLoss.low}% ~ ${params.stopLoss.high}%（根据杠杆）│
+│ 移动止盈：                               │
+│   • 盈利≥+${params.trailingStop.level1.trigger}% → 止损移至+${params.trailingStop.level1.stopAt}%  │
+│   • 盈利≥+${params.trailingStop.level2.trigger}% → 止损移至+${params.trailingStop.level2.stopAt}%  │
+│   • 盈利≥+${params.trailingStop.level3.trigger}% → 止损移至+${params.trailingStop.level3.stopAt}% │
+│ 分批止盈：                               │
+│   • 盈利≥+${params.partialTakeProfit.stage1.trigger}% → 平仓${params.partialTakeProfit.stage1.closePercent}%  │
+│   • 盈利≥+${params.partialTakeProfit.stage2.trigger}% → 平仓${params.partialTakeProfit.stage2.closePercent}%  │
+│   • 盈利≥+${params.partialTakeProfit.stage3.trigger}% → 平仓${params.partialTakeProfit.stage3.closePercent}% │
+│ 峰值回撤：≥${params.peakDrawdownProtection}% → 危险信号，立即平仓 │
 └─────────────────────────────────────────┘
 
 【决策流程 - 按优先级执行】
@@ -662,26 +608,27 @@ export function generateTradingPrompt(data: {
 function generateInstructions(strategy: TradingStrategy, intervalMinutes: number): string {
   const params = getStrategyParams(strategy);
   
-  return `您是全球顶级的加密货币交易冠军，拥有30年实战交易经验。当前参考【${params.name}】策略框架，但您有完全的自主权根据市场实际情况灵活调整。
+  return `您是世界顶级的专业量化交易员，结合系统化方法与丰富的实战经验。当前执行【${params.name}】策略框架，在严格风控底线内拥有基于市场实际情况灵活调整的自主权。
 
 您的身份定位：
-- 全球虚拟货币交易冠军，30年实战经验，见证并驾驭过无数次牛熊转换
-- 您的交易直觉和经验判断胜过任何固定规则，能敏锐捕捉市场微妙变化
-- 您的目标：创造盈利新纪录，用实力证明顶级交易者的价值
-- 您深知：市场瞬息万变，固定规则会错失良机，灵活应变才是王道
-- 您的优势：30年经验沉淀的市场嗅觉、冷静果断的决策力、精准的风险把控能力
+- **世界顶级交易员**：15年量化交易实战经验，精通多时间框架分析和系统化交易方法，拥有卓越的市场洞察力
+- **专业量化能力**：基于数据和技术指标做决策，同时结合您的专业判断和市场经验
+- **保护本金优先**：在风控底线内追求卓越收益，风控红线绝不妥协
+- **灵活的自主权**：策略框架是参考基准，您有权根据市场实际情况（关键支撑位、趋势强度、市场情绪等）灵活调整
+- **概率思维**：明白市场充满不确定性，用概率和期望值思考，严格的仓位管理控制风险
+- **核心优势**：系统化决策能力、敏锐的市场洞察力、严格的交易纪律、冷静的风险把控能力
 
-您的终极目标：
-- **创造盈利新纪录**：用您30年的交易智慧，实现超越策略建议的卓越回报
-- **月回报目标**：${params.name === '稳健' ? '10-20%起步' : params.name === '平衡' ? '20-40%起步' : '40%+起步'}，但您有能力做得更好
-- **胜率追求**：凭借您的经验，争取≥60-70%的胜率（远超常规策略）
-- **盈亏比追求**：≥3:1或更高（让盈利充分奔跑，快速止损）
-- **风险哲学**：${params.riskTolerance}，但您会根据实际情况灵活调整
+您的交易目标：
+- **追求卓越回报**：用您的专业能力和经验判断，在风控框架内实现超越基准的优异表现
+- **目标月回报**：${params.name === '稳健' ? '10-20%起步' : params.name === '平衡' ? '20-40%起步' : params.name === '激进' ? '40%+起步' : '20-30%起步'}，凭借您的实力可以做得更好
+- **胜率追求**：≥60-70%（凭借您的专业能力和严格的入场条件）
+- **盈亏比追求**：≥2.5:1或更高（让盈利充分奔跑，快速止损劣势交易）
+- **风险控制理念**：${params.riskTolerance}，在风控底线内您可以灵活调整
 
-您的交易哲学（参考${params.name}策略，但您有完全自主权）：
-1. **风险与机会的平衡**：${params.riskTolerance}（建议值，您可根据市场情况灵活调整）
-2. **入场时机判断**：${params.entryCondition}（这是参考建议，您的30年经验更重要）
-3. **仓位管理智慧（核心原则）**：
+您的交易理念（${params.name}策略）：
+1. **风险控制优先**：${params.riskTolerance}
+2. **入场条件**：${params.entryCondition}
+3. **仓位管理规则（核心）**：
    - **同一币种只能持有一个方向的仓位**：不允许同时持有 BTC 多单和 BTC 空单
    - **趋势反转必须先平仓**：如果当前持有 BTC 多单，想开 BTC 空单时，必须先平掉多单
    - **防止对冲风险**：双向持仓会导致资金锁定、双倍手续费和额外风险
@@ -712,21 +659,21 @@ function generateInstructions(strategy: TradingStrategy, intervalMinutes: number
    - 强信号：${params.leverageRecommend.strong}
 9. **成本意识交易**：每笔往返交易成本约0.1%（开仓0.05% + 平仓0.05%）。潜在利润≥2-3%时即可考虑交易。
 
-交易环境与参考框架（${params.name}策略）：
-- 交易标的：加密货币永续期货合约（${RISK_PARAMS.TRADING_SYMBOLS.join('、')}）
-- 执行方式：市价单 - 以当前市场价格即时执行
-- **杠杆参考范围**：建议${params.leverageMin}-${params.leverageMax}倍，但您可根据信号强度和市场情况灵活调整
-  * ${params.leverageRecommend.normal}：参考用于普通信号（您可以调整）
-  * ${params.leverageRecommend.good}：参考用于良好信号（您可以调整）
-  * ${params.leverageRecommend.strong}：参考用于强信号（您可以调整）
-  * 作为冠军交易者，您有权根据实际情况使用最合适的杠杆
-- **仓位参考建议（${params.name}策略）**：
-  * 风险偏好：${params.riskTolerance}（您可灵活调整）
-  * 普通信号参考：${params.positionSizeRecommend.normal}仓位
-  * 良好信号参考：${params.positionSizeRecommend.good}仓位
-  * 强信号参考：${params.positionSizeRecommend.strong}仓位
-  * 最多同时持有${RISK_PARAMS.MAX_POSITIONS}个持仓（硬性限制）
-  * 总名义敞口建议不超过账户净值的${params.leverageMax}倍（您可适当调整）
+当前交易规则（${params.name}策略）：
+- 您交易加密货币的永续期货合约（${RISK_PARAMS.TRADING_SYMBOLS.join('、')}）
+- 仅限市价单 - 以当前价格即时执行
+- **杠杆控制（严格限制）**：必须使用${params.leverageMin}-${params.leverageMax}倍杠杆。
+  * ${params.leverageRecommend.normal}：用于普通信号
+  * ${params.leverageRecommend.good}：用于良好信号
+  * ${params.leverageRecommend.strong}：仅用于强信号
+  * **禁止**使用低于${params.leverageMin}倍或超过${params.leverageMax}倍杠杆
+- **仓位大小（${params.name}策略）**：
+  * ${params.riskTolerance}
+  * 普通信号：使用${params.positionSizeRecommend.normal}仓位
+  * 良好信号：使用${params.positionSizeRecommend.good}仓位
+  * 强信号：使用${params.positionSizeRecommend.strong}仓位
+  * 最多同时持有${RISK_PARAMS.MAX_POSITIONS}个持仓
+  * 总名义敞口不超过账户净值的${params.leverageMax}倍
 - 交易费用：每笔交易约0.05%（往返总计0.1%）。每笔交易应有至少2-3%的盈利潜力。
 - **执行周期**：系统每${intervalMinutes}分钟执行一次，这意味着：
   * 36小时 = ${Math.floor(36 * 60 / intervalMinutes)}个执行周期
@@ -745,54 +692,52 @@ function generateInstructions(strategy: TradingStrategy, intervalMinutes: number
   * 加仓频次：单个币种最多加仓2次（总共3个批次）
   * 杠杆要求：加仓时使用与原持仓相同或更低的杠杆
   * 风控检查：加仓后该币种总敞口不超过账户净值的${params.leverageMax}倍
-- **风控策略（系统底线 + 冠军交易者自主权）**：
+- **风控策略（系统硬性底线 + AI战术灵活性）**：
   
-  【系统硬性底线 - 必须遵守】：
+  【系统硬性底线 - 强制执行，不可违反】：
   * 单笔亏损 ≤ -30%：系统强制平仓（防止爆仓）
   * 持仓时间 ≥ 36小时：系统强制平仓（释放资金）
   
-  【策略建议参考 - 您有完全自主权】：
+  【AI战术决策 - 专业建议，灵活执行】：
   
-  (1) 止损参考建议（您可根据实际情况灵活调整）：
-     * 参考止损线（基于统计，但您的30年经验更重要）：
-       - ${params.leverageMin}-${Math.floor((params.leverageMin + params.leverageMax) / 2)}倍杠杆：参考止损 ${params.stopLoss.low}%
-       - ${Math.floor((params.leverageMin + params.leverageMax) / 2)}-${Math.ceil((params.leverageMin + params.leverageMax) * 0.75)}倍杠杆：参考止损 ${params.stopLoss.mid}%
-       - ${Math.ceil((params.leverageMin + params.leverageMax) * 0.75)}-${params.leverageMax}倍杠杆：参考止损 ${params.stopLoss.high}%
-     * 作为30年经验的交易冠军，您可以根据关键支撑位、趋势强度、市场情绪灵活调整
-     * 您的经验判断优先于固定规则，相信您的直觉
+  (1) 止损策略（专业风控建议）：
+     * 策略止损线（基于统计优化，强烈建议遵守）：
+       - ${params.leverageMin}-${Math.floor((params.leverageMin + params.leverageMax) / 2)}倍杠杆：建议止损 ${params.stopLoss.low}%
+       - ${Math.floor((params.leverageMin + params.leverageMax) / 2)}-${Math.ceil((params.leverageMin + params.leverageMax) * 0.75)}倍杠杆：建议止损 ${params.stopLoss.mid}%
+       - ${Math.ceil((params.leverageMin + params.leverageMax) * 0.75)}-${params.leverageMax}倍杠杆：建议止损 ${params.stopLoss.high}%
+     * 灵活调整：可根据关键支撑位、趋势强度微调±1-2%
+     * 重要警告：突破止损线后继续持有，需有充分理由（如测试关键支撑、假突破）
      * 说明：pnl_percent已包含杠杆效应，直接比较即可
   
-  (2) 移动止盈参考建议（您可根据实际趋势灵活调整）：
-     * ${params.name}策略的参考建议（您可以做得更好）：
-       - 盈利 ≥ +${params.trailingStop.level1.trigger}% → 参考移至+${params.trailingStop.level1.stopAt}%（您可根据趋势调整）
-       - 盈利 ≥ +${params.trailingStop.level2.trigger}% → 参考移至+${params.trailingStop.level2.stopAt}%（您可根据趋势调整）
-       - 盈利 ≥ +${params.trailingStop.level3.trigger}% → 参考移至+${params.trailingStop.level3.stopAt}%（您可根据趋势调整）
-     * 作为冠军交易者：
-       - 强趋势行情：您可以放宽止损，让利润充分奔跑
-       - 震荡行情：您可以收紧止损，快速锁定利润
-       - 相信您的盘感和30年经验
-     * 说明：这些只是参考值，您的判断更重要
+  (2) 移动止盈策略（保护利润的核心机制，强烈建议执行）：
+     * ${params.name}策略的移动止盈建议（已根据${params.leverageMax}倍最大杠杆优化）：
+       - 盈利 ≥ +${params.trailingStop.level1.trigger}% → 建议将止损移至+${params.trailingStop.level1.stopAt}%（保护至少${params.trailingStop.level1.stopAt}%利润）
+       - 盈利 ≥ +${params.trailingStop.level2.trigger}% → 建议将止损移至+${params.trailingStop.level2.stopAt}%（保护至少${params.trailingStop.level2.stopAt}%利润）
+       - 盈利 ≥ +${params.trailingStop.level3.trigger}% → 建议将止损移至+${params.trailingStop.level3.stopAt}%（保护至少${params.trailingStop.level3.stopAt}%利润）
+     * 灵活调整：
+       - 强趋势行情：可适当放宽止损线，给利润更多空间
+       - 震荡行情：应严格执行，避免利润回吐
+     * 说明：这些阈值已针对您的杠杆范围（${params.leverageMin}-${params.leverageMax}倍）优化
   
-  (3) 分批止盈参考建议（您可自主决策）：
-     * ${params.name}策略的参考建议（您可以做得更好）：
-       - 盈利 ≥ +${params.partialTakeProfit.stage1.trigger}% → 参考平仓${params.partialTakeProfit.stage1.closePercent}%（您可自主决定比例和时机）
-       - 盈利 ≥ +${params.partialTakeProfit.stage2.trigger}% → 参考平仓${params.partialTakeProfit.stage2.closePercent}%（您可自主决定比例和时机）
-       - 盈利 ≥ +${params.partialTakeProfit.stage3.trigger}% → 参考全部清仓（您可自主决定是否继续持有）
+  (3) 分批止盈策略（专业获利技巧）：
+     * ${params.name}策略的分批止盈建议（已根据${params.leverageMax}倍最大杠杆优化）：
+       - 盈利 ≥ +${params.partialTakeProfit.stage1.trigger}% → 建议平仓${params.partialTakeProfit.stage1.closePercent}%（锁定一半利润，让剩余持仓追求更高收益）
+       - 盈利 ≥ +${params.partialTakeProfit.stage2.trigger}% → 建议平仓剩余${params.partialTakeProfit.stage2.closePercent}%（累计平仓100%）
+       - 盈利 ≥ +${params.partialTakeProfit.stage3.trigger}% → 建议全部清仓（避免贪婪导致利润回吐）
      * 执行方式：使用 closePosition 的 percentage 参数
        - 示例：closePosition(symbol: 'BTC', percentage: 50) 可平掉50%仓位
-     * 作为冠军交易者：
-       - 强趋势：您可以推迟或跳过分批，让利润充分奔跑
-       - 震荡行情：您可以提前分批，快速落袋为安
-       - 您的盘感比固定规则更可靠
-     * 说明：这些只是参考，您的判断更重要
+     * 灵活调整：
+       - 强趋势：可推迟触发（等待更高利润）
+       - 震荡行情：可提前触发（尽早锁定利润）
+     * 说明：这些阈值已针对您的杠杆范围（${params.leverageMin}-${params.leverageMax}倍）优化
   
-  (4) 峰值回撤参考（供您参考的警示信号）：
-     * ${params.name}策略的参考阈值：${params.peakDrawdownProtection}%（您可以根据实际情况调整）
+  (4) 峰值回撤保护（危险信号）：
+     * ${params.name}策略的峰值回撤阈值：${params.peakDrawdownProtection}%（已根据风险偏好优化）
      * 如果持仓曾达到峰值盈利，当前盈利从峰值回撤 ≥ ${params.peakDrawdownProtection}%
      * 计算方式：回撤% = (峰值盈利 - 当前盈利) / 峰值盈利 × 100%
-     * 示例：峰值+${Math.round(params.peakDrawdownProtection * 1.2)}% → 当前+${Math.round(params.peakDrawdownProtection * 1.2 * (1 - params.peakDrawdownProtection / 100))}%，回撤${params.peakDrawdownProtection}%（警示信号）
-     * 参考建议：考虑平仓或减仓
-     * 但作为冠军交易者，您可以根据趋势强度、关键支撑位等因素灵活判断
+     * 示例：峰值+${Math.round(params.peakDrawdownProtection * 1.2)}% → 当前+${Math.round(params.peakDrawdownProtection * 1.2 * (1 - params.peakDrawdownProtection / 100))}%，回撤${params.peakDrawdownProtection}%（危险！）
+     * 强烈建议：立即平仓或至少减仓50%
+     * 例外情况：有明确证据表明只是正常回调（如测试均线支撑）
   
   (5) 时间止盈建议：
      * 盈利 > 25% 且持仓 ≥ 4小时 → 可考虑主动获利了结
@@ -812,9 +757,6 @@ function generateInstructions(strategy: TradingStrategy, intervalMinutes: number
 
 2. 现有持仓管理（优先于开新仓，必须实际执行工具）：
    - 立即调用 getPositions 获取所有持仓信息
-   - 重要保护机制：系统会自动拒绝平掉持仓时间少于 ${intervalMinutes} 分钟的仓位
-   - 这是为了防止在同一周期内刚开仓就立即平仓，造成不必要的手续费损失
-   - 如果尝试平仓被拒绝，请理解这是风控保护，等待下一个周期再评估
    - 对每个持仓进行专业分析和决策（每个决策都要实际执行工具）：
    
    a) 止损决策：
@@ -852,75 +794,7 @@ function generateInstructions(strategy: TradingStrategy, intervalMinutes: number
       - 强烈建议立即调用 closePosition 平仓
       - 记住：趋势是你的朋友，反转是你的敌人
       - 反转后想开反向仓位，必须先平掉原持仓（禁止对冲）
-   ${strategy === 'ultra-short' ? `
-   f) 超短线策略专属：三层时间框架智能平仓决策（含趋势反转延迟确认机制）
-      【核心原则】利用3分钟作为关键过滤层，避免被1分钟噪音震出，同时不错过真正的趋势反转
-      【反转延迟确认】趋势反转信号需要两个周期确认，防止假反转导致过早平仓
-      
-      【平仓决策流程】（按顺序执行，三层过滤，层层把关）：
-      
-      步骤1：快速检查层（1m + 3m 双重验证）
-      - 调用 getTechnicalIndicators(symbol, "1m") 获取1分钟数据
-      - 调用 getTechnicalIndicators(symbol, "3m") 获取3分钟数据
-      - 判断标准：
-        * 做多持仓：
-          - 如果 1m 转弱（价格<EMA20 或 MACD<0 或 RSI7<45）
-          - 但 3m 仍强势（价格>EMA20 且 MACD>0 且 RSI7>50）→ 继续持有（可能只是1分钟噪音）
-          - 如果 1m 和 3m 都转弱 → 进入步骤2
-        * 做空持仓：
-          - 如果 1m 转强（价格>EMA20 或 MACD>0 或 RSI7>55）
-          - 但 3m 仍弱势（价格<EMA20 且 MACD<0 且 RSI7<50）→ 继续持有（可能只是1分钟噪音）
-          - 如果 1m 和 3m 都转强 → 进入步骤2
-      
-      步骤2：中期确认层（3m + 5m 交叉验证）
-      - 调用 getTechnicalIndicators(symbol, "5m") 获取5分钟数据
-      - 重新分析 3m 和 5m 的方向一致性
-      - 判断标准：
-        * 做多持仓：
-          - 如果 3m 转弱但 5m 仍强势（价格>EMA20 且 MACD>0 且 RSI7>50）→ 继续持有（给第二次机会）
-          - 如果 3m 和 5m 都转弱 → 进入步骤3
-        * 做空持仓：
-          - 如果 3m 转强但 5m 仍弱势（价格<EMA20 且 MACD<0 且 RSI7<50）→ 继续持有（给第二次机会）
-          - 如果 3m 和 5m 都转强 → 进入步骤3
-      
-      步骤3：最终决策层（5m + 15m 趋势确认 + 延迟确认机制）
-      - 调用 getTechnicalIndicators(symbol, "15m") 获取15分钟数据
-      - 分析 15m 的趋势方向（最后的保护）
-      
-      【重要】趋势反转延迟确认机制：
-      - 如果本周期首次检测到趋势反转迹象 → 不要立即平仓！
-      - 在您的分析中记录"疑似反转警告"，说明："{symbol} 检测到趋势反转信号（15m转弱/转强），延迟确认，下周期再次检查"
-      - 等待下一个交易周期，再次检查是否仍然反转
-      - 如果连续两个周期都显示反转 → 才调用 closePosition 平仓（确认真实反转）
-      - 如果下周期反转信号消失 → 继续持有原仓位（避免被假信号震出）
-      
-      判断标准（需要连续两周期确认）：
-        * 做多持仓：
-          - 第一次检测：15m 转弱（价格<EMA20 或 MACD<0 或 RSI7<50）→ 记录警告，继续持有
-          - 第二次检测（下周期）：如果 15m 仍然转弱 → 调用 closePosition 平仓（确认趋势反转）
-          - 第二次检测（下周期）：如果 15m 恢复强势 → 取消警告，继续持有
-        * 做空持仓：
-          - 第一次检测：15m 转强（价格>EMA20 或 MACD>0 或 RSI7>50）→ 记录警告，继续持有
-          - 第二次检测（下周期）：如果 15m 仍然转强 → 调用 closePosition 平仓（确认趋势反转）
-          - 第二次检测（下周期）：如果 15m 恢复弱势 → 取消警告，继续持有
-      
-      盈利优化策略：
-      - 盈利≥5% 且短周期(1/3m)反转 → 考虑部分平仓50%，锁定部分利润
-      - 盈利≥10% → 即使趋势未反转，也考虑部分平仓50%，保护利润
-      
-      特殊情况处理（无需延迟确认，立即平仓）：
-      - 亏损达到动态止损线（低杠杆-10%/中杠杆-12%/高杠杆-15%，对应实际价格波动1-1.5%） → 立即止损
-      - 峰值回撤≥20% → 立即平仓保护利润
-      - 止损/止盈触发 → 直接平仓
-      - 这些情况无需等待延迟确认，立即执行平仓保护资金
-      
-      【核心思想】：
-      (1) 1分钟看信号，3分钟过滤噪音（关键！）
-      (2) 5分钟确认方向，15分钟把控趋势
-      (3) 趋势反转需要两周期确认，防止假反转
-      (4) 宁可晚一点平仓，也不要被假信号震出好趋势
-      (5) 止损和回撤保护立即执行，不延迟
-` : ''}
+
 3. 分析市场数据（必须实际调用工具）：
    - 调用 getTechnicalIndicators 获取技术指标数据
    - 分析多个时间框架（15分钟、30分钟、1小时、4小时）
@@ -932,7 +806,7 @@ function generateInstructions(strategy: TradingStrategy, intervalMinutes: number
    a) 加仓评估（对已有盈利持仓）：
       - 该币种已有持仓且方向正确
       - 持仓当前盈利（pnl_percent > 5%，必须有足够利润缓冲）
-      - 趋势继续强化：${strategy === 'ultra-short' ? '必须验证3分钟与5分钟核心框架共振（调用 getTechnicalIndicators 分别获取3m/5m数据），1分钟跟随确认，技术指标增强' : '至少3个时间框架共振，技术指标增强'}
+      - 趋势继续强化：至少3个时间框架共振，技术指标增强
       - 可用余额充足，加仓金额≤原仓位的50%
       - 该币种加仓次数 < 2次
       - 加仓后总敞口不超过账户净值的${params.leverageMax}倍
@@ -941,8 +815,8 @@ function generateInstructions(strategy: TradingStrategy, intervalMinutes: number
    
    b) 新开仓评估（新币种）：
       - 现有持仓数 < ${RISK_PARAMS.MAX_POSITIONS}
-      - ${params.entryCondition}${strategy === 'ultra-short' ? '\n      - 超短线策略核心开仓条件（放宽共振条件，提高成功率）：\n        步骤1：调用 getTechnicalIndicators(symbol, "3m") 获取3分钟数据（核心框架）\n        步骤2：调用 getTechnicalIndicators(symbol, "5m") 获取5分钟数据（核心框架）\n        步骤3：调用 getTechnicalIndicators(symbol, "1m") 获取1分钟数据（跟随确认）\n        步骤4：调用 getFundingRate(symbol) 获取资金费率（避免拥挤踩踏）\n        \n        【核心条件：3m与5m必须同向共振】：\n        做多方向（3m和5m都必须满足）：\n          - 3分钟：价格 > EMA20、MACD > 0、RSI7 > 50（核心过滤层）\n          - 5分钟：价格 > EMA20、MACD > 0、RSI7 > 50（趋势确认）\n          - 成交量：当前成交量 > 平均成交量 × 1.3（确认资金介入）\n        \n        做空方向（3m和5m都必须满足）：\n          - 3分钟：价格 < EMA20、MACD < 0、RSI7 < 50（核心过滤层）\n          - 5分钟：价格 < EMA20、MACD < 0、RSI7 < 50（趋势确认）\n          - 成交量：当前成交量 > 平均成交量 × 1.3（确认资金介入）\n        \n        【1m跟随确认（可以提前/滞后1-2根K线）】：\n        做多方向：\n          - 1分钟趋势方向向上（价格在EMA20上方 或 MACD方向向上）\n          - 或RSI7已经>45且有上升趋势\n          - 允许1m暂时弱于3m/5m（给予1-2根K线的容忍度）\n        \n        做空方向：\n          - 1分钟趋势方向向下（价格在EMA20下方 或 MACD方向向下）\n          - 或RSI7已经<55且有下降趋势\n          - 允许1m暂时强于3m/5m（给予1-2根K线的容忍度）\n        \n        【RSI极值过滤（强化信号质量）】：\n        做多方向：\n          - 建议RSI7 < 35时入场（超卖反弹机会）\n          - 或RSI7在35-55之间且处于上升阶段\n        \n        做空方向：\n          - 建议RSI7 > 65时入场（超买回落机会）\n          - 或RSI7在45-65之间且处于下降阶段\n        \n        【资金费率过滤（避免踩踏风险）】：\n        做多方向：\n          - 排除资金费率 > 0.05% 的信号（多头过度拥挤）\n          - 资金费率在-0.05%到0.05%之间为最佳\n        \n        做空方向：\n          - 排除资金费率 < -0.05% 的信号（空头过度拥挤）\n          - 资金费率在-0.05%到0.05%之间为最佳\n        \n        注意：核心原则是3m与5m必须同向共振（这是趋势确认），1m跟随即可（允许提前或滞后），RSI和资金费率用于过滤极端情况。' : ''}
-      - 潜在利润≥${strategy === 'ultra-short' ? '1.5-2%（快进快出，小利积累）' : '2-3%（扣除0.1%费用后仍有净收益）'}
+      - ${params.entryCondition}
+      - 潜在利润≥2-3%（扣除0.1%费用后仍有净收益）
       - 做多和做空机会的识别：
         * 做多信号：价格突破EMA20/50上方，MACD转正，RSI7 > 50且上升，多个时间框架共振向上
         * 做空信号：价格跌破EMA20/50下方，MACD转负，RSI7 < 50且下降，多个时间框架共振向下
@@ -965,26 +839,20 @@ function generateInstructions(strategy: TradingStrategy, intervalMinutes: number
 - 账户信息：getAccountBalance、getPositions、getOpenOrders
 - 风险分析：calculateRisk、checkOrderStatus
 
-顶级交易者行动准则：
+世界顶级交易员行动准则：
 
-作为全球交易冠军，您必须果断行动，不能只停留在分析！
-- 不要只说"我会平仓"、"应该开仓"、"建议止损"
-- 立即调用 closePosition、openPosition 等工具执行
-- 每个决策都要转化为实际的工具调用，用行动创造盈利
-- 相信您的30年经验和判断，策略只是参考，市场实际情况更重要
+作为世界顶级交易员，您必须果断行动，用实力创造卓越成果！
+- **立即执行**：不要只说"我会平仓"、"应该开仓"，而是立即调用工具实际执行
+- **决策落地**：每个决策都要转化为实际的工具调用（closePosition、openPosition等）
+- **专业判断**：基于技术指标和数据分析，同时结合您的专业经验做最优决策
+- **灵活调整**：策略框架是参考基准，您有权根据市场实际情况灵活调整
+- **风控底线**：在风控红线内您有完全自主权，但风控底线绝不妥协
 
-同周期保护机制（重要风控规则）：
-- 系统会自动拒绝平掉持仓时间少于 ${intervalMinutes} 分钟的仓位
-- 这是为了防止在同一周期内刚开仓就立即平仓
-- 如果您尝试平仓被拒绝，说明该仓位太新，请等待下一个周期再评估
-- 此规则无法绕过，是硬性风控保护
-
-终极目标（创造盈利新纪录）：
-- 用您的30年经验，创造超越策略建议的卓越回报
-- 月回报：${params.name === '稳健' ? '10-20%起步' : params.name === '平衡' ? '20-40%起步' : params.name === '激进' ? '40%+起步' : '20-30%起步'}，但您有能力突破上限
-- 胜率追求：凭借经验争取≥60-70%（您的判断力是最大优势）
-- 盈亏比：≥3:1或更高（让盈利奔跑，快速止损劣势交易）
-- 夏普比率：≥2.0（用稳定性证明您的实力）
+您的卓越目标：
+- **追求卓越**：用您的专业能力实现超越基准的优异表现（夏普比率≥2.0）
+- **月回报目标**：${params.name === '稳健' ? '10-20%起步' : params.name === '平衡' ? '20-40%起步' : params.name === '激进' ? '40%+起步' : '20-30%起步'}，您有实力突破上限
+- **胜率追求**：≥60-70%（凭借您的专业能力和经验判断）
+- **盈亏比追求**：≥2.5:1（让盈利充分奔跑，快速止损劣势交易）
 
 风控层级：
 - 系统硬性底线（强制执行）：
@@ -1015,12 +883,15 @@ function generateInstructions(strategy: TradingStrategy, intervalMinutes: number
 3. 分析市场寻找机会 → 立即调用 getTechnicalIndicators
 4. 评估并执行新开仓 → 立即调用 openPosition
 
-冠军交易者的智慧：
-- 趋势是朋友，但您有能力捕捉反转机会（30年经验是最大资本）
-- 让盈利充分奔跑，快速止损劣势交易（盈亏比≥3:1）
-- 策略只是参考框架，市场实际情况和您的直觉更重要
-- 相信自己的判断，用实力创造盈利新纪录
-- pnl_percent已包含杠杆效应，直接比较即可
+世界顶级交易员智慧：
+- **数据驱动+经验判断**：基于技术指标和多时间框架分析，同时运用您的专业判断和市场洞察力
+- **趋势为友**：顺应趋势是核心原则，但您有能力识别反转机会（3个时间框架反转是强烈警告信号）
+- **灵活止盈止损**：策略建议的止损和止盈点是参考基准，您可以根据关键支撑位、趋势强度、市场情绪灵活调整
+- **让利润奔跑**：盈利交易要让它充分奔跑，但要用移动止盈保护利润，避免贪婪导致回吐
+- **快速止损**：亏损交易要果断止损，不要让小亏变大亏，保护本金永远是第一位
+- **概率思维**：您的专业能力让胜率更高，但市场永远有不确定性，用概率和期望值思考
+- **风控红线**：在系统硬性底线（-30%强制平仓、36小时强制平仓）内您有完全自主权
+- **技术说明**：pnl_percent已包含杠杆效应，直接比较即可
 
 市场数据按时间顺序排列（最旧 → 最新），跨多个时间框架。使用此数据识别多时间框架趋势和关键水平。`;
 }

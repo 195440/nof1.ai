@@ -6,7 +6,7 @@
 
 [![VoltAgent](https://img.shields.io/badge/Framework-VoltAgent-purple.svg)](https://voltagent.dev)
 [![OpenAI Compatible](https://img.shields.io/badge/AI-OpenAI_Compatible-orange.svg)](https://openrouter.ai)
-[![Gate.io](https://img.shields.io/badge/Exchange-Gate.io-00D4AA.svg)](https://www.gatesite.work/signup/VVVEA10LVQ?ref_type=103)
+[![Gate.io](https://img.shields.io/badge/Exchange-Gate.io-00D4AA.svg)](https://www.gatesite.org/signup/VVVEA10LVQ?ref_type=103)
 [![TypeScript](https://img.shields.io/badge/Language-TypeScript-3178C6.svg?logo=typescript&logoColor=white)](https://www.typescriptlang.org)
 [![Node.js](https://img.shields.io/badge/Runtime-Node.js%2020+-339933.svg?logo=node.js&logoColor=white)](https://nodejs.org)
 [![License](https://img.shields.io/badge/License-AGPL--3.0-blue.svg)](./LICENSE)
@@ -80,7 +80,7 @@ open-nof1.ai は、大規模言語モデルの知能と量的取引実践を深�
 |---------------|------|------|
 | フレームワーク | [VoltAgent](https://voltagent.dev) | AI Agent オーケストレーションと管理 |
 | AI プロバイダー | OpenAI 互換 API | OpenRouter、OpenAI、DeepSeek などの互換プロバイダーをサポート |
-| 取引所 | [Gate.io](https://www.gatesite.work/signup/VVVEA10LVQ?ref_type=103) | 暗号通貨取引(テストネット & 本番ネット) |
+| 取引所 | [Gate.io](https://www.gatesite.org/signup/VVVEA10LVQ?ref_type=103) | 暗号通貨取引(テストネット & 本番ネット) |
 | データベース | LibSQL (SQLite) | ローカルデータ永続化 |
 | Web サーバー | Hono | 高性能 HTTP フレームワーク |
 | 開発言語 | TypeScript | 型安全な開発 |
@@ -199,7 +199,7 @@ ACCOUNT_DRAWDOWN_FORCE_CLOSE_PERCENT=50      # 強制決済しきい値：すべ
 - OpenAI: https://platform.openai.com/api-keys
 - DeepSeek: https://platform.deepseek.com/api_keys
 - Gate.io テストネット: https://www.gate.io/testnet
-- Gate.io 本番ネット: https://www.gatesite.work/signup/VVVEA10LVQ?ref_type=103
+- Gate.io 本番ネット: https://www.gatesite.org/signup/VVVEA10LVQ?ref_type=103
 
 > **ヒント**: 上記の招待リンクまたは招待コード `VVVEA10LVQ` を使用して Gate.io アカウントを登録すると、取引手数料のリベートを受けられます。
 
@@ -735,7 +735,7 @@ npm run trading:start
 
 Gate.io アカウントをお持ちでない場合、以下の招待方式での登録をお勧めします：
 
-- **招待リンク**: [https://www.gatesite.work/signup/VVVEA10LVQ?ref_type=103](https://www.gatesite.work/signup/VVVEA10LVQ?ref_type=103)
+- **招待リンク**: [https://www.gatesite.org/signup/VVVEA10LVQ?ref_type=103](https://www.gatesite.org/signup/VVVEA10LVQ?ref_type=103)
 - **招待コード**: `VVVEA10LVQ`
 
 > 招待コードで登録すると、取引手数料のリベートを受けられ、同時にこのオープンソースプロジェクトの長期運営を支援できます。あなたとプロジェクトの両方にメリットがあり、完全無料で追加費用は一切ありません。
