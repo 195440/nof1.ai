@@ -22,7 +22,7 @@
 import cron from "node-cron";
 import { createPinoLogger } from "@voltagent/logger";
 import { createClient } from "@libsql/client";
-import { createTradingAgent, generateTradingPrompt, getAccountRiskConfig } from "../agents/tradingAgent";
+import { createTradingAgent, generateTradingPrompt, getAccountRiskConfig, getTradingStrategy, getStrategyParams } from "../agents/tradingAgent";
 import { createGateClient } from "../services/gateClient";
 import { getChinaTimeISO } from "../utils/timeUtils";
 import { RISK_PARAMS } from "../config/riskParams";
@@ -108,13 +108,13 @@ async function collectMarketData() {
         }
       }
       
-      // 获取所有时间框架的K线数据
-      const candles1m = await gateClient.getFuturesCandles(contract, "1m", 60);
-      const candles3m = await gateClient.getFuturesCandles(contract, "3m", 60);
-      const candles5m = await gateClient.getFuturesCandles(contract, "5m", 100);
-      const candles15m = await gateClient.getFuturesCandles(contract, "15m", 96);
-      const candles30m = await gateClient.getFuturesCandles(contract, "30m", 90);
-      const candles1h = await gateClient.getFuturesCandles(contract, "1h", 120);
+      // 获取所有时间框架的K线数据（优化后的配置，确保技术指标准确性）
+      const candles1m = await gateClient.getFuturesCandles(contract, "1m", 150);   // 2.5小时，EMA50有充足验证数据
+      const candles3m = await gateClient.getFuturesCandles(contract, "3m", 120);   // 6小时，覆盖半个交易日
+      const candles5m = await gateClient.getFuturesCandles(contract, "5m", 100);   // 8.3小时，日内趋势分析
+      const candles15m = await gateClient.getFuturesCandles(contract, "15m", 96);  // 24小时，完整一天
+      const candles30m = await gateClient.getFuturesCandles(contract, "30m", 120); // 2.5天，中期趋势
+      const candles1h = await gateClient.getFuturesCandles(contract, "1h", 168);   // 7天完整一周，周级别分析
       
       // 计算每个时间框架的指标
       const indicators1m = calculateIndicators(candles1m);
@@ -1238,7 +1238,37 @@ async function executeTradingDecision() {
         logger.error(`${closeReason}`);
       }
       
-      // c) 其他风控检查已移除，交由AI全权决策
+      // c) 超短线策略专属风控规则
+      const strategy = getTradingStrategy();
+      if (strategy === 'ultra-short' && !shouldClose) {
+        const holdingMinutes = holdingHours * 60;
+        
+        // 计算手续费成本（开仓 + 平仓，总共约 0.1%）
+        // 考虑杠杆后，需要的盈利百分比 = 0.1% * 杠杆
+        const feeThreshold = 0.1 * leverage;
+        
+        // 移动止盈的第一档触发阈值
+        const params = getStrategyParams(strategy);
+        const trailingStopTrigger = params.trailingStop.level1.trigger; // 4%
+        
+        // 规则1：每周期2%锁利规则（优先级最高）
+        // 每个交易周期内，如果盈利 >2% 但未触发移动止盈（<4%），立即平仓锁定利润
+        if (pnlPercent > 2 && pnlPercent < trailingStopTrigger) {
+          shouldClose = true;
+          closeReason = `超短线策略周期锁利规则：盈利${pnlPercent.toFixed(2)}% >2%，未达到移动止盈触发线${trailingStopTrigger}%，立即平仓锁定利润`;
+          logger.info(`【超短线周期锁利】${symbol} ${closeReason}`);
+        }
+        
+        // 规则2：30分钟盈利平仓规则（保底规则）
+        // 如果持仓超过30分钟，处于盈利状态，但没有触发移动止盈，且覆盖了交易费，进行平仓
+        if (!shouldClose && holdingMinutes >= 30 && pnlPercent > feeThreshold && pnlPercent < trailingStopTrigger) {
+          shouldClose = true;
+          closeReason = `超短线策略30分钟盈利平仓规则：持仓${holdingMinutes.toFixed(1)}分钟，盈利${pnlPercent.toFixed(2)}%（已覆盖手续费${feeThreshold.toFixed(2)}%），但未达到移动止盈触发线${trailingStopTrigger}%，执行保守平仓`;
+          logger.info(`【超短线30分钟规则】${symbol} ${closeReason}`);
+        }
+      }
+      
+      // d) 其他风控检查已移除，交由AI全权决策
       // AI负责：止损、移动止盈、分批止盈、时间止盈、峰值回撤等策略性决策
       // 系统只保留底线安全保护（极端止损、36小时强制平仓、账户回撤保护）
       

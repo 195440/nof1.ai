@@ -4,7 +4,7 @@
 
 [![VoltAgent](https://img.shields.io/badge/Framework-VoltAgent-purple.svg)](https://voltagent.dev)
 [![OpenAI Compatible](https://img.shields.io/badge/AI-OpenAI_Compatible-orange.svg)](https://openrouter.ai)
-[![Gate.io](https://img.shields.io/badge/Exchange-Gate.io-00D4AA.svg)](https://www.gate.io)
+[![Gate.io](https://img.shields.io/badge/Exchange-Gate.io-00D4AA.svg)](https://www.gatesite.work/signup/VVVEA10LVQ?ref_type=103)
 [![TypeScript](https://img.shields.io/badge/Language-TypeScript-3178C6.svg?logo=typescript&logoColor=white)](https://www.typescriptlang.org)
 [![Node.js](https://img.shields.io/badge/Runtime-Node.js%2020+-339933.svg?logo=node.js&logoColor=white)](https://nodejs.org)
 [![License](https://img.shields.io/badge/License-AGPL--3.0-blue.svg)](./LICENSE)
@@ -62,7 +62,7 @@ open-nof1.ai 是一个 AI 驱动的加密货币自动交易系统，将大语言
 |------|------|------|
 | 框架 | [VoltAgent](https://voltagent.dev) | AI Agent 编排与管理 |
 | AI 提供商 | OpenAI 兼容 API | 支持 OpenRouter、OpenAI、DeepSeek 等兼容供应商 |
-| 交易所 | [Gate.io](https://www.gate.io) | 加密货币交易(测试网 & 正式网) |
+| 交易所 | [Gate.io](https://www.gatesite.work/signup/VVVEA10LVQ?ref_type=103) | 加密货币交易(测试网 & 正式网) |
 | 数据库 | LibSQL (SQLite) | 本地数据持久化 |
 | Web 服务器 | Hono | 高性能 HTTP 框架 |
 | 开发语言 | TypeScript | 类型安全开发 |
@@ -70,13 +70,26 @@ open-nof1.ai 是一个 AI 驱动的加密货币自动交易系统，将大语言
 
 ## 快速开始
 
-### 前置要求
+### 第一步：注册交易所账户
+
+本项目依赖 Gate.io 交易所 API。**如果您还没有账户，请先完成注册：**
+
+**推荐注册方式：**
+
+- [立即注册 Gate.io](https://www.gatesite.work/signup/VVVEA10LVQ?ref_type=103)
+- 邀请码：`VVVEA10LVQ`
+
+> 通过上方邀请码注册，您可享受交易返佣优惠，同时为开源项目的持续发展提供支持。
+
+> **新手建议**：先注册并使用[测试网](https://www.gate.io/testnet)环境学习，零风险体验完整功能。
+
+### 第二步：环境准备
 
 - Node.js >= 20.19.0
 - npm 或 pnpm 包管理器
 - Git 版本控制工具
 
-### 安装
+### 第三步：安装项目
 
 ```bash
 # 克隆仓库
@@ -87,7 +100,7 @@ cd open-nof1.ai
 npm install
 ```
 
-### 配置
+### 第四步：配置
 
 在项目根目录创建 `.env` 文件:
 
@@ -127,15 +140,17 @@ ACCOUNT_DRAWDOWN_FORCE_CLOSE_PERCENT=50      # 强制平仓阈值：自动平掉
 - OpenAI: https://platform.openai.com/api-keys
 - DeepSeek: https://platform.deepseek.com/api_keys
 - Gate.io 测试网: https://www.gate.io/testnet
-- Gate.io 正式网: https://www.gate.io/myaccount/api_key_manage
+- Gate.io 正式网: https://www.gatesite.work/signup/VVVEA10LVQ?ref_type=103
 
-### 数据库初始化
+> **提示**: 通过上方邀请链接或使用邀请码 `VVVEA10LVQ` 注册 Gate.io 账户，您将获得交易佣金返还优惠。
+
+### 第五步：数据库初始化
 
 ```bash
 npm run db:init
 ```
 
-### 启动交易系统
+### 第六步：启动交易系统
 
 ```bash
 # 开发模式(热重载)
@@ -145,7 +160,7 @@ npm run dev
 npm run trading:start
 ```
 
-### 访问 Web 仪表板
+### 第七步：访问 Web 仪表板
 
 在浏览器中访问 `http://localhost:3100`
 
@@ -213,6 +228,21 @@ npm run trading:start
 完整条款请参见 [LICENSE](./LICENSE) 文件。
 
 ## 资源
+
+### 节省交易成本 & 支持项目
+
+如果您还没有 Gate.io 账户，强烈建议通过以下方式注册：
+
+**注册方式：**
+- **邀请链接**: [https://www.gatesite.work/signup/VVVEA10LVQ?ref_type=103](https://www.gatesite.work/signup/VVVEA10LVQ?ref_type=103)
+- **邀请码**: `VVVEA10LVQ`
+
+**双赢方案：**
+- **您的优势**：获得交易手续费返佣，长期使用可节省可观成本
+- **项目支持**：您的使用将帮助维护这个开源项目的持续开发
+- **无额外费用**：完全免费，不影响您的任何交易体验
+
+> **提示**：测试网和正式网可以用同一个账户，建议您先在测试网充分测试后再进行真实交易。
 
 ### 外部链接
 
