@@ -1489,7 +1489,7 @@ async function executeTradingDecision() {
       const response = await agent.generateText(prompt, {
         maxOutputTokens: 8192,
         maxSteps: 20,
-        temperature: 0.6,
+        temperature: 0.4,
       });
       
       // 从响应中提取AI的完整回复，不进行任何切分
