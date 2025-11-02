@@ -274,7 +274,7 @@ export function getStrategyParams(strategy: TradingStrategy): StrategyParams {
     },
     "ultra-short": {
       name: "超短线",
-      description: "高杠杆日内交易，1/3/5/15分钟四框架共振开仓，双层时间框架智能平仓，快进快出",
+      description: "高杠杆日内交易，1/3/5分钟三框架共振开仓，三层时间框架智能平仓，快进快出",
       leverageMin: ultraShortLevMin,
       leverageMax: ultraShortLevMax,
       leverageRecommend: {
@@ -312,9 +312,9 @@ export function getStrategyParams(strategy: TradingStrategy): StrategyParams {
         normalVolatility: { leverageFactor: 1.0, positionFactor: 1.0 }, // 正常波动：不调整
         lowVolatility: { leverageFactor: 1.0, positionFactor: 1.0 },    // 低波动：不调整
       },
-      entryCondition: "必须1分钟、3分钟、5分钟、15分钟四个时间框架信号完全一致",
-      riskTolerance: "单笔交易风险控制在16-30%之间，使用双层时间框架验证平仓",
-      tradingStyle: "日内超短线交易，使用高杠杆配合严格入场条件（1/3/5/15分钟四框架共振），平仓时先看1/3/5分钟，不符合再看3/5/15分钟，给交易更多机会，快速止损保护本金",
+      entryCondition: "必须1分钟、3分钟、5分钟三个时间框架信号完全一致",
+      riskTolerance: "单笔交易风险控制在16-30%之间，使用三层时间框架验证平仓",
+      tradingStyle: "日内超短线交易，使用高杠杆配合严格入场条件（1/3/5分钟三框架共振），平仓时三层验证（1m+3m，3m+5m，5m+15m），3分钟是关键过滤层，快速止损保护本金",
     },
   };
 
@@ -915,7 +915,7 @@ function generateInstructions(strategy: TradingStrategy, intervalMinutes: number
    a) 加仓评估（对已有盈利持仓）：
       - 该币种已有持仓且方向正确
       - 持仓当前盈利（pnl_percent > 5%，必须有足够利润缓冲）
-      - 趋势继续强化：至少3个时间框架共振，技术指标增强
+      - 趋势继续强化：${strategy === 'ultra-short' ? '必须验证1分钟、3分钟、5分钟三个时间框架共振（调用 getTechnicalIndicators 分别获取1m/3m/5m数据），技术指标增强' : '至少3个时间框架共振，技术指标增强'}
       - 可用余额充足，加仓金额≤原仓位的50%
       - 该币种加仓次数 < 2次
       - 加仓后总敞口不超过账户净值的${params.leverageMax}倍
