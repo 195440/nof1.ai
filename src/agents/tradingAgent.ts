@@ -296,7 +296,7 @@ export function getStrategyParams(strategy: TradingStrategy): StrategyParams {
       },
       trailingStop: {
         // 超短线策略：调大移动止盈范围，避免过早被噪音震出
-        level1: { trigger: 4, stopAt: 1 },     // 盈利达到 +4% 时，止损线移至 +1%
+        level1: { trigger: 4, stopAt: 2 },     // 盈利达到 +4% 时，止损线移至 +2%
         level2: { trigger: 8, stopAt: 4 },     // 盈利达到 +8% 时，止损线移至 +4%
         level3: { trigger: 12, stopAt: 8 },    // 盈利达到 +12% 时，止损线移至 +8%
       },
