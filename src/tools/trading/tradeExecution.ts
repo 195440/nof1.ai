@@ -637,12 +637,14 @@ export const closePositionTool = createTool({
         
         // 获取交易周期间隔（分钟）
         const intervalMinutes = Number.parseInt(process.env.TRADING_INTERVAL_MINUTES || "5");
+        // 最小持仓时间为半个交易周期
+        const minHoldingMinutes = intervalMinutes / 2;
         
-        // 如果持仓时间少于1个交易周期，拒绝平仓
-        if (holdingMinutes < intervalMinutes) {
+        // 如果持仓时间少于最小持仓时间，拒绝平仓
+        if (holdingMinutes < minHoldingMinutes) {
           return {
             success: false,
-            message: `拒绝平仓 ${symbol}：持仓时间仅 ${holdingMinutes.toFixed(1)} 分钟，少于最小持仓时间 ${intervalMinutes} 分钟。请等待至少一个完整交易周期后再评估平仓。这是为了防止在同一周期内刚开仓就立即平仓，造成不必要的手续费损失。`,
+            message: `拒绝平仓 ${symbol}：持仓时间仅 ${holdingMinutes.toFixed(1)} 分钟，少于最小持仓时间 ${minHoldingMinutes.toFixed(1)} 分钟。请等待至少半个交易周期后再评估平仓。这是为了防止在同一周期内刚开仓就立即平仓，造成不必要的手续费损失。`,
           };
         }
         

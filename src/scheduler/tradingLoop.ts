@@ -22,7 +22,7 @@
 import cron from "node-cron";
 import { createPinoLogger } from "@voltagent/logger";
 import { createClient } from "@libsql/client";
-import { createTradingAgent, generateTradingPrompt, getAccountRiskConfig } from "../agents/tradingAgent";
+import { createTradingAgent, generateTradingPrompt, getAccountRiskConfig, getTradingStrategy, getStrategyParams } from "../agents/tradingAgent";
 import { createGateClient } from "../services/gateClient";
 import { getChinaTimeISO } from "../utils/timeUtils";
 import { RISK_PARAMS } from "../config/riskParams";
@@ -1238,7 +1238,28 @@ async function executeTradingDecision() {
         logger.error(`${closeReason}`);
       }
       
-      // c) 其他风控检查已移除，交由AI全权决策
+      // c) 超短线策略专属：30分钟盈利平仓规则
+      // 如果持仓超过30分钟，处于盈利状态，但没有触发移动止盈，且覆盖了交易费，进行平仓
+      const strategy = getTradingStrategy();
+      if (strategy === 'ultra-short' && !shouldClose) {
+        const holdingMinutes = holdingHours * 60;
+        
+        // 计算手续费成本（开仓 + 平仓，总共约 0.1%）
+        // 考虑杠杆后，需要的盈利百分比 = 0.1% * 杠杆
+        const feeThreshold = 0.1 * leverage;
+        
+        // 移动止盈的第一档触发阈值
+        const params = getStrategyParams(strategy);
+        const trailingStopTrigger = params.trailingStop.level1.trigger; // 4%
+        
+        if (holdingMinutes >= 30 && pnlPercent > feeThreshold && pnlPercent < trailingStopTrigger) {
+          shouldClose = true;
+          closeReason = `超短线策略30分钟盈利平仓规则：持仓${holdingMinutes.toFixed(1)}分钟，盈利${pnlPercent.toFixed(2)}%（已覆盖手续费${feeThreshold.toFixed(2)}%），但未达到移动止盈触发线${trailingStopTrigger}%，执行保守平仓`;
+          logger.info(`【超短线30分钟规则】${symbol} ${closeReason}`);
+        }
+      }
+      
+      // d) 其他风控检查已移除，交由AI全权决策
       // AI负责：止损、移动止盈、分批止盈、时间止盈、峰值回撤等策略性决策
       // 系统只保留底线安全保护（极端止损、36小时强制平仓、账户回撤保护）
       
