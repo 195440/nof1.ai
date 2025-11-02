@@ -108,13 +108,13 @@ async function collectMarketData() {
         }
       }
       
-      // 获取所有时间框架的K线数据
-      const candles1m = await gateClient.getFuturesCandles(contract, "1m", 60);
-      const candles3m = await gateClient.getFuturesCandles(contract, "3m", 60);
-      const candles5m = await gateClient.getFuturesCandles(contract, "5m", 100);
-      const candles15m = await gateClient.getFuturesCandles(contract, "15m", 96);
-      const candles30m = await gateClient.getFuturesCandles(contract, "30m", 90);
-      const candles1h = await gateClient.getFuturesCandles(contract, "1h", 120);
+      // 获取所有时间框架的K线数据（优化后的配置，确保技术指标准确性）
+      const candles1m = await gateClient.getFuturesCandles(contract, "1m", 150);   // 2.5小时，EMA50有充足验证数据
+      const candles3m = await gateClient.getFuturesCandles(contract, "3m", 120);   // 6小时，覆盖半个交易日
+      const candles5m = await gateClient.getFuturesCandles(contract, "5m", 100);   // 8.3小时，日内趋势分析
+      const candles15m = await gateClient.getFuturesCandles(contract, "15m", 96);  // 24小时，完整一天
+      const candles30m = await gateClient.getFuturesCandles(contract, "30m", 120); // 2.5天，中期趋势
+      const candles1h = await gateClient.getFuturesCandles(contract, "1h", 168);   // 7天完整一周，周级别分析
       
       // 计算每个时间框架的指标
       const indicators1m = calculateIndicators(candles1m);
