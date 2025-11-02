@@ -213,6 +213,9 @@ function calculateIndicators(candles: any[]) {
     avgVolume: ensureFinite(volumes.length > 0 ? volumes.reduce((a, b) => a + b, 0) / volumes.length : 0),
     atr3: ensureFinite(calculateATR(candles, 3)),
     atr14: ensureFinite(calculateATR(candles, 14)),
+    volumeRatio: ensureFinite(volumes.length > 0 && (volumes.reduce((a, b) => a + b, 0) / volumes.length) > 0 
+      ? (volumes.at(-1) || 0) / (volumes.reduce((a, b) => a + b, 0) / volumes.length) 
+      : 1),
   };
 }
 
@@ -253,7 +256,7 @@ export const getTechnicalIndicatorsTool = createTool({
   description: "获取指定币种的技术指标（EMA、MACD、RSI等）",
   parameters: z.object({
     symbol: z.enum(RISK_PARAMS.TRADING_SYMBOLS).describe("币种代码"),
-    interval: z.enum(["1m", "5m", "15m", "1h", "4h"]).default("5m").describe("K线周期"),
+    interval: z.enum(["1m", "3m", "5m", "15m", "30m", "1h", "4h"]).default("5m").describe("K线周期"),
     limit: z.number().default(100).describe("K线数量"),
   }),
   execute: async ({ symbol, interval, limit }) => {

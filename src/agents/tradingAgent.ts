@@ -129,9 +129,9 @@ export function getStrategyParams(strategy: TradingStrategy): StrategyParams {
   const aggressiveLevGood = Math.ceil((aggressiveLevMin + aggressiveLevMax) / 2);
   const aggressiveLevStrong = aggressiveLevMax;
   
-  // 超短线策略：15%-40% 的最大杠杆（极低杠杆，快进快出）
-  const ultraShortLevMin = Math.max(1, Math.ceil(maxLeverage * 0.15));
-  const ultraShortLevMax = Math.max(2, Math.ceil(maxLeverage * 0.4));
+  // 超短线策略：70%-100% 的最大杠杆（高杠杆配合严格入场条件和快速止损）
+  const ultraShortLevMin = Math.max(3, Math.ceil(maxLeverage * 0.7));
+  const ultraShortLevMax = maxLeverage;
   const ultraShortLevNormal = ultraShortLevMin;
   const ultraShortLevGood = Math.ceil((ultraShortLevMin + ultraShortLevMax) / 2);
   const ultraShortLevStrong = ultraShortLevMax;
@@ -274,7 +274,7 @@ export function getStrategyParams(strategy: TradingStrategy): StrategyParams {
     },
     "ultra-short": {
       name: "超短线",
-      description: "极低杠杆日内交易，1/3/5/15分钟四框架共振开仓，双层时间框架智能平仓",
+      description: "高杠杆日内交易，1/3/5/15分钟四框架共振开仓，双层时间框架智能平仓，快进快出",
       leverageMin: ultraShortLevMin,
       leverageMax: ultraShortLevMax,
       leverageRecommend: {
@@ -314,7 +314,7 @@ export function getStrategyParams(strategy: TradingStrategy): StrategyParams {
       },
       entryCondition: "必须1分钟、3分钟、5分钟、15分钟四个时间框架信号完全一致",
       riskTolerance: "单笔交易风险控制在16-30%之间，使用双层时间框架验证平仓",
-      tradingStyle: "日内超短线交易，开仓用1/3/5/15分钟四框架共振，平仓时先看1/3/5分钟，不符合再看3/5/15分钟，给交易更多机会，除非确定盈利否则不轻易平仓",
+      tradingStyle: "日内超短线交易，使用高杠杆配合严格入场条件（1/3/5/15分钟四框架共振），平仓时先看1/3/5分钟，不符合再看3/5/15分钟，给交易更多机会，快速止损保护本金",
     },
   };
 
@@ -850,39 +850,59 @@ function generateInstructions(strategy: TradingStrategy, intervalMinutes: number
       - 记住：趋势是你的朋友，反转是你的敌人
       - 反转后想开反向仓位，必须先平掉原持仓（禁止对冲）
    ${strategy === 'ultra-short' ? `
-   f) 超短线策略专属：双层时间框架智能平仓决策
-      【核心原则】1分钟线噪音大，避免被假信号震出，给交易更多机会
+   f) 超短线策略专属：三层时间框架智能平仓决策
+      【核心原则】利用3分钟作为关键过滤层，避免被1分钟噪音震出，同时不错过真正的趋势反转
       
-      【平仓决策流程】（按顺序执行，层层把关）：
+      【平仓决策流程】（按顺序执行，三层过滤，层层把关）：
       
-      步骤1 首先检查短周期框架（1m/3m/5m）
-      - 调用 getTechnicalIndicators 获取1分钟、3分钟、5分钟数据
-      - 分析：EMA20、EMA50、MACD、RSI14是否明确反转
+      步骤1：快速检查层（1m + 3m 双重验证）
+      - 调用 getTechnicalIndicators(symbol, "1m") 获取1分钟数据
+      - 调用 getTechnicalIndicators(symbol, "3m") 获取3分钟数据
       - 判断标准：
-        * 做多持仓：若3个指标中≥2个转为看跌（价格跌破EMA20、MACD转负、RSI<45）→ 进入步骤2
-        * 做空持仓：若3个指标中≥2个转为看涨（价格突破EMA20、MACD转正、RSI>55）→ 进入步骤2
-      - 如果短周期没有明显反转信号 → 不平仓，继续持有
+        * 做多持仓：
+          - 如果 1m 转弱（价格<EMA20 或 MACD<0 或 RSI7<45）
+          - 但 3m 仍强势（价格>EMA20 且 MACD>0 且 RSI7>50）→ 继续持有（可能只是1分钟噪音）
+          - 如果 1m 和 3m 都转弱 → 进入步骤2
+        * 做空持仓：
+          - 如果 1m 转强（价格>EMA20 或 MACD>0 或 RSI7>55）
+          - 但 3m 仍弱势（价格<EMA20 且 MACD<0 且 RSI7<50）→ 继续持有（可能只是1分钟噪音）
+          - 如果 1m 和 3m 都转强 → 进入步骤2
       
-      步骤2 验证中长周期框架（3m/5m/15m）- 给交易第二次机会
-      - 调用 getTechnicalIndicators 获取3分钟、5分钟、15分钟数据
-      - 重新分析：EMA20、EMA50、MACD、RSI14的方向
+      步骤2：中期确认层（3m + 5m 交叉验证）
+      - 调用 getTechnicalIndicators(symbol, "5m") 获取5分钟数据
+      - 重新分析 3m 和 5m 的方向一致性
       - 判断标准：
-        * 做多持仓：若15分钟框架仍然看涨（价格>EMA20、MACD>0、RSI>50）→ 不平仓，继续持有
-        * 做空持仓：若15分钟框架仍然看跌（价格<EMA20、MACD<0、RSI<50）→ 不平仓，继续持有
-      - 只有当15分钟框架也明确反转时，才考虑平仓
+        * 做多持仓：
+          - 如果 3m 转弱但 5m 仍强势（价格>EMA20 且 MACD>0 且 RSI7>50）→ 继续持有（给第二次机会）
+          - 如果 3m 和 5m 都转弱 → 进入步骤3
+        * 做空持仓：
+          - 如果 3m 转强但 5m 仍弱势（价格<EMA20 且 MACD<0 且 RSI7<50）→ 继续持有（给第二次机会）
+          - 如果 3m 和 5m 都转强 → 进入步骤3
       
-      步骤3 最终平仓决策
-      - 如果短周期(1/3/5m)和中周期(3/5/15m)都显示反转 → 立即调用 closePosition 平仓
-      - 如果已有盈利≥5% → 可考虑部分平仓50%，让剩余仓位继续观察
-      - 如果只有短周期反转，中周期未反转 → 不平仓，耐心持有
+      步骤3：最终决策层（5m + 15m 趋势确认）
+      - 调用 getTechnicalIndicators(symbol, "15m") 获取15分钟数据
+      - 分析 15m 的趋势方向（最后的保护）
+      - 判断标准：
+        * 做多持仓：
+          - 如果 15m 仍然看涨（价格>EMA20 且 MACD>0 且 RSI7>50）→ 不平仓，耐心持有
+          - 如果 15m 也转弱 → 立即调用 closePosition 平仓（确认趋势反转）
+        * 做空持仓：
+          - 如果 15m 仍然看跌（价格<EMA20 且 MACD<0 且 RSI7<50）→ 不平仓，耐心持有
+          - 如果 15m 也转强 → 立即调用 closePosition 平仓（确认趋势反转）
       
-      【特殊情况处理】：
-      - 止损/止盈触发 → 无需双层验证，直接平仓
-      - 盈利≥+10% → 即使短周期反转，也优先考虑部分平仓锁定利润
-      - 亏损≥-4% → 无论时间框架，立即止损
+      盈利优化策略：
+      - 盈利≥5% 且短周期(1/3m)反转 → 考虑部分平仓50%，锁定部分利润
+      - 盈利≥10% → 即使趋势未反转，也考虑部分平仓50%，保护利润
+      
+      特殊情况处理（无需三层验证，直接决策）：
+      - 亏损≥-4% → 立即止损，无论时间框架
       - 峰值回撤≥20% → 立即平仓保护利润
+      - 止损/止盈触发 → 直接平仓
       
-      【核心思想】：宁可多给几次机会，也不要被1分钟噪音误导而错失大趋势
+      【核心思想】：
+      (1) 1分钟看信号，3分钟过滤噪音（关键！）
+      (2) 5分钟确认方向，15分钟把控趋势
+      (3) 宁可晚一点平仓，也不要被假信号震出好趋势
 ` : ''}
 3. 分析市场数据（必须实际调用工具）：
    - 调用 getTechnicalIndicators 获取技术指标数据
@@ -904,12 +924,12 @@ function generateInstructions(strategy: TradingStrategy, intervalMinutes: number
    
    b) 新开仓评估（新币种）：
       - 现有持仓数 < ${RISK_PARAMS.MAX_POSITIONS}
-      - ${params.entryCondition}${strategy === 'ultra-short' ? '\n      - 超短线策略特殊要求：必须验证1分钟、3分钟、5分钟、15分钟数据中的EMA20、EMA50、MACD、RSI14四个指标都同向（四框架共振），且价格动能强劲！' : ''}
+      - ${params.entryCondition}${strategy === 'ultra-short' ? '\n      - 超短线策略核心开仓条件（三框架共振，缺一不可）：\n        步骤1：调用 getTechnicalIndicators(symbol, "1m") 获取1分钟数据\n        步骤2：调用 getTechnicalIndicators(symbol, "3m") 获取3分钟数据\n        步骤3：调用 getTechnicalIndicators(symbol, "5m") 获取5分钟数据\n        \n        【三框架必须同时满足以下条件】：\n        做多方向：\n          - 1分钟：价格 > EMA20、MACD > 0、RSI7 > 50\n          - 3分钟：价格 > EMA20、MACD > 0、RSI7 > 50（关键过滤层）\n          - 5分钟：价格 > EMA20、MACD > 0、RSI7 > 50\n          - 成交量：当前成交量 > 平均成交量 × 1.3（确认资金介入）\n        \n        做空方向：\n          - 1分钟：价格 < EMA20、MACD < 0、RSI7 < 50\n          - 3分钟：价格 < EMA20、MACD < 0、RSI7 < 50（关键过滤层）\n          - 5分钟：价格 < EMA20、MACD < 0、RSI7 < 50\n          - 成交量：当前成交量 > 平均成交量 × 1.3（确认资金介入）\n        \n        注意：必须三个时间框架的所有指标都同向，任何一个框架不满足都不能开仓！' : ''}
       - 潜在利润≥${strategy === 'ultra-short' ? '1.5-2%（快进快出，小利积累）' : '2-3%（扣除0.1%费用后仍有净收益）'}
       - 做多和做空机会的识别：
         * 做多信号：价格突破EMA20/50上方，MACD转正，RSI7 > 50且上升，多个时间框架共振向上
         * 做空信号：价格跌破EMA20/50下方，MACD转负，RSI7 < 50且下降，多个时间框架共振向下
-        * 关键：做空信号和做多信号同样重要！不要只寻找做多机会而忽视做空机会${strategy === 'ultra-short' ? '\n        * 超短线策略额外要求：1/3/5/15分钟四框架完全共振，成交量必须大于平均量1.3倍，且最近1分钟有明显价格动能（价格变化率>0.3%），确保趋势正在形成' : ''}
+        * 关键：做空信号和做多信号同样重要！不要只寻找做多机会而忽视做空机会
       - 如果满足所有条件：立即调用 openPosition 开仓（不要只说"我会开仓"）
    
 5. 仓位大小和杠杆计算（${params.name}策略）：
