@@ -50,7 +50,7 @@ export function getAccountRiskConfig(): AccountRiskConfig {
 /**
  * 交易策略类型
  */
-export type TradingStrategy = "conservative" | "balanced" | "aggressive";
+export type TradingStrategy = "conservative" | "balanced" | "aggressive" | "ultra-short" | "swing-trend";
 
 /**
  * 策略参数配置
@@ -130,6 +130,94 @@ export function getStrategyParams(strategy: TradingStrategy): StrategyParams {
   const aggressiveLevStrong = aggressiveLevMax;
   
   const strategyConfigs: Record<TradingStrategy, StrategyParams> = {
+    "ultra-short": {
+      name: "超短线",
+      description: "极短周期快进快出，5分钟执行，适合高频交易",
+      leverageMin: Math.max(3, Math.ceil(maxLeverage * 0.5)),
+      leverageMax: Math.max(5, Math.ceil(maxLeverage * 0.75)),
+      leverageRecommend: {
+        normal: `${Math.max(3, Math.ceil(maxLeverage * 0.5))}倍`,
+        good: `${Math.max(4, Math.ceil(maxLeverage * 0.625))}倍`,
+        strong: `${Math.max(5, Math.ceil(maxLeverage * 0.75))}倍`,
+      },
+      positionSizeMin: 18,
+      positionSizeMax: 25,
+      positionSizeRecommend: {
+        normal: "18-20%",
+        good: "20-23%",
+        strong: "23-25%",
+      },
+      stopLoss: {
+        low: -2.5,
+        mid: -2,
+        high: -1.5,
+      },
+      trailingStop: {
+        // 超短线策略：快速锁利（5分钟周期）
+        level1: { trigger: 4, stopAt: 1.5 },   // 盈利达到 +4% 时，止损线移至 +1.5%
+        level2: { trigger: 8, stopAt: 4 },     // 盈利达到 +8% 时，止损线移至 +4%
+        level3: { trigger: 15, stopAt: 8 },    // 盈利达到 +15% 时，止损线移至 +8%
+      },
+      partialTakeProfit: {
+        // 超短线策略：快速分批止盈
+        stage1: { trigger: 15, closePercent: 50 },  // +15% 平仓50%
+        stage2: { trigger: 25, closePercent: 50 },  // +25% 平仓剩余50%
+        stage3: { trigger: 35, closePercent: 100 }, // +35% 全部清仓
+      },
+      peakDrawdownProtection: 20, // 超短线：20%峰值回撤保护（快速保护利润）
+      volatilityAdjustment: {
+        highVolatility: { leverageFactor: 0.7, positionFactor: 0.8 },
+        normalVolatility: { leverageFactor: 1.0, positionFactor: 1.0 },
+        lowVolatility: { leverageFactor: 1.1, positionFactor: 1.0 },
+      },
+      entryCondition: "至少2个时间框架信号一致，优先1-5分钟级别",
+      riskTolerance: "单笔交易风险控制在18-25%之间，快进快出",
+      tradingStyle: "超短线交易，5分钟执行周期，快速捕捉短期波动，严格执行2%周期锁利规则和30分钟盈利平仓规则",
+    },
+    "swing-trend": {
+      name: "波段趋势",
+      description: "中长线波段交易，20分钟执行，捕捉中期趋势，适合稳健成长",
+      leverageMin: Math.max(2, Math.ceil(maxLeverage * 0.2)),
+      leverageMax: Math.max(5, Math.ceil(maxLeverage * 0.5)),
+      leverageRecommend: {
+        normal: `${Math.max(2, Math.ceil(maxLeverage * 0.2))}倍`,
+        good: `${Math.max(3, Math.ceil(maxLeverage * 0.35))}倍`,
+        strong: `${Math.max(5, Math.ceil(maxLeverage * 0.5))}倍`,
+      },
+      positionSizeMin: 12,
+      positionSizeMax: 20,
+      positionSizeRecommend: {
+        normal: "12-15%",
+        good: "15-18%",
+        strong: "18-20%",
+      },
+      stopLoss: {
+        low: -8,    // 低杠杆：-8%止损（给趋势足够空间）
+        mid: -6,    // 中杠杆：-6%止损
+        high: -5,   // 高杠杆：-5%止损
+      },
+      trailingStop: {
+        // 波段策略：给趋势更多空间，较晚锁定利润
+        level1: { trigger: 15, stopAt: 8 },   // 盈利达到 +15% 时，止损线移至 +8%
+        level2: { trigger: 30, stopAt: 20 },  // 盈利达到 +30% 时，止损线移至 +20%
+        level3: { trigger: 50, stopAt: 35 },  // 盈利达到 +50% 时，止损线移至 +35%
+      },
+      partialTakeProfit: {
+        // 波段策略：更晚分批止盈，追求趋势利润最大化
+        stage1: { trigger: 50, closePercent: 40 },  // +50% 平仓40%（保留60%追求更大利润）
+        stage2: { trigger: 80, closePercent: 60 },  // +80% 平仓剩余60%（累计平仓100%）
+        stage3: { trigger: 120, closePercent: 100 },// +120% 全部清仓
+      },
+      peakDrawdownProtection: 35, // 波段策略：35%峰值回撤保护（给趋势更多空间）
+      volatilityAdjustment: {
+        highVolatility: { leverageFactor: 0.5, positionFactor: 0.6 },   // 高波动：大幅降低风险
+        normalVolatility: { leverageFactor: 1.0, positionFactor: 1.0 }, // 正常波动：标准配置
+        lowVolatility: { leverageFactor: 1.2, positionFactor: 1.1 },    // 低波动：适度提高（趋势稳定）
+      },
+      entryCondition: "至少3个以上时间框架信号强烈一致，优先15分钟-4小时级别，等待明确趋势形成",
+      riskTolerance: "单笔交易风险控制在12-20%之间，注重趋势质量而非交易频率",
+      tradingStyle: "波段趋势交易，20分钟执行周期，耐心等待高质量趋势信号，持仓时间可达数天，让利润充分奔跑",
+    },
     "conservative": {
       name: "稳健",
       description: "低风险低杠杆，严格入场条件，适合保守投资者",
@@ -280,7 +368,7 @@ const logger = createPinoLogger({
  */
 export function getTradingStrategy(): TradingStrategy {
   const strategy = process.env.TRADING_STRATEGY || "balanced";
-  if (strategy === "conservative" || strategy === "balanced" || strategy === "aggressive") {
+  if (strategy === "conservative" || strategy === "balanced" || strategy === "aggressive" || strategy === "ultra-short" || strategy === "swing-trend") {
     return strategy;
   }
   logger.warn(`未知的交易策略: ${strategy}，使用默认策略: balanced`);
