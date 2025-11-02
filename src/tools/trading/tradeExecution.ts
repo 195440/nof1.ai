@@ -625,7 +625,7 @@ export const closePositionTool = createTool({
       });
       
       const dbPositionResult = await dbClient.execute({
-        sql: `SELECT opened_at FROM positions WHERE symbol = ? AND status = 'open' LIMIT 1`,
+        sql: `SELECT opened_at FROM positions WHERE symbol = ? LIMIT 1`,
         args: [symbol],
       });
       
