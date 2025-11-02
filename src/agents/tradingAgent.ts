@@ -333,12 +333,12 @@ export function getStrategyParams(strategy: TradingStrategy): StrategyParams {
         good: `${ultraShortLevGood}倍`,
         strong: `${ultraShortLevStrong}倍`,
       },
-      positionSizeMin: 8,
-      positionSizeMax: 15,
+      positionSizeMin: 16,
+      positionSizeMax: 30,
       positionSizeRecommend: {
-        normal: "8-10%",
-        good: "10-12%",
-        strong: "12-15%",
+        normal: "16-20%",
+        good: "20-24%",
+        strong: "24-30%",
       },
       stopLoss: {
         low: -5,    // 调大止损范围，给交易更多回旋空间
@@ -364,7 +364,7 @@ export function getStrategyParams(strategy: TradingStrategy): StrategyParams {
         lowVolatility: { leverageFactor: 1.0, positionFactor: 1.0 },    // 低波动：不调整
       },
       entryCondition: "必须1分钟、3分钟、5分钟三个时间框架信号完全一致",
-      riskTolerance: "单笔交易风险控制在8-15%之间，使用双层时间框架验证平仓",
+      riskTolerance: "单笔交易风险控制在16-30%之间，使用双层时间框架验证平仓",
       tradingStyle: "日内超短线交易，开仓用1/3/5分钟，平仓时先看1/3/5分钟，不符合再看3/5/15分钟，给交易更多机会，除非确定盈利否则不轻易平仓",
     },
   };
@@ -857,6 +857,9 @@ function generateInstructions(strategy: TradingStrategy, intervalMinutes: number
 
 2. 现有持仓管理（优先于开新仓，必须实际执行工具）：
    - 立即调用 getPositions 获取所有持仓信息
+   - ⚠️ 重要保护机制：系统会自动拒绝平掉持仓时间少于 ${intervalMinutes} 分钟的仓位
+   - 这是为了防止在同一周期内刚开仓就立即平仓，造成不必要的手续费损失
+   - 如果尝试平仓被拒绝，请理解这是风控保护，等待下一个周期再评估
    - 对每个持仓进行专业分析和决策（每个决策都要实际执行工具）：
    
    a) 止损决策：
@@ -979,6 +982,12 @@ function generateInstructions(strategy: TradingStrategy, intervalMinutes: number
 - 不要只说"我会平仓"、"应该开仓"、"建议止损"
 - 立即调用 closePosition、openPosition 等工具
 - 每个决策都要转化为实际的工具调用
+
+🔒 同周期保护机制（重要风控规则）：
+- 系统会自动拒绝平掉持仓时间少于 ${intervalMinutes} 分钟的仓位
+- 这是为了防止在同一周期内刚开仓就立即平仓
+- 如果您尝试平仓被拒绝，说明该仓位太新，请等待下一个周期再评估
+- 此规则无法绕过，是硬性风控保护
 
 交易目标：
 - 最大化风险调整后收益（夏普比率≥1.5）

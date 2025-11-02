@@ -618,6 +618,37 @@ export const closePositionTool = createTool({
         };
       }
       
+      // 🔒 防止同周期内平仓保护：检查持仓开仓时间，防止刚开仓就立即平仓
+      // 从数据库获取持仓信息以检查开仓时间
+      const dbClient = createClient({
+        url: process.env.DATABASE_URL || "file:./.voltagent/trading.db",
+      });
+      
+      const dbPositionResult = await dbClient.execute({
+        sql: `SELECT opened_at FROM positions WHERE symbol = ? AND status = 'open' LIMIT 1`,
+        args: [symbol],
+      });
+      
+      if (dbPositionResult.rows.length > 0) {
+        const openedAt = dbPositionResult.rows[0].opened_at as string;
+        const openedTime = new Date(openedAt).getTime();
+        const now = Date.now();
+        const holdingMinutes = (now - openedTime) / (1000 * 60);
+        
+        // 获取交易周期间隔（分钟）
+        const intervalMinutes = Number.parseInt(process.env.TRADING_INTERVAL_MINUTES || "5");
+        
+        // 如果持仓时间少于1个交易周期，拒绝平仓
+        if (holdingMinutes < intervalMinutes) {
+          return {
+            success: false,
+            message: `拒绝平仓 ${symbol}：持仓时间仅 ${holdingMinutes.toFixed(1)} 分钟，少于最小持仓时间 ${intervalMinutes} 分钟。请等待至少一个完整交易周期后再评估平仓。这是为了防止在同一周期内刚开仓就立即平仓，造成不必要的手续费损失。`,
+          };
+        }
+        
+        logger.info(`${symbol} 持仓时间: ${holdingMinutes.toFixed(1)} 分钟，通过最小持仓时间检查`);
+      }
+      
       // 从 Gate.io 获取实时数据
       const gateSize = Number.parseInt(gatePosition.size || "0");
       const side = gateSize > 0 ? "long" : "short";
