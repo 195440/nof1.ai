@@ -192,9 +192,9 @@ export function getStrategyParams(strategy: TradingStrategy): StrategyParams {
         strong: "18-20%",
       },
       stopLoss: {
-        low: -8,    // 低杠杆：-8%止损（给趋势足够空间）
-        mid: -6,    // 中杠杆：-6%止损
-        high: -5,   // 高杠杆：-5%止损
+        low: -10,   // 低杠杆(2-3倍)：-10%止损（给趋势足够空间）
+        mid: -8,    // 中杠杆(3-4倍)：-8%止损
+        high: -6,   // 高杠杆(4-5倍)：-6%止损
       },
       trailingStop: {
         // 波段策略：给趋势更多空间，较晚锁定利润
@@ -788,13 +788,22 @@ function generateInstructions(strategy: TradingStrategy, intervalMinutes: number
   
   【AI战术决策 - 专业建议，灵活执行】：
   
-  (1) 止损策略（专业风控建议）：
-     * 策略止损线（基于统计优化，强烈建议遵守）：
-       - ${params.leverageMin}-${Math.floor((params.leverageMin + params.leverageMax) / 2)}倍杠杆：建议止损 ${params.stopLoss.low}%
-       - ${Math.floor((params.leverageMin + params.leverageMax) / 2)}-${Math.ceil((params.leverageMin + params.leverageMax) * 0.75)}倍杠杆：建议止损 ${params.stopLoss.mid}%
-       - ${Math.ceil((params.leverageMin + params.leverageMax) * 0.75)}-${params.leverageMax}倍杠杆：建议止损 ${params.stopLoss.high}%
-     * 灵活调整：可根据关键支撑位、趋势强度微调±1-2%
-     * 重要警告：突破止损线后继续持有，需有充分理由（如测试关键支撑、假突破）
+  核心原则（必读）：
+  • 止损 = 严格遵守：止损线是硬性规则，必须严格执行，仅可微调±1%
+  • 止盈 = 灵活判断：止盈要根据市场实际情况决定，2-3%盈利也可止盈，不要死等高目标
+  • 小确定性盈利 > 大不确定性盈利：宁可提前止盈，不要贪心回吐
+  • 趋势是朋友，反转是敌人：出现反转信号立即止盈，不管盈利多少
+  
+  (1) 止损策略（必须严格遵守，这是保护本金的生命线）：
+     * 策略止损线（必须遵守，不可随意突破）：
+       - ${params.leverageMin}-${Math.floor((params.leverageMin + params.leverageMax) / 2)}倍杠杆：止损线 ${params.stopLoss.low}%（必须执行）
+       - ${Math.floor((params.leverageMin + params.leverageMax) / 2)}-${Math.ceil((params.leverageMin + params.leverageMax) * 0.75)}倍杠杆：止损线 ${params.stopLoss.mid}%（必须执行）
+       - ${Math.ceil((params.leverageMin + params.leverageMax) * 0.75)}-${params.leverageMax}倍杠杆：止损线 ${params.stopLoss.high}%（必须执行）
+     * 微调空间：仅可根据关键支撑位/阻力位微调±1%（不能超过）
+     * 重要警告：
+       - 触及止损线必须立即平仓，不要犹豫，不要等待反弹
+       - 突破止损线后继续持有将导致更大亏损
+       - 极少例外：仅限明确的假突破+关键支撑位（需要充分证据）
      * 说明：pnl_percent已包含杠杆效应，直接比较即可
   
   (2) 移动止盈策略（保护利润的核心机制，强烈建议执行）：
@@ -807,17 +816,21 @@ function generateInstructions(strategy: TradingStrategy, intervalMinutes: number
        - 震荡行情：应严格执行，避免利润回吐
      * 说明：这些阈值已针对您的杠杆范围（${params.leverageMin}-${params.leverageMax}倍）优化
   
-  (3) 分批止盈策略（专业获利技巧）：
-     * ${params.name}策略的分批止盈建议（已根据${params.leverageMax}倍最大杠杆优化）：
-       - 盈利 ≥ +${params.partialTakeProfit.stage1.trigger}% → 建议平仓${params.partialTakeProfit.stage1.closePercent}%（锁定一半利润，让剩余持仓追求更高收益）
-       - 盈利 ≥ +${params.partialTakeProfit.stage2.trigger}% → 建议平仓剩余${params.partialTakeProfit.stage2.closePercent}%（累计平仓100%）
-       - 盈利 ≥ +${params.partialTakeProfit.stage3.trigger}% → 建议全部清仓（避免贪婪导致利润回吐）
+  (3) 止盈策略（灵活决策，不要死板）：
+     * 重要原则：止盈要灵活，根据实际市场情况决定！
+       - 策略中的止盈目标（+${params.partialTakeProfit.stage1.trigger}%/+${params.partialTakeProfit.stage2.trigger}%/+${params.partialTakeProfit.stage3.trigger}%）仅供参考，不是硬性规则
+       - 2%-3%的盈利也是有意义的波段，不要贪心等待大目标
+       - 根据市场实际情况灵活决策：
+         * 趋势减弱/出现反转信号 → 立即止盈，哪怕只有2-3%
+         * 震荡行情、阻力位附近 → 可以提前止盈，落袋为安
+         * 趋势强劲、没有明显阻力 → 可以让利润继续奔跑
+         * 持仓时间已久(4小时+)且有盈利 → 考虑主动止盈
+     * 参考建议（仅供参考，不是强制）：
+       - 盈利 ≥ +${params.partialTakeProfit.stage1.trigger}% → 可考虑平仓${params.partialTakeProfit.stage1.closePercent}%
+       - 盈利 ≥ +${params.partialTakeProfit.stage2.trigger}% → 可考虑平仓剩余${params.partialTakeProfit.stage2.closePercent}%
      * 执行方式：使用 closePosition 的 percentage 参数
        - 示例：closePosition(symbol: 'BTC', percentage: 50) 可平掉50%仓位
-     * 灵活调整：
-       - 强趋势：可推迟触发（等待更高利润）
-       - 震荡行情：可提前触发（尽早锁定利润）
-     * 说明：这些阈值已针对您的杠杆范围（${params.leverageMin}-${params.leverageMax}倍）优化
+     * 记住：小的确定性盈利 > 大的不确定性盈利！
   
   (4) 峰值回撤保护（危险信号）：
      * ${params.name}策略的峰值回撤阈值：${params.peakDrawdownProtection}%（已根据风险偏好优化）
@@ -847,14 +860,17 @@ function generateInstructions(strategy: TradingStrategy, intervalMinutes: number
    - 立即调用 getPositions 获取所有持仓信息
    - 对每个持仓进行专业分析和决策（每个决策都要实际执行工具）：
    
-   a) 止损决策：
+   a) 止损决策（必须严格遵守，不可灵活）：
+      - 重要：止损线是硬性规则，必须严格遵守，不像止盈可以灵活！
       - 检查 pnl_percent 是否触及策略止损线：
-        * ${params.leverageMin}-${Math.floor((params.leverageMin + params.leverageMax) / 2)}倍杠杆：建议止损 ${params.stopLoss.low}%
-        * ${Math.floor((params.leverageMin + params.leverageMax) / 2)}-${Math.ceil((params.leverageMin + params.leverageMax) * 0.75)}倍杠杆：建议止损 ${params.stopLoss.mid}%
-        * ${Math.ceil((params.leverageMin + params.leverageMax) * 0.75)}-${params.leverageMax}倍杠杆：建议止损 ${params.stopLoss.high}%
-      - 可根据关键支撑位、趋势强度微调±1-2%
-      - 如果触及或突破止损线，除非有充分理由（关键支撑、假突破）
-      - 立即调用 closePosition 平仓（不要只说"应该平仓"）
+        * ${params.leverageMin}-${Math.floor((params.leverageMin + params.leverageMax) / 2)}倍杠杆：止损线 ${params.stopLoss.low}%（必须遵守）
+        * ${Math.floor((params.leverageMin + params.leverageMax) / 2)}-${Math.ceil((params.leverageMin + params.leverageMax) * 0.75)}倍杠杆：止损线 ${params.stopLoss.mid}%（必须遵守）
+        * ${Math.ceil((params.leverageMin + params.leverageMax) * 0.75)}-${params.leverageMax}倍杠杆：止损线 ${params.stopLoss.high}%（必须遵守）
+      - 微调空间：仅可根据关键支撑位/阻力位微调±1%（不能更多）
+      - 如果触及或突破止损线：
+        * 立即调用 closePosition 平仓（不要犹豫，不要等待）
+        * 例外情况极少：仅限明确的假突破+关键支撑位
+      - 记住：止损是保护本金的生命线，不严格执行会导致大额亏损！
    
    b) 移动止盈决策：
       - 检查是否达到移动止盈触发点（+${params.trailingStop.level1.trigger}%/+${params.trailingStop.level2.trigger}%/+${params.trailingStop.level3.trigger}%）
@@ -862,12 +878,20 @@ function generateInstructions(strategy: TradingStrategy, intervalMinutes: number
       - 如果当前盈利回落到移动止损线以下
       - 立即调用 closePosition 平仓保护利润（不要犹豫）
    
-   c) 分批止盈决策：
-      - 检查是否达到分批止盈点（+${params.partialTakeProfit.stage1.trigger}%/+${params.partialTakeProfit.stage2.trigger}%/+${params.partialTakeProfit.stage3.trigger}%）
-      - 评估趋势强度，决定是否分批止盈
-      - 如果决定分批止盈
-      - 立即调用 closePosition 的 percentage 参数部分平仓
-      - 示例：closePosition({ symbol: 'BTC', percentage: ${params.partialTakeProfit.stage1.closePercent} }) 平掉${params.partialTakeProfit.stage1.closePercent}%仓位
+   c) 止盈决策（灵活判断，不要死守目标）：
+      - 重要：止盈要根据市场实际情况灵活决策，不要死板！
+      - 止盈判断标准（按优先级）：
+        * 趋势反转信号 → 立即全部止盈，不管盈利多少
+        * 阻力位/压力位附近 → 可提前止盈，哪怕只有2-3%
+        * 震荡行情，趋势不明确 → 有盈利就可以考虑止盈
+        * 持仓时间>4小时且盈利>2% → 可主动止盈
+        * 盈利达到5-8%但趋势减弱 → 建议分批止盈50%
+        * 盈利达到10%+但出现回调迹象 → 建议至少止盈50%
+      - 策略目标（+${params.partialTakeProfit.stage1.trigger}%/+${params.partialTakeProfit.stage2.trigger}%）仅供参考，不是必须等到的
+      - 执行方式：
+        * 全部止盈：closePosition({ symbol: 'BTC' })
+        * 部分止盈：closePosition({ symbol: 'BTC', percentage: 50 })
+      - 记住：2%-3%的确定性盈利胜过10%的不确定性盈利！
    
    d) 峰值回撤检查：
       - 检查 peak_pnl_percent（历史最高盈利）
