@@ -27,6 +27,22 @@ import { startStopLossMonitor, stopStopLossMonitor } from "./scheduler/stopLossM
 import { initDatabase } from "./database/init";
 import { RISK_PARAMS } from "./config/riskParams";
 import { getStrategyParams, getTradingStrategy } from "./agents/tradingAgent";
+import { execSync } from 'child_process';
+
+// 确保输出流使用UTF-8编码
+// 这在所有平台上都能正常工作
+process.stdout.setEncoding('utf8');
+process.stderr.setEncoding('utf8');
+
+// 对于Windows平台，使用子进程API设置终端编码
+if (process.platform === 'win32') {
+  // 使用execSync执行chcp命令设置终端代码页为UTF-8
+  try {
+    execSync('chcp 65001', { stdio: 'ignore' });
+  } catch (error) {
+    // 即使chcp命令失败，应用程序也能继续运行
+  }
+}
 
 // 设置时区为中国时间（Asia/Shanghai，UTC+8）
 process.env.TZ = 'Asia/Shanghai';
