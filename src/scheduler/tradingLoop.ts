@@ -134,7 +134,7 @@ async function collectMarketData() {
       const indicators = indicators5m;
       
       // 验证技术指标有效性和数据完整性
-      const dataTimestamp = new Date().toISOString();
+      const dataTimestamp = getChinaTimeISO();
       const dataQuality = {
         price: Number.isFinite(Number.parseFloat(ticker.last || "0")),
         ema20: Number.isFinite(indicators.ema20),
@@ -728,7 +728,7 @@ async function syncPositionsFromGate(cachedPositions?: any[]) {
           dbPos?.sl_order_id || null,
           dbPos?.tp_order_id || null,
           entryOrderId, // 保留原有的订单ID
-          dbPos?.opened_at || new Date().toISOString(), // 保留原有的开仓时间
+          dbPos?.opened_at || getChinaTimeISO(), // 保留原有的开仓时间
           dbPos?.peak_pnl_percent || 0, // 保留峰值盈利
           dbPos?.partial_close_percentage || 0, // 保留已平仓百分比（关键修复）
         ],
@@ -1215,20 +1215,21 @@ async function executeTradingDecision() {
       let shouldClose = false;
       let closeReason = "";
       
-      // a) 36小时强制平仓检查
+      // a) 最大持仓时间强制平仓检查（从环境变量读取）
       const openedTime = new Date(pos.opened_at);
       const now = new Date();
       const holdingHours = (now.getTime() - openedTime.getTime()) / (1000 * 60 * 60);
+      const MAX_HOLDING_HOURS = RISK_PARAMS.MAX_HOLDING_HOURS;
       
-      if (holdingHours >= 36) {
+      if (holdingHours >= MAX_HOLDING_HOURS) {
         shouldClose = true;
-        closeReason = `持仓时间已达 ${holdingHours.toFixed(1)} 小时，超过36小时限制`;
+        closeReason = `持仓时间已达 ${holdingHours.toFixed(1)} 小时，超过${MAX_HOLDING_HOURS}小时限制`;
       }
       
-      // b) 极端止损保护（防止爆仓，硬编码底线）
+      // b) 极端止损保护（防止爆仓，最后的安全网）
       // 只在极端情况下强制平仓，避免账户爆仓
       // 常规止损由AI决策，这里只是最后的安全网
-      const EXTREME_STOP_LOSS = -30; // 单笔亏损 -30% 强制平仓（专业风控底线）
+      const EXTREME_STOP_LOSS = RISK_PARAMS.EXTREME_STOP_LOSS_PERCENT; // 从环境变量读取
       
       logger.info(`${symbol} 极端止损检查: 当前盈亏=${pnlPercent.toFixed(2)}%, 极端止损线=${EXTREME_STOP_LOSS}%`);
       
@@ -1270,7 +1271,7 @@ async function executeTradingDecision() {
       
       // d) 其他风控检查已移除，交由AI全权决策
       // AI负责：止损、移动止盈、分批止盈、时间止盈、峰值回撤等策略性决策
-      // 系统只保留底线安全保护（极端止损、36小时强制平仓、账户回撤保护）
+      // 系统只保留底线安全保护（极端止损、最大持仓时间强制平仓、账户回撤保护）
       
       logger.info(`${symbol} 持仓监控: 盈亏=${pnlPercent.toFixed(2)}%, 持仓时间=${holdingHours.toFixed(1)}h, 峰值盈利=${peakPnlPercent.toFixed(2)}%, 杠杆=${leverage}x`);
       
@@ -1576,7 +1577,7 @@ async function executeTradingDecision() {
               (timestamp, iteration, market_analysis, decision, actions_taken, account_value, positions_count)
               VALUES (?, ?, ?, ?, ?, ?, ?)`,
         args: [
-          new Date().toISOString(),
+          getChinaTimeISO(),
           iterationCount,
           JSON.stringify(marketData),
           decisionText,
