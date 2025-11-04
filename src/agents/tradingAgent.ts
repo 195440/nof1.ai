@@ -206,9 +206,9 @@ export function getStrategyParams(strategy: TradingStrategy): StrategyParams {
         strong: "18-20%",
       },
       stopLoss: {
-        low: -10,   // 低杠杆(2-3倍)：-10%止损（给趋势足够空间）
-        mid: -8,    // 中杠杆(3-4倍)：-8%止损
-        high: -6,   // 高杠杆(4-5倍)：-6%止损
+        low: -9,      // 低杠杆(2-3倍)：-9%止损（给趋势足够空间，略收紧1%）
+        mid: -7.5,    // 中杠杆(3-4倍)：-7.5%止损（略收紧0.5%）
+        high: -5.5,   // 高杠杆(4-5倍)：-5.5%止损（略收紧0.5%）
       },
       trailingStop: {
         // 波段策略：给趋势更多空间，较晚锁定利润
