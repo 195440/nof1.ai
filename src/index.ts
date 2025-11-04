@@ -22,8 +22,11 @@ import { serve } from "@hono/node-server";
 import { createApiRoutes } from "./api/routes";
 import { startTradingLoop, initTradingSystem } from "./scheduler/tradingLoop";
 import { startAccountRecorder } from "./scheduler/accountRecorder";
+import { startTrailingStopMonitor, stopTrailingStopMonitor } from "./scheduler/trailingStopMonitor";
+import { startStopLossMonitor, stopStopLossMonitor } from "./scheduler/stopLossMonitor";
 import { initDatabase } from "./database/init";
 import { RISK_PARAMS } from "./config/riskParams";
+import { getStrategyParams, getTradingStrategy } from "./agents/tradingAgent";
 
 // 设置时区为中国时间（Asia/Shanghai，UTC+8）
 process.env.TZ = 'Asia/Shanghai';
@@ -83,13 +86,42 @@ async function main() {
   logger.info("启动账户资产记录器...");
   startAccountRecorder();
   
+  // 6. 启动移动止盈监控器（每10秒检查一次）
+  logger.info("启动移动止盈监控器...");
+  startTrailingStopMonitor();
+  
+  // 7. 启动止损监控器（每10秒检查一次）
+  logger.info("启动止损监控器...");
+  startStopLossMonitor();
+  
+  const strategy = getTradingStrategy();
+  const params = getStrategyParams(strategy);
+  const isCodeLevelEnabled = strategy === "swing-trend";
+  
   logger.info("\n" + "=".repeat(80));
   logger.info("系统启动完成！");
   logger.info("=".repeat(80));
   logger.info(`\n监控界面: http://localhost:${port}/`);
+  logger.info(`交易策略: ${params.name}${isCodeLevelEnabled ? ' (启用代码级保护)' : ' (AI主导控制)'}`);
   logger.info(`交易间隔: ${process.env.TRADING_INTERVAL_MINUTES || 5} 分钟`);
   logger.info(`账户记录间隔: ${process.env.ACCOUNT_RECORD_INTERVAL_MINUTES || 10} 分钟`);
-  logger.info(`支持币种: ${RISK_PARAMS.TRADING_SYMBOLS.join(', ')}`);
+  
+  if (isCodeLevelEnabled && params.codeLevelTrailingStop && params.codeLevelStopLoss) {
+    logger.info(`\n📊 代码级移动止盈监控（仅波段策略，每10秒检查）:`);
+    logger.info(`  • ${params.codeLevelTrailingStop.stage1.description}`);
+    logger.info(`  • ${params.codeLevelTrailingStop.stage2.description}`);
+    logger.info(`  • ${params.codeLevelTrailingStop.stage3.description}`);
+    logger.info(`  • ${params.codeLevelTrailingStop.stage4.description}`);
+    logger.info(`  • ${params.codeLevelTrailingStop.stage5.description}`);
+    logger.info(`\n🛡️ 代码级自动止损监控（仅波段策略，每10秒检查）:`);
+    logger.info(`  • ${params.codeLevelStopLoss.lowRisk.description}`);
+    logger.info(`  • ${params.codeLevelStopLoss.mediumRisk.description}`);
+    logger.info(`  • ${params.codeLevelStopLoss.highRisk.description}`);
+  } else {
+    logger.info(`\n⚠️  当前策略未启用代码级监控，止损止盈完全由AI控制`);
+  }
+  
+  logger.info(`\n支持币种: ${RISK_PARAMS.TRADING_SYMBOLS.join(', ')}`);
   logger.info(`最大杠杆: ${RISK_PARAMS.MAX_LEVERAGE}x`);
   logger.info(`最大持仓数: ${RISK_PARAMS.MAX_POSITIONS}`);
   logger.info(`\n🔴 账户止损线: ${process.env.ACCOUNT_STOP_LOSS_USDT || 50} USDT (触发后全部清仓并退出)`);
@@ -112,6 +144,16 @@ async function gracefulShutdown(signal: string) {
   logger.info(`\n\n收到 ${signal} 信号，正在关闭系统...`);
   
   try {
+    // 停止移动止盈监控器
+    logger.info("正在停止移动止盈监控器...");
+    stopTrailingStopMonitor();
+    logger.info("移动止盈监控器已停止");
+    
+    // 停止止损监控器
+    logger.info("正在停止止损监控器...");
+    stopStopLossMonitor();
+    logger.info("止损监控器已停止");
+    
     // 关闭服务器
     if (server) {
       logger.info("正在关闭 Web 服务器...");

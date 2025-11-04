@@ -99,6 +99,20 @@ export interface StrategyParams {
   entryCondition: string;
   riskTolerance: string;
   tradingStyle: string;
+  // 代码级止损配置（仅 swing-trend 策略使用）
+  codeLevelStopLoss?: {
+    lowRisk: { minLeverage: number; maxLeverage: number; stopLossPercent: number; description: string };
+    mediumRisk: { minLeverage: number; maxLeverage: number; stopLossPercent: number; description: string };
+    highRisk: { minLeverage: number; maxLeverage: number; stopLossPercent: number; description: string };
+  };
+  // 代码级移动止盈配置（仅 swing-trend 策略使用）
+  codeLevelTrailingStop?: {
+    stage1: { name: string; minProfit: number; maxProfit: number; drawdownPercent: number; description: string };
+    stage2: { name: string; minProfit: number; maxProfit: number; drawdownPercent: number; description: string };
+    stage3: { name: string; minProfit: number; maxProfit: number; drawdownPercent: number; description: string };
+    stage4: { name: string; minProfit: number; maxProfit: number; drawdownPercent: number; description: string };
+    stage5: { name: string; minProfit: number; maxProfit: number; drawdownPercent: number; description: string };
+  };
 }
 
 /**
@@ -217,6 +231,65 @@ export function getStrategyParams(strategy: TradingStrategy): StrategyParams {
       entryCondition: "至少3个以上时间框架信号强烈一致，优先15分钟-4小时级别，等待明确趋势形成",
       riskTolerance: "单笔交易风险控制在12-20%之间，注重趋势质量而非交易频率",
       tradingStyle: "波段趋势交易，20分钟执行周期，耐心等待高质量趋势信号，持仓时间可达数天，让利润充分奔跑",
+      // 代码级止损配置（每10秒自动检查）
+      codeLevelStopLoss: {
+        lowRisk: {
+          minLeverage: 5,
+          maxLeverage: 7,
+          stopLossPercent: -8,
+          description: "5-7倍杠杆，亏损 -8% 时止损",
+        },
+        mediumRisk: {
+          minLeverage: 8,
+          maxLeverage: 12,
+          stopLossPercent: -6,
+          description: "8-12倍杠杆，亏损 -6% 时止损",
+        },
+        highRisk: {
+          minLeverage: 13,
+          maxLeverage: Infinity,
+          stopLossPercent: -5,
+          description: "13倍以上杠杆，亏损 -5% 时止损",
+        },
+      },
+      // 代码级移动止盈配置（每10秒自动检查，5级规则）
+      codeLevelTrailingStop: {
+        stage1: {
+          name: "阶段1",
+          minProfit: 4,
+          maxProfit: 6,
+          drawdownPercent: 1.5,
+          description: "峰值4-6%，回退1.5%平仓（保底2.5%）",
+        },
+        stage2: {
+          name: "阶段2",
+          minProfit: 6,
+          maxProfit: 10,
+          drawdownPercent: 2,
+          description: "峰值6-10%，回退2%平仓（保底4%）",
+        },
+        stage3: {
+          name: "阶段3",
+          minProfit: 10,
+          maxProfit: 15,
+          drawdownPercent: 2.5,
+          description: "峰值10-15%，回退2.5%平仓（保底7.5%）",
+        },
+        stage4: {
+          name: "阶段4",
+          minProfit: 15,
+          maxProfit: 25,
+          drawdownPercent: 3,
+          description: "峰值15-25%，回退3%平仓（保底12%）",
+        },
+        stage5: {
+          name: "阶段5",
+          minProfit: 25,
+          maxProfit: Infinity,
+          drawdownPercent: 5,
+          description: "峰值25%+，回退5%平仓（保底20%）",
+        },
+      },
     },
     "conservative": {
       name: "稳健",
@@ -394,6 +467,8 @@ export function generateTradingPrompt(data: {
   // 获取当前策略参数（用于每周期强调风控规则）
   const strategy = getTradingStrategy();
   const params = getStrategyParams(strategy);
+  // 判断是否启用代码级止损和移动止盈（仅波段策略启用）
+  const isCodeLevelProtectionEnabled = strategy === "swing-trend";
   
   let prompt = `【交易周期 #${iteration}】${currentTime}
 已运行 ${minutesElapsed} 分钟，执行周期 ${intervalMinutes} 分钟
@@ -405,22 +480,31 @@ export function generateTradingPrompt(data: {
 
 【硬性风控底线 - 系统强制执行】
 ┌─────────────────────────────────────────┐
-│ 单笔亏损 ≤ -30%：强制平仓               │
-│ 持仓时间 ≥ 36小时：强制平仓             │
+│ 单笔亏损 ≤ ${RISK_PARAMS.EXTREME_STOP_LOSS_PERCENT}%：强制平仓               │
+│ 持仓时间 ≥ ${RISK_PARAMS.MAX_HOLDING_HOURS}小时：强制平仓             │
 └─────────────────────────────────────────┘
 
 【AI战术决策 - 强烈建议遵守】
 ┌─────────────────────────────────────────┐
 │ 策略止损：${params.stopLoss.low}% ~ ${params.stopLoss.high}%（根据杠杆）│
-│ 移动止盈：                               │
-│   • 盈利≥+${params.trailingStop.level1.trigger}% → 止损移至+${params.trailingStop.level1.stopAt}%  │
-│   • 盈利≥+${params.trailingStop.level2.trigger}% → 止损移至+${params.trailingStop.level2.stopAt}%  │
-│   • 盈利≥+${params.trailingStop.level3.trigger}% → 止损移至+${params.trailingStop.level3.stopAt}% │
 │ 分批止盈：                               │
 │   • 盈利≥+${params.partialTakeProfit.stage1.trigger}% → 平仓${params.partialTakeProfit.stage1.closePercent}%  │
 │   • 盈利≥+${params.partialTakeProfit.stage2.trigger}% → 平仓${params.partialTakeProfit.stage2.closePercent}%  │
 │   • 盈利≥+${params.partialTakeProfit.stage3.trigger}% → 平仓${params.partialTakeProfit.stage3.closePercent}% │
 │ 峰值回撤：≥${params.peakDrawdownProtection}% → 危险信号，立即平仓 │
+${isCodeLevelProtectionEnabled && params.codeLevelTrailingStop ? `│                                         │
+│ 注意：移动止盈由代码级监控执行（每10秒） │
+│   • ${params.codeLevelTrailingStop.stage1.description} │
+│   • ${params.codeLevelTrailingStop.stage2.description} │
+│   • ${params.codeLevelTrailingStop.stage3.description} │
+│   • ${params.codeLevelTrailingStop.stage4.description} │
+│   • ${params.codeLevelTrailingStop.stage5.description} │
+│   • 无需AI手动执行移动止盈              │` : `│                                         │
+│ 注意：当前策略未启用代码级移动止盈      │
+│   • AI需主动监控峰值回撤并执行止盈      │
+│   • 盈利${params.trailingStop.level1.trigger}%→止损线${params.trailingStop.level1.stopAt}%   │
+│   • 盈利${params.trailingStop.level2.trigger}%→止损线${params.trailingStop.level2.stopAt}%   │
+│   • 盈利${params.trailingStop.level3.trigger}%→止损线${params.trailingStop.level3.stopAt}%   │`}
 └─────────────────────────────────────────┘
 
 【决策流程 - 按优先级执行】
@@ -695,6 +779,8 @@ export function generateTradingPrompt(data: {
  */
 function generateInstructions(strategy: TradingStrategy, intervalMinutes: number): string {
   const params = getStrategyParams(strategy);
+  // 判断是否启用代码级止损和移动止盈（仅波段策略启用）
+  const isCodeLevelProtectionEnabled = strategy === "swing-trend";
   
   return `您是世界顶级的专业量化交易员，结合系统化方法与丰富的实战经验。当前执行【${params.name}】策略框架，在严格风控底线内拥有基于市场实际情况灵活调整的自主权。
 
@@ -783,8 +869,8 @@ function generateInstructions(strategy: TradingStrategy, intervalMinutes: number
 - **风控策略（系统硬性底线 + AI战术灵活性）**：
   
   【系统硬性底线 - 强制执行，不可违反】：
-  * 单笔亏损 ≤ -30%：系统强制平仓（防止爆仓）
-  * 持仓时间 ≥ 36小时：系统强制平仓（释放资金）
+  * 单笔亏损 ≤ ${RISK_PARAMS.EXTREME_STOP_LOSS_PERCENT}%：系统强制平仓（防止爆仓）
+  * 持仓时间 ≥ ${RISK_PARAMS.MAX_HOLDING_HOURS}小时：系统强制平仓（释放资金）
   
   【AI战术决策 - 专业建议，灵活执行】：
   
@@ -795,27 +881,60 @@ function generateInstructions(strategy: TradingStrategy, intervalMinutes: number
   • 趋势是朋友，反转是敌人：出现反转信号立即止盈，不管盈利多少
   • 实战经验：盈利≥5%且持仓超过3小时，没有强趋势信号时可以主动平仓落袋为安
   
-  (1) 止损策略（必须严格遵守，这是保护本金的生命线）：
-     * 策略止损线（必须遵守，不可随意突破）：
-       - ${params.leverageMin}-${Math.floor((params.leverageMin + params.leverageMax) / 2)}倍杠杆：止损线 ${params.stopLoss.low}%（必须执行）
-       - ${Math.floor((params.leverageMin + params.leverageMax) / 2)}-${Math.ceil((params.leverageMin + params.leverageMax) * 0.75)}倍杠杆：止损线 ${params.stopLoss.mid}%（必须执行）
-       - ${Math.ceil((params.leverageMin + params.leverageMax) * 0.75)}-${params.leverageMax}倍杠杆：止损线 ${params.stopLoss.high}%（必须执行）
-     * 微调空间：仅可根据关键支撑位/阻力位微调±1%（不能超过）
-     * 重要警告：
-       - 触及止损线必须立即平仓，不要犹豫，不要等待反弹
-       - 突破止损线后继续持有将导致更大亏损
-       - 极少例外：仅限明确的假突破+关键支撑位（需要充分证据）
+  (1) 止损策略${isCodeLevelProtectionEnabled ? '（双层保护：代码级强制止损 + AI战术止损）' : '（AI主动止损）'}：
+     ${isCodeLevelProtectionEnabled && params.codeLevelStopLoss ? `
+     * 【代码级强制止损】（每10秒自动检查，无需AI干预，仅波段策略启用）：
+       系统已为波段策略启用自动止损监控（每10秒检查一次），根据杠杆倍数分级保护：
+       - ${params.codeLevelStopLoss.lowRisk.description}
+       - ${params.codeLevelStopLoss.mediumRisk.description}
+       - ${params.codeLevelStopLoss.highRisk.description}
+       - 此止损完全自动化，AI无需手动执行，系统会保护账户安全
+       - 如果持仓触及代码级止损线，系统会立即自动平仓
+     
+     * 【AI战术止损】（更灵活，更早介入）：
+       AI的职责是在代码级止损触发之前，根据市场情况做出更优的战术止损决策：
+       - ${params.leverageMin}-${Math.floor((params.leverageMin + params.leverageMax) / 2)}倍杠杆：建议止损线 ${params.stopLoss.low}%
+       - ${Math.floor((params.leverageMin + params.leverageMax) / 2)}-${Math.ceil((params.leverageMin + params.leverageMax) * 0.75)}倍杠杆：建议止损线 ${params.stopLoss.mid}%
+       - ${Math.ceil((params.leverageMin + params.leverageMax) * 0.75)}-${params.leverageMax}倍杠杆：建议止损线 ${params.stopLoss.high}%
+       - 这些止损线是AI的专业建议，应该优先执行
+       - 微调空间：可根据关键支撑位/阻力位、趋势强度灵活调整±1-2%
+       - AI可以更早止损：如果看到趋势反转、破位等危险信号，可以提前止损
+       - AI也可以适当宽松：如果在关键支撑位假突破，可以稍微宽松1-2%观察
+     
+     * 【执行原则】：
+       - AI战术止损应该比代码级止损更早介入（更安全）
+       - 如果AI判断持仓风险过大，应主动止损，不要等代码级触发
+       - 例外情况：明确的假突破、关键支撑位测试（需充分证据）
+       - 记住：AI的止损判断比代码级更灵活、更专业、更早介入` : `
+     * 【AI主动止损】（当前策略未启用代码级止损，AI全权负责）：
+       AI必须严格执行止损规则，这是保护账户的唯一防线：
+       - ${params.leverageMin}-${Math.floor((params.leverageMin + params.leverageMax) / 2)}倍杠杆：严格止损线 ${params.stopLoss.low}%
+       - ${Math.floor((params.leverageMin + params.leverageMax) / 2)}-${Math.ceil((params.leverageMin + params.leverageMax) * 0.75)}倍杠杆：严格止损线 ${params.stopLoss.mid}%
+       - ${Math.ceil((params.leverageMin + params.leverageMax) * 0.75)}-${params.leverageMax}倍杠杆：严格止损线 ${params.stopLoss.high}%
+       - 止损必须严格执行，不要犹豫，不要等待
+       - 微调空间：可根据关键支撑位/阻力位、趋势强度灵活调整±1-2%
+       - 如果看到趋势反转、破位等危险信号，应立即执行止损
+       - 没有代码级保护，AI必须主动监控并及时止损`}
+     
      * 说明：pnl_percent已包含杠杆效应，直接比较即可
   
-  (2) 移动止盈策略（保护利润的核心机制，强烈建议执行）：
-     * ${params.name}策略的移动止盈建议（已根据${params.leverageMax}倍最大杠杆优化）：
-       - 盈利 ≥ +${params.trailingStop.level1.trigger}% → 建议将止损移至+${params.trailingStop.level1.stopAt}%（保护至少${params.trailingStop.level1.stopAt}%利润）
-       - 盈利 ≥ +${params.trailingStop.level2.trigger}% → 建议将止损移至+${params.trailingStop.level2.stopAt}%（保护至少${params.trailingStop.level2.stopAt}%利润）
-       - 盈利 ≥ +${params.trailingStop.level3.trigger}% → 建议将止损移至+${params.trailingStop.level3.stopAt}%（保护至少${params.trailingStop.level3.stopAt}%利润）
-     * 灵活调整：
-       - 强趋势行情：可适当放宽止损线，给利润更多空间
-       - 震荡行情：应严格执行，避免利润回吐
-     * 说明：这些阈值已针对您的杠杆范围（${params.leverageMin}-${params.leverageMax}倍）优化
+  (2) 移动止盈策略${isCodeLevelProtectionEnabled ? '（由代码级监控自动执行）' : '（AI主动执行）'}：
+     ${isCodeLevelProtectionEnabled && params.codeLevelTrailingStop ? `* 系统已为波段策略启用代码级移动止盈监控（每10秒检查一次，5级规则，更细致）：
+       - 自动跟踪每个持仓的盈利峰值（单个币种独立跟踪）
+       - ${params.codeLevelTrailingStop.stage1.description}
+       - ${params.codeLevelTrailingStop.stage2.description}
+       - ${params.codeLevelTrailingStop.stage3.description}
+       - ${params.codeLevelTrailingStop.stage4.description}
+       - ${params.codeLevelTrailingStop.stage5.description}
+       - 无需AI手动执行移动止盈，此功能完全由代码保证
+     * AI职责：专注于其他止盈策略（分批止盈、时间止盈、峰值回撤等）` : `* 当前策略未启用代码级移动止盈，AI需要主动监控峰值回撤：
+       - 自己跟踪每个持仓的盈利峰值（使用 peak_pnl_percent 字段）
+       - 当峰值回撤达到阈值时，AI需要主动执行平仓
+       - ${params.name}策略的移动止盈规则（严格执行）：
+         * 盈利达到 +${params.trailingStop.level1.trigger}% 时，止损线移至 +${params.trailingStop.level1.stopAt}%
+         * 盈利达到 +${params.trailingStop.level2.trigger}% 时，止损线移至 +${params.trailingStop.level2.stopAt}%
+         * 盈利达到 +${params.trailingStop.level3.trigger}% 时，止损线移至 +${params.trailingStop.level3.stopAt}%
+       - AI必须在分析持仓时主动计算和判断是否触发移动止盈`}
   
   (3) 止盈策略（灵活决策，不要死板）：
      * 重要原则：止盈要灵活，根据实际市场情况决定！
@@ -833,7 +952,7 @@ function generateInstructions(strategy: TradingStrategy, intervalMinutes: number
        - 示例：closePosition(symbol: 'BTC', percentage: 50) 可平掉50%仓位
      * 记住：小的确定性盈利 > 大的不确定性盈利！
   
-  (4) 峰值回撤保护（危险信号）：
+  (3) 峰值回撤保护（危险信号）：
      * ${params.name}策略的峰值回撤阈值：${params.peakDrawdownProtection}%（已根据风险偏好优化）
      * 如果持仓曾达到峰值盈利，当前盈利从峰值回撤 ≥ ${params.peakDrawdownProtection}%
      * 计算方式：回撤% = (峰值盈利 - 当前盈利) / 峰值盈利 × 100%
@@ -841,7 +960,7 @@ function generateInstructions(strategy: TradingStrategy, intervalMinutes: number
      * 强烈建议：立即平仓或至少减仓50%
      * 例外情况：有明确证据表明只是正常回调（如测试均线支撑）
   
-  (5) 时间止盈建议：
+  (4) 时间止盈建议：
      * 盈利 > 25% 且持仓 ≥ 4小时 → 可考虑主动获利了结
      * 持仓 > 24小时且未盈利 → 考虑平仓释放资金
      * 系统会在36小时强制平仓，您无需在35小时主动平仓
@@ -861,25 +980,37 @@ function generateInstructions(strategy: TradingStrategy, intervalMinutes: number
    - 立即调用 getPositions 获取所有持仓信息
    - 对每个持仓进行专业分析和决策（每个决策都要实际执行工具）：
    
-   a) 止损决策（必须严格遵守，不可灵活）：
-      - 重要：止损线是硬性规则，必须严格遵守，不像止盈可以灵活！
-      - 检查 pnl_percent 是否触及策略止损线：
-        * ${params.leverageMin}-${Math.floor((params.leverageMin + params.leverageMax) / 2)}倍杠杆：止损线 ${params.stopLoss.low}%（必须遵守）
-        * ${Math.floor((params.leverageMin + params.leverageMax) / 2)}-${Math.ceil((params.leverageMin + params.leverageMax) * 0.75)}倍杠杆：止损线 ${params.stopLoss.mid}%（必须遵守）
-        * ${Math.ceil((params.leverageMin + params.leverageMax) * 0.75)}-${params.leverageMax}倍杠杆：止损线 ${params.stopLoss.high}%（必须遵守）
-      - 微调空间：仅可根据关键支撑位/阻力位微调±1%（不能更多）
-      - 如果触及或突破止损线：
-        * 立即调用 closePosition 平仓（不要犹豫，不要等待）
-        * 例外情况极少：仅限明确的假突破+关键支撑位
-      - 记住：止损是保护本金的生命线，不严格执行会导致大额亏损！
+   a) 止损决策${isCodeLevelProtectionEnabled ? '（双层保护：代码级强制止损 + AI战术止损）' : '（AI主动止损）'}：
+      ${isCodeLevelProtectionEnabled && params.codeLevelStopLoss ? `- 理解双层止损机制：
+        * 【代码级强制止损】：系统每10秒自动检查，触发即自动平仓（仅波段策略）
+          - ${params.codeLevelStopLoss.lowRisk.description}
+          - ${params.codeLevelStopLoss.mediumRisk.description}
+          - ${params.codeLevelStopLoss.highRisk.description}
+        * 【AI战术止损】：AI应该更早介入，在代码级触发前主动止损（更安全）
+      
+      - AI战术止损线（应该优先执行，比代码级更早）：
+        * ${params.leverageMin}-${Math.floor((params.leverageMin + params.leverageMax) / 2)}倍杠杆：建议止损线 ${params.stopLoss.low}%
+        * ${Math.floor((params.leverageMin + params.leverageMax) / 2)}-${Math.ceil((params.leverageMin + params.leverageMax) * 0.75)}倍杠杆：建议止损线 ${params.stopLoss.mid}%
+        * ${Math.ceil((params.leverageMin + params.leverageMax) * 0.75)}-${params.leverageMax}倍杠杆：建议止损线 ${params.stopLoss.high}%` : `- AI全权负责止损（当前策略未启用代码级止损）：
+        * AI必须严格执行止损规则，这是保护账户的唯一防线
+        * 根据杠杆倍数分级保护（严格执行）：
+          - ${params.leverageMin}-${Math.floor((params.leverageMin + params.leverageMax) / 2)}倍杠杆：止损线 ${params.stopLoss.low}%
+          - ${Math.floor((params.leverageMin + params.leverageMax) / 2)}-${Math.ceil((params.leverageMin + params.leverageMax) * 0.75)}倍杠杆：止损线 ${params.stopLoss.mid}%
+          - ${Math.ceil((params.leverageMin + params.leverageMax) * 0.75)}-${params.leverageMax}倍杠杆：止损线 ${params.stopLoss.high}%
+        * 如果看到趋势反转、破位等危险信号，应立即执行止损`}
+      
+      - AI的灵活判断空间（专业优势）：
+        * 可以更早止损：看到趋势反转、破位等危险信号时，可以提前止损
+        * 可以适当宽松：关键支撑位假突破时，可以稍微宽松1-2%观察${isCodeLevelProtectionEnabled ? '（不要等代码级触发）' : ''}
+        * 微调依据：技术面（支撑位/阻力位）、趋势强度、市场情绪等
+      
+      - 执行决策：
+        * 如果触及或接近${isCodeLevelProtectionEnabled ? 'AI战术' : ''}止损线，应主动调用 closePosition 平仓
+        * 如果看到明确的危险信号（趋势反转、破位等），立即止损，不要犹豫
+        * 例外情况：明确的假突破+关键支撑位（需充分证据）
+        ${isCodeLevelProtectionEnabled ? '* 记住：AI应该比代码级更早介入，这是你的专业优势！' : '* 记住：没有代码级保护，止损决策完全依赖AI的专业判断！'}
    
-   b) 移动止盈决策：
-      - 检查是否达到移动止盈触发点（+${params.trailingStop.level1.trigger}%/+${params.trailingStop.level2.trigger}%/+${params.trailingStop.level3.trigger}%）
-      - 如果达到，评估是否需要移动止损线保护利润
-      - 如果当前盈利回落到移动止损线以下
-      - 立即调用 closePosition 平仓保护利润（不要犹豫）
-   
-   c) 止盈决策（灵活判断，不要死守目标）：
+   b) 止盈决策（灵活判断，不要死守目标）：
       - 重要：止盈要根据市场实际情况灵活决策，不要死板！
       - 止盈判断标准（按优先级）：
         * 趋势反转信号 → 立即全部止盈，不管盈利多少
@@ -894,14 +1025,14 @@ function generateInstructions(strategy: TradingStrategy, intervalMinutes: number
         * 部分止盈：closePosition({ symbol: 'BTC', percentage: 50 })
       - 记住：2%-3%的确定性盈利胜过10%的不确定性盈利！
    
-   d) 峰值回撤检查：
+   c) 峰值回撤检查：
       - 检查 peak_pnl_percent（历史最高盈利）
       - 计算回撤：(peak_pnl_percent - pnl_percent) / peak_pnl_percent × 100%
       - 如果从峰值回撤 ≥ ${params.peakDrawdownProtection}%（${params.name}策略阈值，这是危险信号！）
       - 强烈建议立即调用 closePosition 平仓或减仓50%
       - 除非有明确证据表明只是正常回调（如测试均线支撑）
    
-   e) 趋势反转判断（关键警告信号）：
+   d) 趋势反转判断（关键警告信号）：
       - 调用 getTechnicalIndicators 检查多个时间框架
       - 如果至少3个时间框架显示趋势反转（这是强烈警告信号！）
       - 强烈建议立即调用 closePosition 平仓
@@ -969,11 +1100,16 @@ function generateInstructions(strategy: TradingStrategy, intervalMinutes: number
 
 风控层级：
 - 系统硬性底线（强制执行）：
-  * 单笔亏损 ≤ -30%：强制平仓
-  * 持仓时间 ≥ 36小时：强制平仓
+  * 单笔亏损 ≤ ${RISK_PARAMS.EXTREME_STOP_LOSS_PERCENT}%：强制平仓
+  * 持仓时间 ≥ ${RISK_PARAMS.MAX_HOLDING_HOURS}小时：强制平仓
+  ${isCodeLevelProtectionEnabled && params.codeLevelTrailingStop ? `* 移动止盈（5级规则，代码级监控每10秒，仅波段策略）：
+    - ${params.codeLevelTrailingStop.stage1.description}
+    - ${params.codeLevelTrailingStop.stage2.description}
+    - ${params.codeLevelTrailingStop.stage3.description}
+    - ${params.codeLevelTrailingStop.stage4.description}
+    - ${params.codeLevelTrailingStop.stage5.description}` : `* 当前策略未启用代码级移动止盈，AI需主动监控峰值回撤`}
 - AI战术决策（专业建议，灵活执行）：
   * 策略止损线：${params.stopLoss.low}% 到 ${params.stopLoss.high}%（强烈建议遵守）
-  * 移动止盈（${params.name}策略）：+${params.trailingStop.level1.trigger}%→+${params.trailingStop.level1.stopAt}%, +${params.trailingStop.level2.trigger}%→+${params.trailingStop.level2.stopAt}%, +${params.trailingStop.level3.trigger}%→+${params.trailingStop.level3.stopAt}%（保护利润）
   * 分批止盈（${params.name}策略）：+${params.partialTakeProfit.stage1.trigger}%/+${params.partialTakeProfit.stage2.trigger}%/+${params.partialTakeProfit.stage3.trigger}%（使用 percentage 参数）
   * 峰值回撤 ≥ ${params.peakDrawdownProtection}%：危险信号，强烈建议平仓
 
@@ -1003,7 +1139,7 @@ function generateInstructions(strategy: TradingStrategy, intervalMinutes: number
 - **让利润奔跑**：盈利交易要让它充分奔跑，但要用移动止盈保护利润，避免贪婪导致回吐
 - **快速止损**：亏损交易要果断止损，不要让小亏变大亏，保护本金永远是第一位
 - **概率思维**：您的专业能力让胜率更高，但市场永远有不确定性，用概率和期望值思考
-- **风控红线**：在系统硬性底线（-30%强制平仓、36小时强制平仓）内您有完全自主权
+- **风控红线**：在系统硬性底线（${RISK_PARAMS.EXTREME_STOP_LOSS_PERCENT}%强制平仓、${RISK_PARAMS.MAX_HOLDING_HOURS}小时强制平仓）内您有完全自主权
 - **技术说明**：pnl_percent已包含杠杆效应，直接比较即可
 
 市场数据按时间顺序排列（最旧 → 最新），跨多个时间框架。使用此数据识别多时间框架趋势和关键水平。`;

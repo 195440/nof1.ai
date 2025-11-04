@@ -44,6 +44,9 @@ export const RISK_PARAMS = {
     return this.MAX_HOLDING_HOURS * 6;
   },
   
+  // 极端止损线（单笔亏损百分比，防止爆仓的最后防线）
+  EXTREME_STOP_LOSS_PERCENT: Number.parseInt(process.env.EXTREME_STOP_LOSS_PERCENT || '-30', 10),
+  
   // 账户回撤风控阈值
   // 禁止新开仓的回撤阈值（⚠️ 已禁用 - 相关检查已被注释，不再限制开仓）
   ACCOUNT_DRAWDOWN_NO_NEW_POSITION_PERCENT: Number.parseInt(process.env.ACCOUNT_DRAWDOWN_NO_NEW_POSITION_PERCENT || '15', 10),
