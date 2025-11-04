@@ -291,6 +291,9 @@ export class GateClient {
       // isReduceOnly 已足够确保只减仓不开仓，反向订单本身就会执行平仓
       if (params.reduceOnly === true) {
         order.isReduceOnly = true;
+        order.reduceOnly = true;
+        order.reduce_only = true;
+        order.is_reduce_only = true;
       }
 
       // 驼峰命名：autoSize -> auto_size
@@ -325,7 +328,72 @@ export class GateClient {
       };
       logger.error("下单失败:", errorDetails);
       
-      // 特殊处理资金不足的情况
+      // 🛡️ 兜底机制：如果 reduceOnly 订单因保证金不足失败，则去除 reduceOnly 重试
+      // 这种情况可能发生在某些边缘场景，去除 reduceOnly 后按反向开仓处理可能更稳妥
+      if (
+        params.reduceOnly === true && 
+        errorDetails.apiError?.label === "INSUFFICIENT_AVAILABLE"
+      ) {
+        logger.warn(
+          `⚠️  reduceOnly 平仓失败（保证金不足），尝试去除 reduceOnly 参数重试: ${params.contract} size=${adjustedSize}`
+        );
+        
+        try {
+          // 去除 reduceOnly 参数，重新构建订单
+          // 重新格式化价格
+          const formatPrice = (price: number | undefined): string => {
+            if (!price || price === 0) return "0";
+            const roundedPrice = Math.round(price * 100000000) / 100000000;
+            let priceStr = roundedPrice.toString();
+            if (priceStr.includes('.')) {
+              priceStr = priceStr.replace(/\.?0+$/, "");
+            }
+            return priceStr;
+          };
+          
+          const formattedPrice = formatPrice(params.price);
+          
+          const retryOrder: any = {
+            contract: params.contract,
+            size: adjustedSize,
+            price: formattedPrice,
+            tif: formattedPrice !== "0" ? (params.tif || "gtc") : "ioc",
+          };
+          
+          // 不设置 isReduceOnly
+          
+          // 保留其他参数
+          if (params.autoSize !== undefined) {
+            retryOrder.autoSize = params.autoSize;
+          }
+          if (params.stopLoss !== undefined && params.stopLoss > 0) {
+            retryOrder.stopLoss = params.stopLoss.toString();
+          }
+          if (params.takeProfit !== undefined && params.takeProfit > 0) {
+            retryOrder.takeProfit = params.takeProfit.toString();
+          }
+          
+          logger.info(`重试下单（无 reduceOnly）: ${JSON.stringify(retryOrder)}`);
+          const retryResult = await this.futuresApi.createFuturesOrder(
+            this.settle,
+            retryOrder
+          );
+          
+          logger.warn(`✅ 去除 reduceOnly 后下单成功: ${params.contract}`);
+          return retryResult.body;
+        } catch (retryError: any) {
+          // 重试也失败，记录错误并继续抛出原始错误
+          const retryErrorDetails = {
+            message: retryError.message,
+            status: retryError.response?.status,
+            apiError: retryError.response?.body || retryError.response?.data,
+          };
+          logger.error("去除 reduceOnly 后重试仍然失败:", retryErrorDetails);
+          // 继续抛出原始错误
+        }
+      }
+      
+      // 特殊处理资金不足的情况（原始错误提示）
       if (errorDetails.apiError?.label === "INSUFFICIENT_AVAILABLE") {
         const msg = errorDetails.apiError.message || "可用保证金不足";
         throw new Error(`资金不足，无法开仓 ${params.contract}: ${msg}`);

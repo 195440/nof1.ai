@@ -1049,6 +1049,7 @@ async function closeAllPositions(reason: string): Promise<void> {
           contract,
           size: -size,
           price: 0, // 市价单必须传 price: 0
+          reduceOnly: true, // 只减仓，不开新仓
         });
         
         logger.info(`已平仓: ${symbol} ${Math.abs(size)}张`);

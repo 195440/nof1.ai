@@ -228,9 +228,9 @@ export function getStrategyParams(strategy: TradingStrategy): StrategyParams {
         normalVolatility: { leverageFactor: 1.0, positionFactor: 1.0 }, // 正常波动：标准配置
         lowVolatility: { leverageFactor: 1.2, positionFactor: 1.1 },    // 低波动：适度提高（趋势稳定）
       },
-      entryCondition: "必须1分钟、3分钟、5分钟、15分钟这4个时间框架信号全部强烈一致，且关键指标共振（MACD、RSI、EMA方向一致），短周期精准捕捉",
-      riskTolerance: "单笔交易风险控制在12-20%之间，注重趋势质量而非交易频率",
-      tradingStyle: "波段趋势交易，20分钟执行周期，耐心等待高质量趋势信号，持仓时间可达数天，让利润充分奔跑",
+      entryCondition: "必须3分钟、5分钟、15分钟这3个时间框架信号全部强烈一致，且关键指标共振（MACD、RSI、EMA方向一致），成交量必须大于平均成交量1.2倍以上，且盈亏比必须≥1.2:1",
+      riskTolerance: "单笔交易风险控制在20-35%之间，注重趋势质量而非交易频率，严格遵守成交量和盈亏比筛选",
+      tradingStyle: "波段趋势交易，20分钟执行周期，耐心等待高质量趋势信号（成交量放大+盈亏比≥1.2:1），持仓时间可达数天，让利润充分奔跑",
       // 自动监控止损配置（每10秒自动检查）
       codeLevelStopLoss: {
         lowRisk: {
@@ -511,8 +511,13 @@ ${isCodeLevelProtectionEnabled && params.codeLevelTrailingStop ? `│           
 (1) 持仓管理（最优先）：
    检查每个持仓的止损/止盈/峰值回撤 → closePosition
    
-(2) 新开仓评估：
-   分析市场数据 → 识别双向机会（做多/做空） → openPosition
+(2) 新开仓评估${strategy === "swing-trend" ? '（波段策略：必须满足成交量+盈亏比）' : ''}：
+   分析市场数据 → 识别双向机会（做多/做空）${strategy === "swing-trend" ? ' → 验证成交量≥1.2倍 → 计算盈亏比≥1.2:1' : ''} → openPosition
+   ${strategy === "swing-trend" ? `
+   ⚠️ 波段策略开仓前强制检查：
+   ✓ 成交量信号：当前成交量 / 平均成交量 ≥ 1.2
+   ✓ 盈亏比信号：预期盈利空间 / 预期止损空间 ≥ 1.2:1
+   ✓ 不满足任一条件 → 不开仓` : ''}
    
 (3) 加仓评估：
    盈利>5%且趋势强化 → openPosition（≤50%原仓位，相同或更低杠杆）
@@ -753,22 +758,29 @@ ${isCodeLevelProtectionEnabled && params.codeLevelTrailingStop ? `│           
     }
   }
 
-  // 上一次的AI决策记录
+  // 上一次的AI决策记录（仅供参考，不是当前状态）
   if (recentDecisions && recentDecisions.length > 0) {
-    prompt += `\n您上一次的决策：\n`;
-    prompt += `使用此信息作为参考，并基于当前市场状况做出决策。\n\n`;
+    prompt += `\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n`;
+    prompt += `【历史决策记录 - 仅供参考】\n`;
+    prompt += `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n`;
+    prompt += `⚠️ 重要提醒：以下是历史决策记录，仅作为参考，不代表当前状态！\n`;
+    prompt += `当前市场数据和持仓信息请参考上方实时数据。\n\n`;
     
     for (let i = 0; i < recentDecisions.length; i++) {
       const decision = recentDecisions[i];
       const decisionTime = formatChinaTime(decision.timestamp);
+      const timeDiff = Math.floor((new Date().getTime() - new Date(decision.timestamp).getTime()) / (1000 * 60));
       
-      prompt += `决策 #${decision.iteration} (${decisionTime}):\n`;
-      prompt += `  账户价值: ${decision.account_value.toFixed(2)} USDT\n`;
-      prompt += `  持仓数量: ${decision.positions_count}\n`;
-      prompt += `  决策: ${decision.decision}\n\n`;
+      prompt += `【历史】决策 #${decision.iteration} (${decisionTime}，${timeDiff}分钟前):\n`;
+      prompt += `  当时账户价值: ${decision.account_value.toFixed(2)} USDT\n`;
+      prompt += `  当时持仓数量: ${decision.positions_count}\n`;
+      prompt += `  当时决策内容: ${decision.decision}\n\n`;
     }
     
-    prompt += `\n参考上一次的决策结果，结合当前市场数据做出最佳判断。\n\n`;
+    prompt += `\n💡 使用建议：\n`;
+    prompt += `- 仅作为决策连续性参考，不要被历史决策束缚\n`;
+    prompt += `- 市场已经变化，请基于当前最新数据独立判断\n`;
+    prompt += `- 如果市场条件改变，应该果断调整策略\n\n`;
   }
 
   return prompt;
@@ -825,13 +837,28 @@ function generateInstructions(strategy: TradingStrategy, intervalMinutes: number
    - **市场是双向的**：如果连续多个周期空仓，很可能是忽视了做空机会
    - 永续合约做空没有借币成本，只需关注资金费率即可
 5. **多时间框架分析**：您分析多个时间框架（15分钟、30分钟、1小时、4小时）的模式，以识别高概率入场点。${params.entryCondition}。
-6. **仓位管理（${params.name}策略）**：${params.riskTolerance}。最多同时持有${RISK_PARAMS.MAX_POSITIONS}个持仓。
-7. **交易频率**：${params.tradingStyle}
-8. **杠杆的合理运用（${params.name}策略）**：您必须使用${params.leverageMin}-${params.leverageMax}倍杠杆，根据信号强度灵活选择：
+6. **成交量信号（波段策略必须）**：${strategy === "swing-trend" ? `
+   - 开仓前必须检查：当前成交量 > 平均成交量 × 1.2（即成交量必须放大20%以上）
+   - 成交量放大是趋势强度的重要验证，低成交量的信号质量不可靠
+   - 数据来源：市场数据中的"当前成交量 vs. 平均成交量"字段
+   - 判断标准：currentVolume / avgVolume ≥ 1.2
+   - 不满足成交量条件的信号一律不开仓` : '成交量作为辅助参考，非强制要求'}
+7. **盈亏比信号（波段策略必须）**：${strategy === "swing-trend" ? `
+   - 开仓前必须计算盈亏比：预期盈利空间 / 预期止损空间 ≥ 1.2:1
+   - 计算方法：
+     * 做多盈亏比 = (目标止盈价 - 当前价) / (当前价 - 止损价) ≥ 1.2
+     * 做空盈亏比 = (当前价 - 目标止盈价) / (止损价 - 当前价) ≥ 1.2
+   - 止损价参考：根据杠杆倍数使用策略止损线（-9%/-7.5%/-5.5%）
+   - 止盈价参考：至少第一阶段目标（+15%），最好第二阶段（+30%）
+   - 例如：当前价100，止损价92（-8%），目标价115（+15%），盈亏比=(115-100)/(100-92)=15/8=1.875 ✓
+   - 盈亏比不足1.2:1的机会一律不开仓，避免低质量交易` : '盈亏比作为参考，建议≥2:1'}
+8. **仓位管理（${params.name}策略）**：${params.riskTolerance}。最多同时持有${RISK_PARAMS.MAX_POSITIONS}个持仓。
+9. **交易频率**：${params.tradingStyle}
+10. **杠杆的合理运用（${params.name}策略）**：您必须使用${params.leverageMin}-${params.leverageMax}倍杠杆，根据信号强度灵活选择：
    - 普通信号：${params.leverageRecommend.normal}
    - 良好信号：${params.leverageRecommend.good}
    - 强信号：${params.leverageRecommend.strong}
-9. **成本意识交易**：每笔往返交易成本约0.1%（开仓0.05% + 平仓0.05%）。潜在利润≥2-3%时即可考虑交易。
+11. **成本意识交易**：每笔往返交易成本约0.1%（开仓0.05% + 平仓0.05%）。潜在利润≥2-3%时即可考虑交易。
 
 当前交易规则（${params.name}策略）：
 - 您交易加密货币的永续期货合约（${RISK_PARAMS.TRADING_SYMBOLS.join('、')}）
@@ -1071,6 +1098,15 @@ function generateInstructions(strategy: TradingStrategy, intervalMinutes: number
       - 现有持仓数 < ${RISK_PARAMS.MAX_POSITIONS}
       - ${params.entryCondition}
       - 潜在利润≥2-3%（扣除0.1%费用后仍有净收益）
+      ${strategy === "swing-trend" ? `- 【波段策略强制要求】成交量信号：
+        * 必须检查：当前成交量 / 平均成交量 ≥ 1.2
+        * 数据来源：市场数据中的"当前成交量 vs. 平均成交量"字段
+        * 不满足成交量条件的信号一律不开仓
+      - 【波段策略强制要求】盈亏比信号：
+        * 必须计算：预期盈利空间 / 预期止损空间 ≥ 1.2:1
+        * 做多盈亏比 = (目标价 - 当前价) / (当前价 - 止损价) ≥ 1.2
+        * 做空盈亏比 = (当前价 - 目标价) / (止损价 - 当前价) ≥ 1.2
+        * 盈亏比不足1.2:1的机会一律不开仓` : ''}
       - 做多和做空机会的识别：
         * 做多信号：价格突破EMA20/50上方，MACD转正，RSI7 > 50且上升，多个时间框架共振向上
         * 做空信号：价格跌破EMA20/50下方，MACD转负，RSI7 < 50且下降，多个时间框架共振向下

@@ -138,6 +138,7 @@ async function closeAllPositions(): Promise<void> {
           contract,
           size: -size, // 反向平仓
           price: 0, // 市价单
+          reduceOnly: true, // 只减仓，不开新仓
         });
         
         logger.info(`✅ 已平仓: ${symbol} ${side} ${quantity}张`);
