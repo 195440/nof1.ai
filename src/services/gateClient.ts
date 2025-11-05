@@ -27,6 +27,16 @@ import { RISK_PARAMS } from "../config/riskParams";
 const logger = createPinoLogger({
   name: "gate-client",
   level: "info",
+  transport: {
+    target: 'pino-pretty',
+    options: {
+      colorize: true,
+      translateTime: 'SYS:yyyy-mm-dd HH:MM:ss',
+      ignore: 'pid,hostname,env,component',
+      messageFormat: '{msg}',
+      singleLine: true
+    }
+  }
 });
 
 export class GateClient {

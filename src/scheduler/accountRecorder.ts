@@ -29,6 +29,16 @@ import { getChinaTimeISO } from "../utils/timeUtils";
 const logger = createPinoLogger({
   name: "account-recorder",
   level: "info",
+  transport: {
+    target: 'pino-pretty',
+    options: {
+      colorize: true,
+      translateTime: 'SYS:yyyy-mm-dd HH:MM:ss',
+      ignore: 'pid,hostname,env,component',
+      messageFormat: '{msg}',
+      singleLine: true
+    }
+  }
 });
 
 const dbClient = createClient({

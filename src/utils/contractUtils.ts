@@ -25,6 +25,16 @@ import { createPinoLogger } from "@voltagent/logger";
 const logger = createPinoLogger({
   name: "contract-utils",
   level: "info",
+  transport: {
+    target: 'pino-pretty',
+    options: {
+      colorize: true,
+      translateTime: 'SYS:yyyy-mm-dd HH:MM:ss',
+      ignore: 'pid,hostname,env,component',
+      messageFormat: '{msg}',
+      singleLine: true
+    }
+  }
 });
 
 // 合约乘数缓存（避免重复API调用）

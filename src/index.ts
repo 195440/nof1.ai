@@ -39,15 +39,14 @@ initializeTerminalEncoding();
 const baseLogger = createPinoLogger({
   name: "ai-btc",
   level: "info",
-  formatters: {
-    timestamp: () => {
-      // 使用系统时区设置，已经是 Asia/Shanghai
-      const now = new Date();
-      // 正确格式化：使用 toLocaleString 获取中国时间，然后转换为 ISO 格式
-      const chinaOffset = 8 * 60; // 中国时区偏移（分钟）
-      const utc = now.getTime() + (now.getTimezoneOffset() * 60 * 1000);
-      const chinaTime = new Date(utc + (chinaOffset * 60 * 1000));
-      return `, "time": "${chinaTime.toISOString().replace('Z', '+08:00')}"`;
+  transport: {
+    target: 'pino-pretty',
+    options: {
+      colorize: true,
+      translateTime: 'SYS:yyyy-mm-dd HH:MM:ss',
+      ignore: 'pid,hostname,env,component',
+      messageFormat: '{msg}',
+      singleLine: true
     }
   }
 });

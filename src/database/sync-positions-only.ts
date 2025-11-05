@@ -28,6 +28,16 @@ import { createGateClient } from "../services/gateClient";
 const logger = createPinoLogger({
   name: "sync-positions",
   level: "info",
+  transport: {
+    target: 'pino-pretty',
+    options: {
+      colorize: true,
+      translateTime: 'SYS:yyyy-mm-dd HH:MM:ss',
+      ignore: 'pid,hostname,env,component',
+      messageFormat: '{msg}',
+      singleLine: true
+    }
+  }
 });
 
 async function syncPositionsOnly() {

@@ -50,6 +50,16 @@ import { getTradingStrategy, getStrategyParams } from "../agents/tradingAgent";
 const logger = createPinoLogger({
   name: "stop-loss-monitor",
   level: "info",
+  transport: {
+    target: 'pino-pretty',
+    options: {
+      colorize: true,
+      translateTime: 'SYS:yyyy-mm-dd HH:MM:ss',
+      ignore: 'pid,hostname,env,component',
+      messageFormat: '{msg}',
+      singleLine: true
+    }
+  }
 });
 
 const dbClient = createClient({

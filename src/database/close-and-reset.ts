@@ -28,6 +28,16 @@ import "dotenv/config";
 const logger = createPinoLogger({
   name: "close-and-reset",
   level: "info",
+  transport: {
+    target: 'pino-pretty',
+    options: {
+      colorize: true,
+      translateTime: 'SYS:yyyy-mm-dd HH:MM:ss',
+      ignore: 'pid,hostname,env,component',
+      messageFormat: '{msg}',
+      singleLine: true
+    }
+  }
 });
 
 const CREATE_TABLES_SQL = `

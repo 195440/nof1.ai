@@ -30,6 +30,16 @@ import * as path from "node:path";
 const logger = createPinoLogger({
   name: "sync-from-gate",
   level: "info",
+  transport: {
+    target: 'pino-pretty',
+    options: {
+      colorize: true,
+      translateTime: 'SYS:yyyy-mm-dd HH:MM:ss',
+      ignore: 'pid,hostname,env,component',
+      messageFormat: '{msg}',
+      singleLine: true
+    }
+  }
 });
 
 async function syncFromGate() {

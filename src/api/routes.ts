@@ -28,6 +28,16 @@ import { createPinoLogger } from "@voltagent/logger";
 const logger = createPinoLogger({
   name: "api-routes",
   level: "info",
+  transport: {
+    target: 'pino-pretty',
+    options: {
+      colorize: true,
+      translateTime: 'SYS:yyyy-mm-dd HH:MM:ss',
+      ignore: 'pid,hostname,env,component',
+      messageFormat: '{msg}',
+      singleLine: true
+    }
+  }
 });
 
 const dbClient = createClient({
