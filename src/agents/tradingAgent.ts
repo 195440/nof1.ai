@@ -236,20 +236,20 @@ export function getStrategyParams(strategy: TradingStrategy): StrategyParams {
         lowRisk: {
           minLeverage: 5,
           maxLeverage: 7,
-          stopLossPercent: -8,
-          description: "5-7倍杠杆，亏损 -8% 时止损",
+          stopLossPercent: -6,
+          description: "5-7倍杠杆，亏损 -6% 时止损",
         },
         mediumRisk: {
           minLeverage: 8,
           maxLeverage: 12,
-          stopLossPercent: -6,
-          description: "8-12倍杠杆，亏损 -6% 时止损",
+          stopLossPercent: -5,
+          description: "8-12倍杠杆，亏损 -5% 时止损",
         },
         highRisk: {
           minLeverage: 13,
           maxLeverage: Infinity,
-          stopLossPercent: -5,
-          description: "13倍以上杠杆，亏损 -5% 时止损",
+          stopLossPercent: -4,
+          description: "13倍以上杠杆，亏损 -4% 时止损",
         },
       },
       // 自动监控移动止盈配置（每10秒自动检查，5级规则）
