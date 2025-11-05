@@ -228,7 +228,7 @@ export function getStrategyParams(strategy: TradingStrategy): StrategyParams {
         normalVolatility: { leverageFactor: 1.0, positionFactor: 1.0 }, // 正常波动：标准配置
         lowVolatility: { leverageFactor: 1.2, positionFactor: 1.1 },    // 低波动：适度提高（趋势稳定）
       },
-      entryCondition: "必须3分钟、5分钟、15分钟这3个时间框架信号全部强烈一致，且关键指标共振（MACD、RSI、EMA方向一致）",
+      entryCondition: "必须1分钟、3分钟、5分钟、15分钟这4个时间框架信号全部强烈一致，且关键指标共振（MACD、RSI、EMA方向一致）",
       riskTolerance: "单笔交易风险控制在20-35%之间，注重趋势质量而非交易频率",
       tradingStyle: "波段趋势交易，20分钟执行周期，耐心等待高质量趋势信号，持仓时间可达数天，让利润充分奔跑",
       // 自动监控止损配置（每10秒自动检查）
@@ -1059,9 +1059,9 @@ function generateInstructions(strategy: TradingStrategy, intervalMinutes: number
 
 3. 分析市场数据（必须实际调用工具）：
    - 调用 getTechnicalIndicators 获取技术指标数据
-   - 分析多个时间框架（15分钟、30分钟、1小时、4小时）
+   - ⭐ 分析多个时间框架（1分钟、3分钟、5分钟、15分钟）- 波段策略关键！
    - 重点关注：价格、EMA、MACD、RSI
-   - ${params.entryCondition}
+   - 必须满足：${params.entryCondition}
 
 4. 评估新交易机会（如果决定开仓，必须立即执行）：
    
