@@ -20,3 +20,4 @@
  * 工具函数导出
  */
 export * from './timeUtils';
+export * from './encodingUtils';
