@@ -20,22 +20,12 @@
  * 多时间框架分析模块（极简版 - 只提供原始数据）
  */
 
-import { createPinoLogger } from "@voltagent/logger";
+import { createLogger } from "../utils/loggerUtils";
 import { createGateClient } from "./gateClient";
 
-const logger = createPinoLogger({
+const logger = createLogger({
   name: "multi-timeframe",
   level: "info",
-  transport: {
-    target: 'pino-pretty',
-    options: {
-      colorize: true,
-      translateTime: 'SYS:yyyy-mm-dd HH:MM:ss',
-      ignore: 'pid,hostname,env,component',
-      messageFormat: '{msg}',
-      singleLine: true
-    }
-  }
 });
 
 /**

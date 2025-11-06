@@ -23,21 +23,11 @@ import { Hono } from "hono";
 import { serveStatic } from "@hono/node-server/serve-static";
 import { createClient } from "@libsql/client";
 import { createGateClient } from "../services/gateClient";
-import { createPinoLogger } from "@voltagent/logger";
+import { createLogger } from "../utils/loggerUtils";
 
-const logger = createPinoLogger({
+const logger = createLogger({
   name: "api-routes",
   level: "info",
-  transport: {
-    target: 'pino-pretty',
-    options: {
-      colorize: true,
-      translateTime: 'SYS:yyyy-mm-dd HH:MM:ss',
-      ignore: 'pid,hostname,env,component',
-      messageFormat: '{msg}',
-      singleLine: true
-    }
-  }
 });
 
 const dbClient = createClient({

@@ -22,21 +22,11 @@
 
 import "dotenv/config";
 import { createGateClient } from "../src/services/gateClient";
-import { createPinoLogger } from "@voltagent/logger";
+import { createLogger } from "../src/utils/loggerUtils";
 
-const logger = createPinoLogger({
+const logger = createLogger({
   name: "query-contracts",
   level: "info",
-  transport: {
-    target: 'pino-pretty',
-    options: {
-      colorize: true,
-      translateTime: 'SYS:yyyy-mm-dd HH:MM:ss',
-      ignore: 'pid,hostname,env,component',
-      messageFormat: '{msg}',
-      singleLine: true
-    }
-  }
 });
 
 async function queryContracts() {

@@ -21,24 +21,14 @@
  * 账户资产记录器 - 每10分钟记录一次账户资产（包含未实现盈亏）
  */
 import cron from "node-cron";
-import { createPinoLogger } from "@voltagent/logger";
+import { createLogger } from "../utils/loggerUtils";
 import { createClient } from "@libsql/client";
 import { createGateClient } from "../services/gateClient";
 import { getChinaTimeISO } from "../utils/timeUtils";
 
-const logger = createPinoLogger({
+const logger = createLogger({
   name: "account-recorder",
   level: "info",
-  transport: {
-    target: 'pino-pretty',
-    options: {
-      colorize: true,
-      translateTime: 'SYS:yyyy-mm-dd HH:MM:ss',
-      ignore: 'pid,hostname,env,component',
-      messageFormat: '{msg}',
-      singleLine: true
-    }
-  }
 });
 
 const dbClient = createClient({

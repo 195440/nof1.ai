@@ -17,7 +17,7 @@
  */
 
 import "dotenv/config";
-import { createPinoLogger } from "@voltagent/logger";
+import { createLogger } from "./utils/loggerUtils";
 import { serve } from "@hono/node-server";
 import { createApiRoutes } from "./api/routes";
 import { startTradingLoop, initTradingSystem } from "./scheduler/tradingLoop";
@@ -27,7 +27,7 @@ import { startStopLossMonitor, stopStopLossMonitor } from "./scheduler/stopLossM
 import { initDatabase } from "./database/init";
 import { RISK_PARAMS } from "./config/riskParams";
 import { getStrategyParams, getTradingStrategy } from "./agents/tradingAgent";
-import { initializeTerminalEncoding, createSafeLogger } from "./utils/encodingUtils";
+import { initializeTerminalEncoding} from "./utils/encodingUtils";
 
 // 设置时区为中国时间（Asia/Shanghai，UTC+8）
 process.env.TZ = 'Asia/Shanghai';
@@ -35,31 +35,11 @@ process.env.TZ = 'Asia/Shanghai';
 // 初始化终端编码设置（解决Windows中文乱码问题）
 initializeTerminalEncoding();
 
-// 创建日志实例（使用中国时区）
-const baseLogger = createPinoLogger({
+// 创建日志实例
+const logger = createLogger({
   name: "ai-btc",
   level: "info",
-  transport: {
-    target: 'pino-pretty',
-    options: {
-      colorize: true,
-      translateTime: 'SYS:yyyy-mm-dd HH:MM:ss',
-      ignore: 'pid,hostname,env,component',
-      messageFormat: '{msg}',
-      singleLine: true
-    }
-  }
 });
-
-// 创建安全的日志函数（处理中文编码问题）
-const logger = {
-  info: createSafeLogger(baseLogger.info.bind(baseLogger)),
-  error: createSafeLogger(baseLogger.error.bind(baseLogger)),
-  warn: createSafeLogger(baseLogger.warn.bind(baseLogger)),
-  debug: createSafeLogger(baseLogger.debug.bind(baseLogger)),
-  trace: createSafeLogger(baseLogger.trace.bind(baseLogger)),
-  fatal: createSafeLogger(baseLogger.fatal.bind(baseLogger))
-};
 
 // 全局服务器实例
 let server: any = null;

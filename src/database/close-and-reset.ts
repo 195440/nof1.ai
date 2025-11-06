@@ -21,23 +21,13 @@
  * 用于在运行时快速重置系统状态
  */
 import { createClient } from "@libsql/client";
-import { createPinoLogger } from "@voltagent/logger";
+import { createLogger } from "../utils/loggerUtils";
 import { createGateClient } from "../services/gateClient";
 import "dotenv/config";
 
-const logger = createPinoLogger({
+const logger = createLogger({
   name: "close-and-reset",
   level: "info",
-  transport: {
-    target: 'pino-pretty',
-    options: {
-      colorize: true,
-      translateTime: 'SYS:yyyy-mm-dd HH:MM:ss',
-      ignore: 'pid,hostname,env,component',
-      messageFormat: '{msg}',
-      singleLine: true
-    }
-  }
 });
 
 const CREATE_TABLES_SQL = `

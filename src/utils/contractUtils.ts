@@ -20,21 +20,11 @@
  * 合约工具函数
  */
 import { createGateClient } from "../services/gateClient";
-import { createPinoLogger } from "@voltagent/logger";
+import { createLogger } from "./loggerUtils";
 
-const logger = createPinoLogger({
+const logger = createLogger({
   name: "contract-utils",
   level: "info",
-  transport: {
-    target: 'pino-pretty',
-    options: {
-      colorize: true,
-      translateTime: 'SYS:yyyy-mm-dd HH:MM:ss',
-      ignore: 'pid,hostname,env,component',
-      messageFormat: '{msg}',
-      singleLine: true
-    }
-  }
 });
 
 // 合约乘数缓存（避免重复API调用）
