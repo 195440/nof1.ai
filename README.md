@@ -244,6 +244,13 @@ npm run trading:start
 
 > **提示**：测试网和正式网可以用同一个账户，建议您先在测试网充分测试后再进行真实交易。
 
+### 交流社区
+
+- **Telegram 交流群**: [加入 AI Agent 学习交流群](https://t.me/+E7av1nVEk5E1ZjY9)
+  - 讨论 AI 量化交易策略
+  - 分享项目使用经验
+  - 获取技术支持和建议
+
 ### 外部链接
 
 - [VoltAgent 文档](https://voltagent.dev/docs/)
