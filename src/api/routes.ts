@@ -22,7 +22,7 @@
 import { Hono } from "hono";
 import { serveStatic } from "@hono/node-server/serve-static";
 import { createClient } from "@libsql/client";
-import { createGateClient } from "../services/gateClient";
+import { createExchangeClient } from "../services/exchangeFactory";
 import { createPinoLogger } from "@voltagent/logger";
 
 const logger = createPinoLogger({
@@ -57,7 +57,7 @@ export function createApiRoutes() {
    */
   app.get("/api/account", async (c) => {
     try {
-      const gateClient = createGateClient();
+      const gateClient = createExchangeClient();
       const account = await gateClient.getFuturesAccount();
       
       // 从数据库获取初始资金
@@ -96,7 +96,7 @@ export function createApiRoutes() {
    */
   app.get("/api/positions", async (c) => {
     try {
-      const gateClient = createGateClient();
+      const gateClient = createExchangeClient();
       const gatePositions = await gateClient.getPositions();
       
       // 从数据库获取止损止盈信息
@@ -321,7 +321,7 @@ export function createApiRoutes() {
       const symbolsParam = c.req.query("symbols") || "BTC,ETH,SOL,BNB,DOGE,XRP";
       const symbols = symbolsParam.split(",").map(s => s.trim());
       
-      const gateClient = createGateClient();
+      const gateClient = createExchangeClient();
       const prices: Record<string, number> = {};
       
       // 并发获取所有币种价格

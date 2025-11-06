@@ -23,7 +23,7 @@ import "dotenv/config";
 import { createClient } from "@libsql/client";
 import { CREATE_TABLES_SQL } from "./schema";
 import { createPinoLogger } from "@voltagent/logger";
-import { createGateClient } from "../services/gateClient";
+import { createExchangeClient } from "../services/exchangeFactory";
 import * as fs from "node:fs";
 import * as path from "node:path";
 
@@ -37,7 +37,7 @@ async function syncFromGate() {
     logger.info("🔄 从 Gate.io 同步账户信息...");
     
     // 1. 连接 Gate.io 获取当前账户余额
-    const gateClient = createGateClient();
+    const gateClient = createExchangeClient();
     const account = await gateClient.getFuturesAccount();
     
     const accountTotal = Number.parseFloat(account.total || "0");
@@ -191,7 +191,7 @@ async function syncFromGate() {
       fs.writeFileSync(envPath, envContent, "utf-8");
       logger.info(`✅ .env 文件已更新`);
     } catch (error) {
-      logger.warn(`⚠️  更新 .env 文件失败:`, error);
+      logger.warn(`⚠️  更新 .env 文件失败:`, error as any);
       logger.warn(`   请手动设置 INITIAL_BALANCE=${currentBalance.toFixed(2)}`);
     }
     

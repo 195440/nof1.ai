@@ -23,13 +23,14 @@
 import * as GateApi from "gate-api";
 import { createPinoLogger } from "@voltagent/logger";
 import { RISK_PARAMS } from "../config/riskParams";
+import type { IExchangeClient, PlaceOrderParams } from "./exchangeClient";
 
 const logger = createPinoLogger({
   name: "gate-client",
   level: "info",
 });
 
-export class GateClient {
+export class GateClient implements IExchangeClient {
   private readonly client: any;
   private readonly futuresApi: any;
   private readonly spotApi: any;
@@ -182,16 +183,7 @@ export class GateClient {
   /**
    * 下单 - 开仓或平仓
    */
-  async placeOrder(params: {
-    contract: string;
-    size: number;
-    price?: number;
-    tif?: string;
-    reduceOnly?: boolean;
-    autoSize?: string;
-    stopLoss?: number;
-    takeProfit?: number;
-  }) {
+  async placeOrder(params: PlaceOrderParams) {
     // 验证并调整数量（在 try 外部定义，以便在 catch 中使用）
     let adjustedSize = params.size;
     
