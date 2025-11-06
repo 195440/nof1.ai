@@ -411,12 +411,11 @@ export function getStrategyParams(strategy: TradingStrategy): StrategyParams {
         level3: { trigger: 30, stopAt: 18 }, // 基准：盈利达到 +30% 时，止损线移至 +18%
       },
       partialTakeProfit: {
-        // 激进策略：更晚分批止盈，追求更高利润
-        stage1: { trigger: 40, closePercent: 50 },  // +40% 平仓50%
-        stage2: { trigger: 50, closePercent: 50 },  // +50% 平仓剩余50%
+        stage1: { trigger: 25, closePercent: 40 },  // +25% 平仓40%（开始锁定，保留大部分仓位）
+        stage2: { trigger: 40, closePercent: 60 },  // +40% 平仓60%（累计平100%）
         stage3: { trigger: 60, closePercent: 100 }, // +60% 全部清仓
       },
-      peakDrawdownProtection: 35, // 激进策略：35%峰值回撤保护（给利润更多奔跑空间）
+      peakDrawdownProtection: 25, // 激进策略：25%峰值回撤保护（防止利润大幅回吐）
       volatilityAdjustment: {
         highVolatility: { leverageFactor: 0.8, positionFactor: 0.85 },  // 高波动：轻微降低
         normalVolatility: { leverageFactor: 1.0, positionFactor: 1.0 }, // 正常波动：不调整
@@ -475,7 +474,7 @@ export function generateTradingPrompt(data: {
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 当前策略：${params.name}（${params.description}）
-目标月回报：${params.name === '稳健' ? '10-20%' : params.name === '平衡' ? '20-40%' : '40%+'}
+目标月回报：${params.name === '稳健' ? '10-20%' : params.name === '平衡' ? '20-40%' : params.name === '激进' ? '30-50%（频繁小盈利累积）' : '20-30%'}
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 【硬性风控底线 - 系统强制执行】
@@ -679,10 +678,27 @@ ${isCodeLevelProtectionEnabled && params.codeLevelTrailingStop ? `│           
       const maxCycles = Math.floor(36 * 60 / intervalMinutes); // 36小时的总周期数
       const remainingCycles = Math.max(0, maxCycles - holdingCycles);
       
+      // 计算峰值回撤
+      const peakPnlPercent = pos.peak_pnl_percent || 0;
+      const drawdownFromPeak = peakPnlPercent > 0 ? peakPnlPercent - pnlPercent : 0;
+      const drawdownPercent = peakPnlPercent > 0 ? (drawdownFromPeak / peakPnlPercent) * 100 : 0;
+      
       prompt += `当前活跃持仓: ${pos.symbol} ${pos.side === 'long' ? '做多' : '做空'}\n`;
       prompt += `  杠杆倍数: ${pos.leverage}x\n`;
       prompt += `  盈亏百分比: ${pnlPercent >= 0 ? '+' : ''}${pnlPercent.toFixed(2)}% (已考虑杠杆倍数)\n`;
       prompt += `  盈亏金额: ${pos.unrealized_pnl >= 0 ? '+' : ''}${pos.unrealized_pnl.toFixed(2)} USDT\n`;
+      
+      // 添加峰值盈利和回撤信息
+      if (peakPnlPercent > 0) {
+        prompt += `  峰值盈利: +${peakPnlPercent.toFixed(2)}% (历史最高点)\n`;
+        prompt += `  从峰值回撤: ${drawdownFromPeak.toFixed(2)}% (回撤比例: ${drawdownPercent.toFixed(1)}%)\n`;
+        if (drawdownPercent >= params.peakDrawdownProtection) {
+          prompt += `  ⚠️ 警告: 峰值回撤已达到 ${drawdownPercent.toFixed(1)}%，超过保护阈值 ${params.peakDrawdownProtection}%，强烈建议立即平仓！\n`;
+        } else if (drawdownPercent >= params.peakDrawdownProtection * 0.7) {
+          prompt += `  ⚠️ 提醒: 峰值回撤接近保护阈值 (当前${drawdownPercent.toFixed(1)}%，阈值${params.peakDrawdownProtection}%)，需要密切关注！\n`;
+        }
+      }
+      
       prompt += `  开仓价: ${pos.entry_price.toFixed(2)}\n`;
       prompt += `  当前价: ${pos.current_price.toFixed(2)}\n`;
       prompt += `  开仓时间: ${formatChinaTime(pos.opened_at)}\n`;
@@ -801,10 +817,10 @@ function generateInstructions(strategy: TradingStrategy, intervalMinutes: number
 
 您的交易目标：
 - **追求卓越回报**：用您的专业能力和经验判断，在风控框架内实现超越基准的优异表现
-- **目标月回报**：${params.name === '稳健' ? '10-20%起步' : params.name === '平衡' ? '20-40%起步' : params.name === '激进' ? '40%+起步' : '20-30%起步'}，凭借您的实力可以做得更好
+- **目标月回报**：${params.name === '稳健' ? '10-20%起步' : params.name === '平衡' ? '20-40%起步' : params.name === '激进' ? '30-50%（通过频繁的小确定性盈利累积）' : '20-30%起步'}，凭借您的实力可以做得更好
 - **胜率追求**：≥60-70%（凭借您的专业能力和严格的入场条件）
-- **盈亏比追求**：≥2.5:1或更高（让盈利充分奔跑，快速止损劣势交易）
-- **风险控制理念**：${params.riskTolerance}，在风控底线内您可以灵活调整
+- **盈亏比追求**：≥2:1（${params.name === '激进' ? '激进策略注重频繁获利，盈亏比适度降低，通过高胜率补偿' : '让盈利充分奔跑，快速止损劣势交易'}）
+- **风险控制理念**：${params.riskTolerance}，${params.name === '激进' ? '但要避免贪婪导致利润回吐' : '在风控底线内您可以灵活调整'}
 
 您的交易理念（${params.name}策略）：
 1. **风险控制优先**：${params.riskTolerance}
@@ -951,23 +967,32 @@ function generateInstructions(strategy: TradingStrategy, intervalMinutes: number
          * 盈利达到 +${params.trailingStop.level3.trigger}% 时，止损线移至 +${params.trailingStop.level3.stopAt}%
        - AI必须在分析持仓时主动计算和判断是否触发移动止盈`}
   
-  (3) 止盈策略（灵活决策，不要死板）：
-     * 重要原则：止盈要灵活，根据实际市场情况决定！
-       - 策略中的止盈目标（+${params.partialTakeProfit.stage1.trigger}%/+${params.partialTakeProfit.stage2.trigger}%/+${params.partialTakeProfit.stage3.trigger}%）仅供参考，不是硬性规则
-       - 2%-3%的盈利也是有意义的波段，不要贪心等待大目标
-       - 根据市场实际情况灵活决策：
-         * 趋势减弱/出现反转信号 → 立即止盈，哪怕只有2-3%
-         * 震荡行情、阻力位附近 → 可以提前止盈，落袋为安
-         * 趋势强劲、没有明显阻力 → 可以让利润继续奔跑
-         * 持仓时间已久(4小时+)且有盈利 → 考虑主动止盈
-     * 参考建议（仅供参考，不是强制）：
-       - 盈利 ≥ +${params.partialTakeProfit.stage1.trigger}% → 可考虑平仓${params.partialTakeProfit.stage1.closePercent}%
-       - 盈利 ≥ +${params.partialTakeProfit.stage2.trigger}% → 可考虑平仓剩余${params.partialTakeProfit.stage2.closePercent}%
+  (3) 止盈策略（务必落袋为安，不要过度贪婪）：
+     * ⚠️ 激进策略核心教训：贪婪是盈利的敌人！
+       - **宁可早点止盈，也不要利润回吐后止损**
+       - **小的确定性盈利 > 大的不确定性盈利**
+       - **盈利 ≥ 10% 就要开始考虑分批止盈，不要死等高目标**
+     
+     * 止盈分级执行（强烈建议，不是可选）：
+       - 盈利 ≥ +10% → 评估是否平仓30-50%（趋势减弱立即平）
+       - 盈利 ≥ +${params.partialTakeProfit.stage1.trigger}% → 强烈建议平仓${params.partialTakeProfit.stage1.closePercent}%（锁定一半利润）
+       - 盈利 ≥ +${params.partialTakeProfit.stage2.trigger}% → 强烈建议平仓剩余${params.partialTakeProfit.stage2.closePercent}%（全部落袋为安）
+       - **关键时机判断**：
+         * 趋势减弱/出现反转信号 → 立即全部止盈，不要犹豫
+         * 阻力位/压力位附近 → 先平50%，观察突破情况
+         * 震荡行情 → 有盈利就及时平仓
+         * 持仓时间 ≥ 3小时且盈利 ≥ 8% → 考虑主动平仓50%
+         * 持仓时间 ≥ 6小时且盈利 ≥ 5% → 强烈建议全部平仓
+     
      * 执行方式：使用 closePosition 的 percentage 参数
        - 示例：closePosition(symbol: 'BTC', percentage: 50) 可平掉50%仓位
-     * 记住：小的确定性盈利 > 大的不确定性盈利！
+     
+     * ⚠️ 反面教训：
+       - 不要想着"再涨一点就平"，这往往导致利润回吐
+       - 不要因为"才涨了X%"就不平仓，X%的利润也是利润
+       - 不要死等策略目标，市场不会按你的计划走
   
-  (3) 峰值回撤保护（危险信号）：
+  (4) 峰值回撤保护（危险信号）：
      * ${params.name}策略的峰值回撤阈值：${params.peakDrawdownProtection}%（已根据风险偏好优化）
      * 如果持仓曾达到峰值盈利，当前盈利从峰值回撤 ≥ ${params.peakDrawdownProtection}%
      * 计算方式：回撤% = (峰值盈利 - 当前盈利) / 峰值盈利 × 100%
@@ -975,7 +1000,7 @@ function generateInstructions(strategy: TradingStrategy, intervalMinutes: number
      * 强烈建议：立即平仓或至少减仓50%
      * 例外情况：有明确证据表明只是正常回调（如测试均线支撑）
   
-  (4) 时间止盈建议：
+  (5) 时间止盈建议：
      * 盈利 > 25% 且持仓 ≥ 4小时 → 可考虑主动获利了结
      * 持仓 > 24小时且未盈利 → 考虑平仓释放资金
      * 系统会在36小时强制平仓，您无需在35小时主动平仓
@@ -1016,7 +1041,7 @@ function generateInstructions(strategy: TradingStrategy, intervalMinutes: number
           - ${Math.ceil((params.leverageMin + params.leverageMax) * 0.75)}-${params.leverageMax}倍杠杆：止损线 ${params.stopLoss.high}%
         * 如果看到趋势反转、破位等危险信号，应立即执行止损`}
    
-   b) 止盈监控${isCodeLevelProtectionEnabled ? '（完全由自动监控自动执行，AI不需要主动平仓）' : '（AI主动止盈）'}：
+   b) 止盈监控${isCodeLevelProtectionEnabled ? '（完全由自动监控自动执行，AI不需要主动平仓）' : '（AI主动止盈 - 务必积极执行）'}：
       ${isCodeLevelProtectionEnabled && params.codeLevelTrailingStop ? `- ⚠️ 重要：波段策略的止盈完全由自动监控自动执行，AI不需要主动平仓！
         * 【自动监控移动止盈】：系统每10秒自动检查，5级规则自动保护利润
           - ${params.codeLevelTrailingStop.stage1.description}
@@ -1031,11 +1056,17 @@ function generateInstructions(strategy: TradingStrategy, intervalMinutes: number
         * 分析趋势是否继续强劲
         * 在报告中说明盈利状态和趋势健康度
         * ⚠️ 禁止主动调用 closePosition 进行止盈平仓
-        * ⚠️ 止盈平仓完全由自动监控自动执行` : `- 止盈要根据市场实际情况灵活决策：
-        * 趋势反转信号 → 立即全部止盈
-        * 阻力位/压力位附近 → 可提前止盈
-        * 盈利达到目标 → 分批止盈
-        * 执行方式：closePosition({ symbol, percentage })`}
+        * ⚠️ 止盈平仓完全由自动监控自动执行` : `- ⚠️ 激进策略止盈核心原则：落袋为安！不要贪心！
+        * **盈利 ≥ 10%** → 评估趋势，考虑平仓30-50%
+        * **盈利 ≥ 15%** → 如果趋势减弱，立即平仓50%或更多
+        * **盈利 ≥ 20%** → 强烈建议至少平仓50%，锁定利润
+        * **持仓 ≥ 3小时 + 盈利 ≥ 8%** → 考虑主动平仓50%
+        * **持仓 ≥ 6小时 + 盈利 ≥ 5%** → 强烈建议全部平仓
+        * **趋势反转信号** → 立即全部止盈，不要犹豫！
+        * **阻力位/压力位附近** → 先平50%，观察突破
+        * **震荡行情** → 有盈利就及时平仓，不要等
+        * 执行方式：closePosition({ symbol, percentage })
+        * ⚠️ 记住：小的确定性盈利 > 大的不确定性盈利`}
    
    c) 市场分析和报告：
       - 调用 getTechnicalIndicators 分析技术指标
@@ -1112,9 +1143,9 @@ function generateInstructions(strategy: TradingStrategy, intervalMinutes: number
 
 您的卓越目标：
 - **追求卓越**：用您的专业能力实现超越基准的优异表现（夏普比率≥2.0）
-- **月回报目标**：${params.name === '稳健' ? '10-20%起步' : params.name === '平衡' ? '20-40%起步' : params.name === '激进' ? '40%+起步' : '20-30%起步'}，您有实力突破上限
+- **月回报目标**：${params.name === '稳健' ? '10-20%起步' : params.name === '平衡' ? '20-40%起步' : params.name === '激进' ? '30-50%（通过频繁的小确定性盈利累积）' : '20-30%起步'}，您有实力突破上限
 - **胜率追求**：≥60-70%（凭借您的专业能力和经验判断）
-- **盈亏比追求**：≥2.5:1（让盈利充分奔跑，快速止损劣势交易）
+- **盈亏比追求**：≥2:1（${params.name === '激进' ? '激进策略注重频繁获利，盈亏比适度降低，通过高胜率补偿' : '让盈利充分奔跑，快速止损劣势交易'}）
 
 风控层级：
 - 系统硬性底线（强制执行）：

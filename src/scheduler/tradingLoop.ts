@@ -759,10 +759,13 @@ async function getPositions(cachedGatePositions?: any[]) {
     // 如果提供了缓存数据，使用缓存；否则重新获取
     const gatePositions = cachedGatePositions || await gateClient.getPositions();
     
-    // 从数据库获取持仓的开仓时间（数据库中保存了正确的开仓时间）
-    const dbResult = await dbClient.execute("SELECT symbol, opened_at FROM positions");
-      const dbOpenedAtMap = new Map(
-      dbResult.rows.map((row: any) => [row.symbol, row.opened_at])
+    // 从数据库获取持仓的开仓时间和峰值盈利（数据库中保存了正确的数据）
+    const dbResult = await dbClient.execute("SELECT symbol, opened_at, peak_pnl_percent FROM positions");
+    const dbDataMap = new Map(
+      dbResult.rows.map((row: any) => [row.symbol, {
+        opened_at: row.opened_at,
+        peak_pnl_percent: Number.parseFloat(row.peak_pnl_percent as string || "0")
+      }])
     );
     
     // 过滤并格式化持仓
@@ -772,10 +775,12 @@ async function getPositions(cachedGatePositions?: any[]) {
         const size = Number.parseInt(p.size || "0");
         const symbol = p.contract.replace("_USDT", "");
         
-        // 优先从数据库读取开仓时间，确保时间准确
-        let openedAt = dbOpenedAtMap.get(symbol);
+        // 从数据库读取开仓时间和峰值盈利 195440 2025年11月06日20:50:49
+        const dbData = dbDataMap.get(symbol);
+        let openedAt = dbData?.opened_at;
+        const peakPnlPercent = dbData?.peak_pnl_percent || 0;
         
-        // 如果数据库中没有，尝试从Gate.io的create_time获取
+        // 如果数据库中没有开仓时间，尝试从Gate.io的create_time获取
         if (!openedAt && p.create_time) {
           // Gate.io的create_time是UNIX时间戳（秒），需要转换为ISO字符串
           if (typeof p.create_time === 'number') {
@@ -803,6 +808,7 @@ async function getPositions(cachedGatePositions?: any[]) {
           leverage: Number.parseInt(p.leverage || "1"),
           margin: Number.parseFloat(p.margin || "0"),
           opened_at: openedAt,
+          peak_pnl_percent: peakPnlPercent, // 添加峰值盈利字段
         };
       });
     
