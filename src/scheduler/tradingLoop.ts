@@ -20,7 +20,7 @@
  * 交易循环 - 定时执行交易决策
  */
 import cron from "node-cron";
-import { createPinoLogger } from "@voltagent/logger";
+import { createLogger } from "../utils/loggerUtils";
 import { createClient } from "@libsql/client";
 import { createTradingAgent, generateTradingPrompt, getAccountRiskConfig, getTradingStrategy, getStrategyParams } from "../agents/tradingAgent";
 import { createGateClient } from "../services/gateClient";
@@ -28,7 +28,7 @@ import { getChinaTimeISO } from "../utils/timeUtils";
 import { RISK_PARAMS } from "../config/riskParams";
 import { getQuantoMultiplier } from "../utils/contractUtils";
 
-const logger = createPinoLogger({
+const logger = createLogger({
   name: "trading-loop",
   level: "info",
 });

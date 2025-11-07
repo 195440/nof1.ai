@@ -17,10 +17,10 @@
  */
 
 import { createClient } from "@libsql/client";
-import { createPinoLogger } from "@voltagent/logger";
+import { createLogger } from "../utils/loggerUtils";
 import "dotenv/config";
 
-const logger = createPinoLogger({
+const logger = createLogger({
   name: "check-trades",
   level: "info",
 });

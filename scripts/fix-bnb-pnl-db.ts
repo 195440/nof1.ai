@@ -2,9 +2,9 @@
  * 修复数据库中BNB交易的错误盈亏记录
  */
 import { createClient } from "@libsql/client";
-import { createPinoLogger } from "@voltagent/logger";
+import { createLogger } from "../src/utils/loggerUtils";
 
-const logger = createPinoLogger({
+const logger = createLogger({
   name: "fix-bnb-pnl",
   level: "info",
 });

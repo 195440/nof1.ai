@@ -21,10 +21,10 @@
  */
 // @ts-ignore - gate-api 的类型定义可能不完整
 import * as GateApi from "gate-api";
-import { createPinoLogger } from "@voltagent/logger";
+import { createLogger } from "../utils/loggerUtils";
 import { RISK_PARAMS } from "../config/riskParams";
 
-const logger = createPinoLogger({
+const logger = createLogger({
   name: "gate-client",
   level: "info",
 });

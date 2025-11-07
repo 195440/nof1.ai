@@ -2,9 +2,9 @@
  * 验证所有交易记录的盈亏计算是否正确
  */
 import { createClient } from "@libsql/client";
-import { createPinoLogger } from "@voltagent/logger";
+import { createLogger } from "../src/utils/loggerUtils";
 
-const logger = createPinoLogger({
+const logger = createLogger({
   name: "verify-trades",
   level: "info",
 });

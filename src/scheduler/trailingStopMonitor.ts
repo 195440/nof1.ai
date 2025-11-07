@@ -40,14 +40,14 @@
  * - 峰值会自动更新到最高点
  */
 
-import { createPinoLogger } from "@voltagent/logger";
+import { createLogger } from "../utils/loggerUtils";
 import { createClient } from "@libsql/client";
 import { createGateClient } from "../services/gateClient";
 import { getChinaTimeISO } from "../utils/timeUtils";
 import { getQuantoMultiplier } from "../utils/contractUtils";
 import { getTradingStrategy, getStrategyParams } from "../agents/tradingAgent";
 
-const logger = createPinoLogger({
+const logger = createLogger({
   name: "trailing-stop-monitor",
   level: "info",
 });

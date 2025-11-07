@@ -23,12 +23,12 @@ import { createTool } from "@voltagent/core";
 import { z } from "zod";
 import { createGateClient } from "../../services/gateClient";
 import { createClient } from "@libsql/client";
-import { createPinoLogger } from "@voltagent/logger";
+import { createLogger } from "../../utils/loggerUtils";
 import { getChinaTimeISO } from "../../utils/timeUtils";
 import { RISK_PARAMS } from "../../config/riskParams";
 import { getQuantoMultiplier } from "../../utils/contractUtils";
 
-const logger = createPinoLogger({
+const logger = createLogger({
   name: "trade-execution",
   level: "info",
 });

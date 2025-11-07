@@ -23,9 +23,9 @@ import { Hono } from "hono";
 import { serveStatic } from "@hono/node-server/serve-static";
 import { createClient } from "@libsql/client";
 import { createGateClient } from "../services/gateClient";
-import { createPinoLogger } from "@voltagent/logger";
+import { createLogger } from "../utils/loggerUtils";
 
-const logger = createPinoLogger({
+const logger = createLogger({
   name: "api-routes",
   level: "info",
 });

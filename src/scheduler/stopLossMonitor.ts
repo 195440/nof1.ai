@@ -40,14 +40,14 @@
  * - 不由AI执行止损，完全自动化
  */
 
-import { createPinoLogger } from "@voltagent/logger";
+import { createLogger } from "../utils/loggerUtils";
 import { createClient } from "@libsql/client";
 import { createGateClient } from "../services/gateClient";
 import { getChinaTimeISO } from "../utils/timeUtils";
 import { getQuantoMultiplier } from "../utils/contractUtils";
 import { getTradingStrategy, getStrategyParams } from "../agents/tradingAgent";
 
-const logger = createPinoLogger({
+const logger = createLogger({
   name: "stop-loss-monitor",
   level: "info",
 });

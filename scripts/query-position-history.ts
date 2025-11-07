@@ -22,9 +22,9 @@
  */
 
 import { createGateClient } from "../src/services/gateClient.js";
-import { createPinoLogger } from "@voltagent/logger";
+import { createLogger } from "../src/utils/loggerUtils";
 
-const logger = createPinoLogger({
+const logger = createLogger({
   name: "query-position-history",
   level: "info",
 });

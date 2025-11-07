@@ -22,12 +22,12 @@
 import "dotenv/config";
 import { createClient } from "@libsql/client";
 import { CREATE_TABLES_SQL } from "./schema";
-import { createPinoLogger } from "@voltagent/logger";
+import { createLogger } from "../utils/loggerUtils";
 import { createGateClient } from "../services/gateClient";
 import * as fs from "node:fs";
 import * as path from "node:path";
 
-const logger = createPinoLogger({
+const logger = createLogger({
   name: "sync-from-gate",
   level: "info",
 });

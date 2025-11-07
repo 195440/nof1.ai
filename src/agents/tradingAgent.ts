@@ -21,7 +21,7 @@
  */
 import { Agent, Memory } from "@voltagent/core";
 import { LibSQLMemoryAdapter } from "@voltagent/libsql";
-import { createPinoLogger } from "@voltagent/logger";
+import { createLogger } from "../utils/loggerUtils";
 import { createOpenAI } from "@ai-sdk/openai";
 import * as tradingTools from "../tools/trading";
 import { formatChinaTime } from "../utils/timeUtils";
@@ -430,7 +430,7 @@ export function getStrategyParams(strategy: TradingStrategy): StrategyParams {
   return strategyConfigs[strategy];
 }
 
-const logger = createPinoLogger({
+const logger = createLogger({
   name: "trading-agent",
   level: "info",
 });

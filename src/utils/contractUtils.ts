@@ -20,9 +20,9 @@
  * 合约工具函数
  */
 import { createGateClient } from "../services/gateClient";
-import { createPinoLogger } from "@voltagent/logger";
+import { createLogger } from "./loggerUtils";
 
-const logger = createPinoLogger({
+const logger = createLogger({
   name: "contract-utils",
   level: "info",
 });

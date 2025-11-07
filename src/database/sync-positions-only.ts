@@ -22,10 +22,10 @@
  */
 import "dotenv/config";
 import { createClient } from "@libsql/client";
-import { createPinoLogger } from "@voltagent/logger";
+import { createLogger } from "../utils/loggerUtils";
 import { createGateClient } from "../services/gateClient";
 
-const logger = createPinoLogger({
+const logger = createLogger({
   name: "sync-positions",
   level: "info",
 });
