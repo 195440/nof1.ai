@@ -855,6 +855,20 @@ npm run trading:start
 - `chore`: 构建过程或辅助工具变更
 - `ci`: CI/CD 配置变更
 
+## 支持项目
+
+如果本项目对您有帮助，欢迎通过以下方式支持项目持续发展：
+
+| 币种 | 网络 | 地址 |
+|------|------|------|
+| **USDT** | TRON (TRC20) | `TAdHVfDtJ3nn6fjT1DWvfuU89GzMBxcXmU` |
+| **USDT** | Ethereum (ERC20) | `0x7b5a45499086632d1ccf7177f1f7fdf6a8236569` |
+| **USDT** | BNB Chain (BEP20) | `0x7b5a45499086632d1ccf7177f1f7fdf6a8236569` |
+| **USDT** | Solana (SPL) | `DVWUAJHampBM8pAUWCFskHXp6Uh4SrVKsjfPmnvMcjtq` |
+| **USDT** | Polygon | `0x7b5a45499086632d1ccf7177f1f7fdf6a8236569` |
+
+您的支持是项目不断改进的动力，感谢！
+
 ---
 <div align="center">
 

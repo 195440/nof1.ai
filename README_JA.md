@@ -834,6 +834,20 @@ Conventional Commits 規約に従います:
 - `chore`: ビルドプロセスまたは補助ツールの変更
 - `ci`: CI/CD 設定の変更
 
+## プロジェクトのサポート
+
+本プロジェクトがお役に立った場合、以下の方法で継続的な開発をサポートできます：
+
+| 通貨 | ネットワーク | アドレス |
+|------|-------------|---------|
+| **USDT** | TRON (TRC20) | `TAdHVfDtJ3nn6fjT1DWvfuU89GzMBxcXmU` |
+| **USDT** | Ethereum (ERC20) | `0x7b5a45499086632d1ccf7177f1f7fdf6a8236569` |
+| **USDT** | BNB Chain (BEP20) | `0x7b5a45499086632d1ccf7177f1f7fdf6a8236569` |
+| **USDT** | Solana (SPL) | `DVWUAJHampBM8pAUWCFskHXp6Uh4SrVKsjfPmnvMcjtq` |
+| **USDT** | Polygon | `0x7b5a45499086632d1ccf7177f1f7fdf6a8236569` |
+
+皆様のサポートがプロジェクトの継続的な改善の原動力です。ありがとうございます！
+
 ---
 <div align="center">
 
