@@ -828,6 +828,20 @@ Types:
 - `chore`: Build process or auxiliary tool changes
 - `ci`: CI/CD configuration changes
 
+## Support the Project
+
+If this project has been helpful to you, you can support its continued development:
+
+| Currency | Network | Address |
+|----------|---------|---------|
+| **USDT** | TRON (TRC20) | `TAdHVfDtJ3nn6fjT1DWvfuU89GzMBxcXmU` |
+| **USDT** | Ethereum (ERC20) | `0x7b5a45499086632d1ccf7177f1f7fdf6a8236569` |
+| **USDT** | BNB Chain (BEP20) | `0x7b5a45499086632d1ccf7177f1f7fdf6a8236569` |
+| **USDT** | Solana (SPL) | `DVWUAJHampBM8pAUWCFskHXp6Uh4SrVKsjfPmnvMcjtq` |
+| **USDT** | Polygon | `0x7b5a45499086632d1ccf7177f1f7fdf6a8236569` |
+
+Your support is the driving force behind continuous improvement. Thank you!
+
 ---
 <div align="center">
 
