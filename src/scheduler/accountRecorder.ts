@@ -38,8 +38,9 @@ const dbClient = createClient({
 /**
  * Record account assets including unrealized PnL
  * 记录账户资产（包含未实现盈亏）
+ * @param skipLog 是否跳过日志输出（避免实时监控时日志过多）
  */
-async function recordAccountAssets() {
+export async function recordAccountAssets(skipLog: boolean = false) {
   try {
     const gateClient = createGateClient();
     
@@ -85,14 +86,19 @@ async function recordAccountAssets() {
       ],
     });
     
-    logger.info(
-      `📊 Account recorded: Total=${totalBalance.toFixed(2)} USDT, ` +
-      `Available=${availableBalance.toFixed(2)} USDT, ` +
-      `Unrealized PnL=${unrealisedPnl >= 0 ? '+' : ''}${unrealisedPnl.toFixed(2)} USDT, ` +
-      `Return=${returnPercent >= 0 ? '+' : ''}${returnPercent.toFixed(2)}%`
-    );
+    if (!skipLog) {
+      logger.info(
+        `📊 Account recorded: Total=${totalBalance.toFixed(2)} USDT, ` +
+        `Available=${availableBalance.toFixed(2)} USDT, ` +
+        `Unrealized PnL=${unrealisedPnl >= 0 ? '+' : ''}${unrealisedPnl.toFixed(2)} USDT, ` +
+        `Return=${returnPercent >= 0 ? '+' : ''}${returnPercent.toFixed(2)}%`
+      );
+    }
+    
+    return { totalBalance, availableBalance, unrealisedPnl, returnPercent };
   } catch (error) {
     logger.error("Failed to record account assets:", error as any);
+    return null;
   }
 }
 
