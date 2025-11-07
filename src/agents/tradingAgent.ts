@@ -692,9 +692,9 @@ ${isCodeLevelProtectionEnabled && params.codeLevelTrailingStop ? `│           
         prompt += `  峰值盈利: +${peakPnlPercent.toFixed(2)}% (历史最高点)\n`;
         prompt += `  峰值回撤: ${drawdownFromPeak.toFixed(2)}%\n`;
         if (drawdownFromPeak >= params.peakDrawdownProtection) {
-          prompt += `  ⚠️ 警告: 峰值回撤已达到 ${drawdownFromPeak.toFixed(2)}%，超过保护阈值 ${params.peakDrawdownProtection}%，强烈建议立即平仓！\n`;
+          prompt += `  警告: 峰值回撤已达到 ${drawdownFromPeak.toFixed(2)}%，超过保护阈值 ${params.peakDrawdownProtection}%，强烈建议立即平仓！\n`;
         } else if (drawdownFromPeak >= params.peakDrawdownProtection * 0.7) {
-          prompt += `  ⚠️ 提醒: 峰值回撤接近保护阈值 (当前${drawdownFromPeak.toFixed(2)}%，阈值${params.peakDrawdownProtection}%)，需要密切关注！\n`;
+          prompt += `  提醒: 峰值回撤接近保护阈值 (当前${drawdownFromPeak.toFixed(2)}%，阈值${params.peakDrawdownProtection}%)，需要密切关注！\n`;
         }
       }
       
@@ -773,7 +773,7 @@ ${isCodeLevelProtectionEnabled && params.codeLevelTrailingStop ? `│           
     prompt += `\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n`;
     prompt += `【历史决策记录 - 仅供参考】\n`;
     prompt += `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n`;
-    prompt += `⚠️ 重要提醒：以下是历史决策记录，仅作为参考，不代表当前状态！\n`;
+    prompt += `重要提醒：以下是历史决策记录，仅作为参考，不代表当前状态！\n`;
     prompt += `当前市场数据和持仓信息请参考上方实时数据。\n\n`;
     
     for (let i = 0; i < recentDecisions.length; i++) {
@@ -787,7 +787,7 @@ ${isCodeLevelProtectionEnabled && params.codeLevelTrailingStop ? `│           
       prompt += `  当时决策内容: ${decision.decision}\n\n`;
     }
     
-    prompt += `\n💡 使用建议：\n`;
+    prompt += `\n使用建议：\n`;
     prompt += `- 仅作为决策连续性参考，不要被历史决策束缚\n`;
     prompt += `- 市场已经变化，请基于当前最新数据独立判断\n`;
     prompt += `- 如果市场条件改变，应该果断调整策略\n\n`;
@@ -898,7 +898,7 @@ function generateInstructions(strategy: TradingStrategy, intervalMinutes: number
   【AI战术决策 - 专业建议，灵活执行】：
   
   核心原则（必读）：
-  ${isCodeLevelProtectionEnabled ? `• ⚠️ 波段策略：AI只负责开仓，平仓完全由自动监控自动执行
+  ${isCodeLevelProtectionEnabled ? `• 波段策略：AI只负责开仓，平仓完全由自动监控自动执行
   • AI职责：专注于市场分析、开仓决策、风险监控和报告
   • 禁止平仓：AI禁止主动调用 closePosition 进行止损或止盈
   • 自动保护：自动监控每10秒检查，触发条件立即自动平仓
@@ -918,12 +918,12 @@ function generateInstructions(strategy: TradingStrategy, intervalMinutes: number
        - 此止损完全自动化，AI无需手动执行，系统会保护账户安全
        - 如果持仓触及自动监控止损线，系统会立即自动平仓
      
-     * 【AI职责】（⚠️ 重要：AI不需要主动执行止损平仓）：
+     * 【AI职责】（重要：AI不需要主动执行止损平仓）：
        - AI只需要监控和分析持仓的风险状态
        - 在报告中说明持仓的盈亏情况和风险等级
        - 分析技术指标和趋势健康度
-       - ⚠️ 禁止主动调用 closePosition 进行止损平仓
-       - ⚠️ 所有止损平仓都由自动监控自动执行
+       - 禁止主动调用 closePosition 进行止损平仓
+       - 所有止损平仓都由自动监控自动执行
      
      * 【执行原则】：
        - 自动监控会自动处理止损，AI无需介入
@@ -952,12 +952,12 @@ function generateInstructions(strategy: TradingStrategy, intervalMinutes: number
        - ${params.codeLevelTrailingStop.stage5.description}
        - 无需AI手动执行移动止盈，此功能完全由代码保证
      
-     * 【AI职责】（⚠️ 重要：AI不需要主动执行止盈平仓）：
+     * 【AI职责】（重要：AI不需要主动执行止盈平仓）：
        - AI只需要监控和分析持仓的盈利状态
        - 在报告中说明当前盈利和峰值回撤情况
        - 分析趋势是否继续强劲
-       - ⚠️ 禁止主动调用 closePosition 进行止盈平仓
-       - ⚠️ 所有止盈平仓都由自动监控自动执行` : `* 当前策略未启用自动监控移动止盈，AI需要主动监控峰值回撤：
+       - 禁止主动调用 closePosition 进行止盈平仓
+       - 所有止盈平仓都由自动监控自动执行` : `* 当前策略未启用自动监控移动止盈，AI需要主动监控峰值回撤：
        - 自己跟踪每个持仓的盈利峰值（使用 peak_pnl_percent 字段）
        - 当峰值回撤达到阈值时，AI需要主动执行平仓
        - ${params.name}策略的移动止盈规则（严格执行）：
@@ -967,7 +967,7 @@ function generateInstructions(strategy: TradingStrategy, intervalMinutes: number
        - AI必须在分析持仓时主动计算和判断是否触发移动止盈`}
   
   (3) 止盈策略（务必落袋为安，不要过度贪婪）：
-     * ⚠️ 激进策略核心教训：贪婪是盈利的敌人！
+     * 激进策略核心教训：贪婪是盈利的敌人！
        - **宁可早点止盈，也不要利润回吐后止损**
        - **小的确定性盈利 > 大的不确定性盈利**
        - **盈利 ≥ 10% 就要开始考虑分批止盈，不要死等高目标**
@@ -986,7 +986,7 @@ function generateInstructions(strategy: TradingStrategy, intervalMinutes: number
      * 执行方式：使用 closePosition 的 percentage 参数
        - 示例：closePosition(symbol: 'BTC', percentage: 50) 可平掉50%仓位
      
-     * ⚠️ 反面教训：
+     * 反面教训：
        - 不要想着"再涨一点就平"，这往往导致利润回吐
        - 不要因为"才涨了X%"就不平仓，X%的利润也是利润
        - 不要死等策略目标，市场不会按你的计划走
@@ -1020,7 +1020,7 @@ function generateInstructions(strategy: TradingStrategy, intervalMinutes: number
    - 对每个持仓进行专业分析和决策（每个决策都要实际执行工具）：
    
    a) 止损监控${isCodeLevelProtectionEnabled ? '（完全由自动监控自动执行，AI不需要主动平仓）' : '（AI主动止损）'}：
-      ${isCodeLevelProtectionEnabled && params.codeLevelStopLoss ? `- ⚠️ 重要：波段策略的止损完全由自动监控自动执行，AI不需要主动平仓！
+      ${isCodeLevelProtectionEnabled && params.codeLevelStopLoss ? `- 重要：波段策略的止损完全由自动监控自动执行，AI不需要主动平仓！
         * 【自动监控强制止损】：系统每10秒自动检查，触发即自动平仓
           - ${params.codeLevelStopLoss.lowRisk.description}
           - ${params.codeLevelStopLoss.mediumRisk.description}
@@ -1031,8 +1031,8 @@ function generateInstructions(strategy: TradingStrategy, intervalMinutes: number
         * 监控持仓盈亏情况，了解风险状态
         * 分析技术指标，判断趋势是否健康
         * 在报告中说明持仓风险和市场情况
-        * ⚠️ 禁止主动调用 closePosition 进行止损平仓
-        * ⚠️ 止损平仓完全由自动监控自动执行` : `- AI全权负责止损（当前策略未启用自动监控止损）：
+        * 禁止主动调用 closePosition 进行止损平仓
+        * 止损平仓完全由自动监控自动执行` : `- AI全权负责止损（当前策略未启用自动监控止损）：
         * AI必须严格执行止损规则，这是保护账户的唯一防线
         * 根据杠杆倍数分级保护（严格执行）：
           - ${params.leverageMin}-${Math.floor((params.leverageMin + params.leverageMax) / 2)}倍杠杆：止损线 ${params.stopLoss.low}%
@@ -1041,7 +1041,7 @@ function generateInstructions(strategy: TradingStrategy, intervalMinutes: number
         * 如果看到趋势反转、破位等危险信号，应立即执行止损`}
    
    b) 止盈监控${isCodeLevelProtectionEnabled ? '（完全由自动监控自动执行，AI不需要主动平仓）' : '（AI主动止盈 - 务必积极执行）'}：
-      ${isCodeLevelProtectionEnabled && params.codeLevelTrailingStop ? `- ⚠️ 重要：波段策略的止盈完全由自动监控自动执行，AI不需要主动平仓！
+      ${isCodeLevelProtectionEnabled && params.codeLevelTrailingStop ? `- 重要：波段策略的止盈完全由自动监控自动执行，AI不需要主动平仓！
         * 【自动监控移动止盈】：系统每10秒自动检查，5级规则自动保护利润
           - ${params.codeLevelTrailingStop.stage1.description}
           - ${params.codeLevelTrailingStop.stage2.description}
@@ -1054,8 +1054,8 @@ function generateInstructions(strategy: TradingStrategy, intervalMinutes: number
         * 监控持仓盈利情况和峰值回撤
         * 分析趋势是否继续强劲
         * 在报告中说明盈利状态和趋势健康度
-        * ⚠️ 禁止主动调用 closePosition 进行止盈平仓
-        * ⚠️ 止盈平仓完全由自动监控自动执行` : `- ⚠️ 激进策略止盈核心原则：落袋为安！不要贪心！
+        * 禁止主动调用 closePosition 进行止盈平仓
+        * 止盈平仓完全由自动监控自动执行` : `- 激进策略止盈核心原则：落袋为安！不要贪心！
         * **盈利 ≥ 10%** → 评估趋势，考虑平仓30-50%
         * **盈利 ≥ 15%** → 如果趋势减弱，立即平仓50%或更多
         * **盈利 ≥ 20%** → 强烈建议至少平仓50%，锁定利润
@@ -1065,7 +1065,7 @@ function generateInstructions(strategy: TradingStrategy, intervalMinutes: number
         * **阻力位/压力位附近** → 先平50%，观察突破
         * **震荡行情** → 有盈利就及时平仓，不要等
         * 执行方式：closePosition({ symbol, percentage })
-        * ⚠️ 记住：小的确定性盈利 > 大的不确定性盈利`}
+        * 记住：小的确定性盈利 > 大的不确定性盈利`}
    
    c) 市场分析和报告：
       - 调用 getTechnicalIndicators 分析技术指标
@@ -1082,14 +1082,14 @@ function generateInstructions(strategy: TradingStrategy, intervalMinutes: number
         * 止损保护：触及止损线自动平仓
         * 止盈保护：峰值回撤自动平仓
         * AI职责：专注于开仓决策和市场分析
-        * ⚠️ AI不需要也不应该主动执行平仓操作
-        * ⚠️ 让自动监控自动处理所有平仓逻辑` : `- 如果至少3个时间框架显示趋势反转
+        * AI不需要也不应该主动执行平仓操作
+        * 让自动监控自动处理所有平仓逻辑` : `- 如果至少3个时间框架显示趋势反转
         * 立即调用 closePosition 平仓
         * 反转后想开反向仓位，必须先平掉原持仓`}
 
 3. 分析市场数据（必须实际调用工具）：
    - 调用 getTechnicalIndicators 获取技术指标数据
-   - ⭐ 分析多个时间框架（1分钟、3分钟、5分钟、15分钟）- 波段策略关键！
+   - 分析多个时间框架（1分钟、3分钟、5分钟、15分钟）- 波段策略关键！
    - 重点关注：价格、EMA、MACD、RSI
    - 必须满足：${params.entryCondition}
 
