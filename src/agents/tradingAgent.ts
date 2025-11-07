@@ -678,10 +678,9 @@ ${isCodeLevelProtectionEnabled && params.codeLevelTrailingStop ? `│           
       const maxCycles = Math.floor(36 * 60 / intervalMinutes); // 36小时的总周期数
       const remainingCycles = Math.max(0, maxCycles - holdingCycles);
       
-      // 计算峰值回撤
+      // 计算峰值回撤（使用绝对回撤，即百分点）
       const peakPnlPercent = pos.peak_pnl_percent || 0;
       const drawdownFromPeak = peakPnlPercent > 0 ? peakPnlPercent - pnlPercent : 0;
-      const drawdownPercent = peakPnlPercent > 0 ? (drawdownFromPeak / peakPnlPercent) * 100 : 0;
       
       prompt += `当前活跃持仓: ${pos.symbol} ${pos.side === 'long' ? '做多' : '做空'}\n`;
       prompt += `  杠杆倍数: ${pos.leverage}x\n`;
@@ -691,11 +690,11 @@ ${isCodeLevelProtectionEnabled && params.codeLevelTrailingStop ? `│           
       // 添加峰值盈利和回撤信息
       if (peakPnlPercent > 0) {
         prompt += `  峰值盈利: +${peakPnlPercent.toFixed(2)}% (历史最高点)\n`;
-        prompt += `  从峰值回撤: ${drawdownFromPeak.toFixed(2)}% (回撤比例: ${drawdownPercent.toFixed(1)}%)\n`;
-        if (drawdownPercent >= params.peakDrawdownProtection) {
-          prompt += `  ⚠️ 警告: 峰值回撤已达到 ${drawdownPercent.toFixed(1)}%，超过保护阈值 ${params.peakDrawdownProtection}%，强烈建议立即平仓！\n`;
-        } else if (drawdownPercent >= params.peakDrawdownProtection * 0.7) {
-          prompt += `  ⚠️ 提醒: 峰值回撤接近保护阈值 (当前${drawdownPercent.toFixed(1)}%，阈值${params.peakDrawdownProtection}%)，需要密切关注！\n`;
+        prompt += `  峰值回撤: ${drawdownFromPeak.toFixed(2)}%\n`;
+        if (drawdownFromPeak >= params.peakDrawdownProtection) {
+          prompt += `  ⚠️ 警告: 峰值回撤已达到 ${drawdownFromPeak.toFixed(2)}%，超过保护阈值 ${params.peakDrawdownProtection}%，强烈建议立即平仓！\n`;
+        } else if (drawdownFromPeak >= params.peakDrawdownProtection * 0.7) {
+          prompt += `  ⚠️ 提醒: 峰值回撤接近保护阈值 (当前${drawdownFromPeak.toFixed(2)}%，阈值${params.peakDrawdownProtection}%)，需要密切关注！\n`;
         }
       }
       
@@ -995,8 +994,8 @@ function generateInstructions(strategy: TradingStrategy, intervalMinutes: number
   (4) 峰值回撤保护（危险信号）：
      * ${params.name}策略的峰值回撤阈值：${params.peakDrawdownProtection}%（已根据风险偏好优化）
      * 如果持仓曾达到峰值盈利，当前盈利从峰值回撤 ≥ ${params.peakDrawdownProtection}%
-     * 计算方式：回撤% = (峰值盈利 - 当前盈利) / 峰值盈利 × 100%
-     * 示例：峰值+${Math.round(params.peakDrawdownProtection * 1.2)}% → 当前+${Math.round(params.peakDrawdownProtection * 1.2 * (1 - params.peakDrawdownProtection / 100))}%，回撤${params.peakDrawdownProtection}%（危险！）
+     * 计算方式：回撤% = 峰值盈利 - 当前盈利（绝对回撤，百分点）
+     * 示例：峰值+${Math.round(params.peakDrawdownProtection * 1.2)}% → 当前+${Math.round(params.peakDrawdownProtection * 0.2)}%，回撤${params.peakDrawdownProtection}%（危险！）
      * 强烈建议：立即平仓或至少减仓50%
      * 例外情况：有明确证据表明只是正常回调（如测试均线支撑）
   
