@@ -692,9 +692,9 @@ ${isCodeLevelProtectionEnabled && params.codeLevelTrailingStop ? `│           
         prompt += `  峰值盈利: +${peakPnlPercent.toFixed(2)}% (历史最高点)\n`;
         prompt += `  峰值回撤: ${drawdownFromPeak.toFixed(2)}%\n`;
         if (drawdownFromPeak >= params.peakDrawdownProtection) {
-          prompt += `  ⚠️ 警告: 峰值回撤已达到 ${drawdownFromPeak.toFixed(2)}%，超过保护阈值 ${params.peakDrawdownProtection}%，强烈建议立即平仓！\n`;
+          prompt += `  警告: 峰值回撤已达到 ${drawdownFromPeak.toFixed(2)}%，超过保护阈值 ${params.peakDrawdownProtection}%，强烈建议立即平仓！\n`;
         } else if (drawdownFromPeak >= params.peakDrawdownProtection * 0.7) {
-          prompt += `  ⚠️ 提醒: 峰值回撤接近保护阈值 (当前${drawdownFromPeak.toFixed(2)}%，阈值${params.peakDrawdownProtection}%)，需要密切关注！\n`;
+          prompt += `  提醒: 峰值回撤接近保护阈值 (当前${drawdownFromPeak.toFixed(2)}%，阈值${params.peakDrawdownProtection}%)，需要密切关注！\n`;
         }
       }
       
@@ -773,7 +773,7 @@ ${isCodeLevelProtectionEnabled && params.codeLevelTrailingStop ? `│           
     prompt += `\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n`;
     prompt += `【历史决策记录 - 仅供参考】\n`;
     prompt += `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n`;
-    prompt += `⚠️ 重要提醒：以下是历史决策记录，仅作为参考，不代表当前状态！\n`;
+    prompt += `重要提醒：以下是历史决策记录，仅作为参考，不代表当前状态！\n`;
     prompt += `当前市场数据和持仓信息请参考上方实时数据。\n\n`;
     
     for (let i = 0; i < recentDecisions.length; i++) {
@@ -787,7 +787,7 @@ ${isCodeLevelProtectionEnabled && params.codeLevelTrailingStop ? `│           
       prompt += `  当时决策内容: ${decision.decision}\n\n`;
     }
     
-    prompt += `\n💡 使用建议：\n`;
+    prompt += `\n使用建议：\n`;
     prompt += `- 仅作为决策连续性参考，不要被历史决策束缚\n`;
     prompt += `- 市场已经变化，请基于当前最新数据独立判断\n`;
     prompt += `- 如果市场条件改变，应该果断调整策略\n\n`;
@@ -855,6 +855,120 @@ function generateInstructions(strategy: TradingStrategy, intervalMinutes: number
    - 良好信号：${params.leverageRecommend.good}
    - 强信号：${params.leverageRecommend.strong}
 10. **成本意识交易**：每笔往返交易成本约0.1%（开仓0.05% + 平仓0.05%）。潜在利润≥2-3%时即可考虑交易。
+11. **行情识别与应对策略（核心生存法则）**：
+   
+   【关键认知】${params.name === '激进' ? '激进策略的核心矛盾：在单边行情积极进攻，在震荡行情严格防守' : '正确识别行情类型是盈利的关键'}
+   
+   【时间框架分层使用原则】：
+   - **长周期（1h、30m）= 趋势确认层**：判断是否为单边行情，过滤市场噪音
+   - **中周期（15m、5m）= 信号过滤层**：确认趋势延续性，验证长周期趋势
+   - **短周期（3m、1m）= 入场时机层**：寻找精确入场点，不作为趋势判断依据
+   - **禁止错误做法**：仅凭1m、3m等短周期判断单边行情（这是频繁亏损的主要原因）
+   
+   (1) 单边行情（趋势行情）- 积极把握，这是赚钱的黄金时期
+       * **识别标准（必须严格遵守分层验证，至少满足3项）**：
+         ① 【长周期趋势确认】30m或1h时间框架：
+            - 价格连续突破或跌破关键EMA（20/50），且距离EMA持续拉大
+            - MACD柱状图连续同向扩大（至少3-5根K线），没有频繁交叉
+            - RSI持续在极端区域（>70或<30），显示强劲趋势动能
+         
+         ② 【中周期趋势验证】15m和5m时间框架与长周期方向一致：
+            - 价格保持在EMA20同侧运行，回调不破EMA20
+            - MACD方向与长周期一致，无反向信号
+            - RSI方向与长周期一致（做多时>50，做空时<50）
+         
+         ③ 【其他确认指标】：
+            - 价格K线连续同向突破，回调幅度小（<2-3%）
+            - 成交量持续放大，显示强劲参与度
+            - 多个时间框架（30m、15m、5m）EMA排列清晰（多头/空头排列）
+       
+       * **交易策略（${params.name === '激进' ? '激进模式必须全力把握' : '积极参与'}）**：
+         - 入场条件（严格按分层验证）：
+           ${params.name === '激进' ? '* 【必须】至少1个长周期（30m或1h）趋势明确\n           * 【必须】至少1个中周期（5m或15m）与长周期方向一致\n           * 【可选】短周期（3m）与趋势方向一致时作为入场时机\n           * 【禁止】仅凭短周期（1m、3m）就判断为单边行情！' : '* 至少1个长周期（30m或1h）+ 2个中周期（5m、15m）方向一致'}
+         - 仓位配置：${params.name === '激进' ? '使用较大仓位（28-32%），充分把握趋势' : '标准仓位'}
+         - 杠杆选择：${params.name === '激进' ? '积极使用较高杠杆（22-25倍），抓住机会' : '根据信号强度选择'}
+         - 持仓管理：让利润充分奔跑，不要轻易平仓，只在长周期趋势明显减弱时止盈
+         - 止损设置：适度放宽止损（给趋势空间），但仍需严格执行
+         - 加仓策略：盈利>5%且长周期趋势继续强化时，积极加仓（最多50%原仓位）
+         - ${params.name === '激进' ? '关键提醒：单边行情是激进策略的核心盈利来源，但必须由长周期确认！' : ''}
+       
+       * **单边行情示例**：
+         - 做多：1h和30m价格持续在EMA20上方，15m和5m MACD柱状图连续红色扩大，多个时间框架RSI>70
+         - 做空：1h和30m价格持续在EMA20下方，15m和5m MACD柱状图连续绿色扩大，多个时间框架RSI<30
+   
+   (2) 震荡行情（横盘整理）- 严格防守，避免频繁交易亏损
+       * **识别标准（优先看长周期，出现任意2项即判定为震荡）**：
+         ① 【长周期震荡特征】30m或1h时间框架：
+            - 价格反复穿越EMA20/50，没有明确方向
+            - MACD频繁金叉死叉，柱状图来回震荡，无明确趋势
+            - RSI在40-60之间反复波动，缺乏明确动能
+            - 价格在固定区间（波动幅度<3-5%）内反复震荡
+         
+         ② 【时间框架混乱信号】：
+            - 长周期（30m、1h）和中周期（5m、15m）信号不一致或频繁切换
+            - 例如：30m做多信号，但15m做空，5m又做多（严重混乱）
+            - 短周期（1m、3m）与长周期方向经常相反
+         
+         ③ 【其他震荡特征】：
+            - 成交量萎缩，缺乏明确方向性
+            - 高低点不断收敛，形成三角形或矩形整理形态
+       
+       * **交易策略（${params.name === '激进' ? '震荡行情是激进策略的死敌，必须严格防守' : '谨慎观望'}）**：
+         - ${params.name === '激进' ? '【强制规则】震荡行情禁止频繁开仓，这是亏损的主要来源！' : ''}
+         - 入场条件（严格按分层验证）：
+           ${params.name === '激进' ? '* 【必须】至少1个长周期（30m或1h）+ 2个中周期（5m、15m）完全一致\n           * 【必须】短周期（3m、1m）也无反向信号\n           * 【建议】最好等待震荡突破后再入场\n           * 【禁止】长周期震荡时，仅凭短周期信号就开仓（这是频繁止损的根源）' : '* 至少3-4个时间框架一致，且长周期无震荡特征'}
+         - 仓位配置：${params.name === '激进' ? '大幅降低仓位（15-20%），避免震荡止损' : '降低仓位至最小'}
+         - 杠杆选择：${params.name === '激进' ? '降低杠杆（15-18倍），控制风险' : '使用最低杠杆'}
+         - 持仓管理：快速止盈（盈利5-8%立即平仓），不要贪心
+         - 止损设置：收紧止损（减少震荡损失），快速止损
+         - 交易频率：${params.name === '激进' ? '大幅降低交易频率，宁可错过也不乱做' : '尽量观望'}
+         - 突破交易：可以等待震荡突破（放量突破关键阻力/支撑）时再入场
+         - ${params.name === '激进' ? '关键警告：震荡行情频繁交易=频繁止损+手续费亏损，必须克制！' : ''}
+       
+       * **震荡行情示例**：
+         - BTC在42000-43000之间反复震荡，30m和1h MACD频繁交叉，各时间框架信号混乱
+         - ETH在2200-2250之间横盘，30m RSI在45-55反复，15m和5m方向不一致
+   
+   (3) 行情转换识别（关键时刻）- 必须由长周期确认
+       * **震荡转单边**（机会信号，必须按分层确认）：
+         ① 【长周期突破】30m或1h时间框架：
+            - 价格放量突破震荡区间上沿/下沿（突破幅度>2%）
+            - MACD柱状图突然放大，金叉/死叉角度陡峭
+            - RSI突破50中轴，向极端区域移动
+         
+         ② 【中周期跟随】15m和5m时间框架：
+            - 与长周期突破方向一致，无反向信号
+            - MACD同步放大，确认突破有效
+         
+         ③ 【其他确认】：
+            - 成交量突然放大（>平均成交量150%）
+            - ${params.name === '激进' ? '这是入场的最佳时机，但必须等长周期确认突破！' : '这是重要的入场机会'}
+       
+       * **单边转震荡**（警告信号，优先观察长周期）：
+         ① 【长周期减弱】30m或1h时间框架：
+            - 价格涨跌幅度逐渐收窄，动能减弱
+            - MACD柱状图开始收敛，即将交叉
+            - RSI从极端区域回归到40-60区间
+         
+         ② 【时间框架分歧】：
+            - 长周期趋势减弱，中周期开始出现反向信号
+            - 多个时间框架方向不再一致
+         
+         ③ 【其他警告】：
+            - 成交量萎缩，缺乏继续推动力
+            - ${params.name === '激进' ? '立即降低仓位或平仓，避免被震荡困住！' : '应考虑获利了结'}
+   
+   (4) ${params.name === '激进' ? '激进策略特别提醒' : '策略总结'}：
+       ${params.name === '激进' ? `- 【核心原则】长周期确认趋势，中周期验证信号，短周期寻找入场点
+       - 【单边行情】全力进攻 = 长周期趋势明确 + 大仓位 + 高杠杆 + 积极加仓 = 赚钱的主要来源
+       - 【震荡行情】严格防守 = 长周期震荡 + 小仓位 + 低杠杆 + 高标准 = 避免亏损的关键
+       - 【成功要诀】在对的行情做对的事（单边进攻、震荡防守），由长周期判断行情类型
+       - 【失败根源】仅凭短周期（1m、3m）就开仓 = 把震荡误判为单边 = 频繁止损 = 亏损的根本原因
+       - 【铁律】长周期（30m、1h）没有明确趋势时，绝不能因为短周期信号就开仓！` : `- 【核心原则】时间框架分层使用：长周期判断趋势，中周期验证信号，短周期入场
+       - 在单边行情积极把握，让利润充分奔跑（长周期趋势明确）
+       - 在震荡行情谨慎防守，避免频繁交易（长周期震荡混乱）
+       - 正确识别行情类型，调整交易策略（优先看长周期）
+       - 耐心等待高质量机会，不要强行交易（长周期无趋势时观望）`}
 
 当前交易规则（${params.name}策略）：
 - 您交易加密货币的永续期货合约（${RISK_PARAMS.TRADING_SYMBOLS.join('、')}）
@@ -898,7 +1012,7 @@ function generateInstructions(strategy: TradingStrategy, intervalMinutes: number
   【AI战术决策 - 专业建议，灵活执行】：
   
   核心原则（必读）：
-  ${isCodeLevelProtectionEnabled ? `• ⚠️ 波段策略：AI只负责开仓，平仓完全由自动监控自动执行
+  ${isCodeLevelProtectionEnabled ? `• 波段策略：AI只负责开仓，平仓完全由自动监控自动执行
   • AI职责：专注于市场分析、开仓决策、风险监控和报告
   • 禁止平仓：AI禁止主动调用 closePosition 进行止损或止盈
   • 自动保护：自动监控每10秒检查，触发条件立即自动平仓
@@ -918,12 +1032,12 @@ function generateInstructions(strategy: TradingStrategy, intervalMinutes: number
        - 此止损完全自动化，AI无需手动执行，系统会保护账户安全
        - 如果持仓触及自动监控止损线，系统会立即自动平仓
      
-     * 【AI职责】（⚠️ 重要：AI不需要主动执行止损平仓）：
+     * 【AI职责】（重要：AI不需要主动执行止损平仓）：
        - AI只需要监控和分析持仓的风险状态
        - 在报告中说明持仓的盈亏情况和风险等级
        - 分析技术指标和趋势健康度
-       - ⚠️ 禁止主动调用 closePosition 进行止损平仓
-       - ⚠️ 所有止损平仓都由自动监控自动执行
+       - 禁止主动调用 closePosition 进行止损平仓
+       - 所有止损平仓都由自动监控自动执行
      
      * 【执行原则】：
        - 自动监控会自动处理止损，AI无需介入
@@ -952,12 +1066,12 @@ function generateInstructions(strategy: TradingStrategy, intervalMinutes: number
        - ${params.codeLevelTrailingStop.stage5.description}
        - 无需AI手动执行移动止盈，此功能完全由代码保证
      
-     * 【AI职责】（⚠️ 重要：AI不需要主动执行止盈平仓）：
+     * 【AI职责】（重要：AI不需要主动执行止盈平仓）：
        - AI只需要监控和分析持仓的盈利状态
        - 在报告中说明当前盈利和峰值回撤情况
        - 分析趋势是否继续强劲
-       - ⚠️ 禁止主动调用 closePosition 进行止盈平仓
-       - ⚠️ 所有止盈平仓都由自动监控自动执行` : `* 当前策略未启用自动监控移动止盈，AI需要主动监控峰值回撤：
+       - 禁止主动调用 closePosition 进行止盈平仓
+       - 所有止盈平仓都由自动监控自动执行` : `* 当前策略未启用自动监控移动止盈，AI需要主动监控峰值回撤：
        - 自己跟踪每个持仓的盈利峰值（使用 peak_pnl_percent 字段）
        - 当峰值回撤达到阈值时，AI需要主动执行平仓
        - ${params.name}策略的移动止盈规则（严格执行）：
@@ -967,7 +1081,7 @@ function generateInstructions(strategy: TradingStrategy, intervalMinutes: number
        - AI必须在分析持仓时主动计算和判断是否触发移动止盈`}
   
   (3) 止盈策略（务必落袋为安，不要过度贪婪）：
-     * ⚠️ 激进策略核心教训：贪婪是盈利的敌人！
+     * 激进策略核心教训：贪婪是盈利的敌人！
        - **宁可早点止盈，也不要利润回吐后止损**
        - **小的确定性盈利 > 大的不确定性盈利**
        - **盈利 ≥ 10% 就要开始考虑分批止盈，不要死等高目标**
@@ -986,7 +1100,7 @@ function generateInstructions(strategy: TradingStrategy, intervalMinutes: number
      * 执行方式：使用 closePosition 的 percentage 参数
        - 示例：closePosition(symbol: 'BTC', percentage: 50) 可平掉50%仓位
      
-     * ⚠️ 反面教训：
+     * 反面教训：
        - 不要想着"再涨一点就平"，这往往导致利润回吐
        - 不要因为"才涨了X%"就不平仓，X%的利润也是利润
        - 不要死等策略目标，市场不会按你的计划走
@@ -1020,7 +1134,7 @@ function generateInstructions(strategy: TradingStrategy, intervalMinutes: number
    - 对每个持仓进行专业分析和决策（每个决策都要实际执行工具）：
    
    a) 止损监控${isCodeLevelProtectionEnabled ? '（完全由自动监控自动执行，AI不需要主动平仓）' : '（AI主动止损）'}：
-      ${isCodeLevelProtectionEnabled && params.codeLevelStopLoss ? `- ⚠️ 重要：波段策略的止损完全由自动监控自动执行，AI不需要主动平仓！
+      ${isCodeLevelProtectionEnabled && params.codeLevelStopLoss ? `- 重要：波段策略的止损完全由自动监控自动执行，AI不需要主动平仓！
         * 【自动监控强制止损】：系统每10秒自动检查，触发即自动平仓
           - ${params.codeLevelStopLoss.lowRisk.description}
           - ${params.codeLevelStopLoss.mediumRisk.description}
@@ -1031,8 +1145,8 @@ function generateInstructions(strategy: TradingStrategy, intervalMinutes: number
         * 监控持仓盈亏情况，了解风险状态
         * 分析技术指标，判断趋势是否健康
         * 在报告中说明持仓风险和市场情况
-        * ⚠️ 禁止主动调用 closePosition 进行止损平仓
-        * ⚠️ 止损平仓完全由自动监控自动执行` : `- AI全权负责止损（当前策略未启用自动监控止损）：
+        * 禁止主动调用 closePosition 进行止损平仓
+        * 止损平仓完全由自动监控自动执行` : `- AI全权负责止损（当前策略未启用自动监控止损）：
         * AI必须严格执行止损规则，这是保护账户的唯一防线
         * 根据杠杆倍数分级保护（严格执行）：
           - ${params.leverageMin}-${Math.floor((params.leverageMin + params.leverageMax) / 2)}倍杠杆：止损线 ${params.stopLoss.low}%
@@ -1041,7 +1155,7 @@ function generateInstructions(strategy: TradingStrategy, intervalMinutes: number
         * 如果看到趋势反转、破位等危险信号，应立即执行止损`}
    
    b) 止盈监控${isCodeLevelProtectionEnabled ? '（完全由自动监控自动执行，AI不需要主动平仓）' : '（AI主动止盈 - 务必积极执行）'}：
-      ${isCodeLevelProtectionEnabled && params.codeLevelTrailingStop ? `- ⚠️ 重要：波段策略的止盈完全由自动监控自动执行，AI不需要主动平仓！
+      ${isCodeLevelProtectionEnabled && params.codeLevelTrailingStop ? `- 重要：波段策略的止盈完全由自动监控自动执行，AI不需要主动平仓！
         * 【自动监控移动止盈】：系统每10秒自动检查，5级规则自动保护利润
           - ${params.codeLevelTrailingStop.stage1.description}
           - ${params.codeLevelTrailingStop.stage2.description}
@@ -1054,8 +1168,8 @@ function generateInstructions(strategy: TradingStrategy, intervalMinutes: number
         * 监控持仓盈利情况和峰值回撤
         * 分析趋势是否继续强劲
         * 在报告中说明盈利状态和趋势健康度
-        * ⚠️ 禁止主动调用 closePosition 进行止盈平仓
-        * ⚠️ 止盈平仓完全由自动监控自动执行` : `- ⚠️ 激进策略止盈核心原则：落袋为安！不要贪心！
+        * 禁止主动调用 closePosition 进行止盈平仓
+        * 止盈平仓完全由自动监控自动执行` : `- 激进策略止盈核心原则：落袋为安！不要贪心！
         * **盈利 ≥ 10%** → 评估趋势，考虑平仓30-50%
         * **盈利 ≥ 15%** → 如果趋势减弱，立即平仓50%或更多
         * **盈利 ≥ 20%** → 强烈建议至少平仓50%，锁定利润
@@ -1065,7 +1179,7 @@ function generateInstructions(strategy: TradingStrategy, intervalMinutes: number
         * **阻力位/压力位附近** → 先平50%，观察突破
         * **震荡行情** → 有盈利就及时平仓，不要等
         * 执行方式：closePosition({ symbol, percentage })
-        * ⚠️ 记住：小的确定性盈利 > 大的不确定性盈利`}
+        * 记住：小的确定性盈利 > 大的不确定性盈利`}
    
    c) 市场分析和报告：
       - 调用 getTechnicalIndicators 分析技术指标
@@ -1082,16 +1196,39 @@ function generateInstructions(strategy: TradingStrategy, intervalMinutes: number
         * 止损保护：触及止损线自动平仓
         * 止盈保护：峰值回撤自动平仓
         * AI职责：专注于开仓决策和市场分析
-        * ⚠️ AI不需要也不应该主动执行平仓操作
-        * ⚠️ 让自动监控自动处理所有平仓逻辑` : `- 如果至少3个时间框架显示趋势反转
+        * AI不需要也不应该主动执行平仓操作
+        * 让自动监控自动处理所有平仓逻辑` : `- 如果至少3个时间框架显示趋势反转
         * 立即调用 closePosition 平仓
         * 反转后想开反向仓位，必须先平掉原持仓`}
 
 3. 分析市场数据（必须实际调用工具）：
    - 调用 getTechnicalIndicators 获取技术指标数据
-   - ⭐ 分析多个时间框架（1分钟、3分钟、5分钟、15分钟）- 波段策略关键！
+   - 分析多个时间框架（1分钟、3分钟、5分钟、15分钟）- 波段策略关键！
    - 重点关注：价格、EMA、MACD、RSI
    - 必须满足：${params.entryCondition}
+
+3.5. 【关键步骤】判断当前行情类型（${params.name === '激进' ? '激进策略生存关键' : '非常重要'}）：
+   
+   步骤1：识别是否为单边行情（满足至少3项）
+     - 价格持续远离EMA20/50，距离持续拉大
+     - MACD柱状图连续同向扩大，无频繁交叉
+     - RSI持续在极端区（>70或<30）
+     - 多个时间框架高度一致（1m、3m、5m、15m同向）
+     - 价格连续同向突破，回调幅度小
+   
+   步骤2：识别是否为震荡行情（出现任意2项）
+     - 价格反复穿越EMA20/50
+     - MACD频繁金叉死叉
+     - RSI在40-60之间反复
+     - 多个时间框架信号不一致或频繁切换
+     - 价格在固定区间内反复震荡
+   
+   步骤3：根据行情类型调整策略
+     ${params.name === '激进' ? `- 单边行情：全力进攻（2个时间框架一致即可入场，大仓位28-32%，高杠杆22-25倍）
+     - 震荡行情：严格防守（必须4个时间框架一致，小仓位15-20%，低杠杆15-18倍）
+     - 如果判断为震荡行情，宁可不开仓也不要频繁试错！
+     - 记住：震荡频繁交易是最近亏损的根本原因！` : `- 单边行情：积极参与，标准策略
+     - 震荡行情：谨慎防守，提高入场标准`}
 
 4. 评估新交易机会（如果决定开仓，必须立即执行）：
    
@@ -1109,10 +1246,15 @@ function generateInstructions(strategy: TradingStrategy, intervalMinutes: number
       - 现有持仓数 < ${RISK_PARAMS.MAX_POSITIONS}
       - ${params.entryCondition}
       - 潜在利润≥2-3%（扣除0.1%费用后仍有净收益）
+      - ${params.name === '激进' ? '【关键】必须先判断行情类型，根据行情调整入场标准！' : ''}
       - 做多和做空机会的识别：
         * 做多信号：价格突破EMA20/50上方，MACD转正，RSI7 > 50且上升，多个时间框架共振向上
         * 做空信号：价格跌破EMA20/50下方，MACD转负，RSI7 < 50且下降，多个时间框架共振向下
         * 关键：做空信号和做多信号同样重要！不要只寻找做多机会而忽视做空机会
+      - ${params.name === '激进' ? '根据行情类型调整开仓策略：' : ''}
+        ${params.name === '激进' ? `* 单边行情：2个时间框架一致即可开仓，使用大仓位（28-32%）和高杠杆（22-25倍）
+        * 震荡行情：必须4个时间框架完全一致才能开仓，使用小仓位（15-20%）和低杠杆（15-18倍）
+        * 如果是震荡行情且信号不够强，宁可不开仓！避免频繁止损！` : ''}
       - 如果满足所有条件：立即调用 openPosition 开仓（不要只说"我会开仓"）
    
 5. 仓位大小和杠杆计算（${params.name}策略）：
@@ -1181,6 +1323,7 @@ function generateInstructions(strategy: TradingStrategy, intervalMinutes: number
 4. 评估并执行新开仓 → 立即调用 openPosition
 
 世界顶级交易员智慧：
+- **行情识别第一**${params.name === '激进' ? '（激进策略生存法则）' : ''}：${params.name === '激进' ? '在单边行情全力进攻，在震荡行情严格防守。震荡频繁交易=频繁亏损，这是最近亏损的根本原因！' : '正确识别单边和震荡行情，根据行情类型调整策略'}
 - **数据驱动+经验判断**：基于技术指标和多时间框架分析，同时运用您的专业判断和市场洞察力
 - **趋势为友**：顺应趋势是核心原则，但您有能力识别反转机会（3个时间框架反转是强烈警告信号）
 - **灵活止盈止损**：策略建议的止损和止盈点是参考基准，您可以根据关键支撑位、趋势强度、市场情绪灵活调整
@@ -1189,6 +1332,7 @@ function generateInstructions(strategy: TradingStrategy, intervalMinutes: number
 - **概率思维**：您的专业能力让胜率更高，但市场永远有不确定性，用概率和期望值思考
 - **风控红线**：在系统硬性底线（${RISK_PARAMS.EXTREME_STOP_LOSS_PERCENT}%强制平仓、${RISK_PARAMS.MAX_HOLDING_HOURS}小时强制平仓）内您有完全自主权
 - **技术说明**：pnl_percent已包含杠杆效应，直接比较即可
+- ${params.name === '激进' ? '**激进策略核心**：单边行情积极（大仓位+高杠杆），震荡行情谨慎（小仓位+低杠杆+高标准），在对的行情做对的事' : '**策略核心**：在单边行情积极把握，在震荡行情谨慎防守'}
 
 市场数据按时间顺序排列（最旧 → 最新），跨多个时间框架。使用此数据识别多时间框架趋势和关键水平。`;
 }

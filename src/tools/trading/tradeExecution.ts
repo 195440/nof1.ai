@@ -106,7 +106,32 @@ export const openPositionTool = createTool({
         logger.info(`${symbol} 已有${side === "long" ? "多" : "空"}单持仓，允许加仓`);
       }
       
-      // 3. 获取账户信息
+      // 3. 🔒 检查该币种是否在同一周期内刚平仓（防止平仓后立即重新开仓）
+      const recentCloseResult = await dbClient.execute({
+        sql: `SELECT timestamp FROM trades 
+              WHERE symbol = ? AND type = 'close' 
+              ORDER BY timestamp DESC LIMIT 1`,
+        args: [symbol],
+      });
+      
+      if (recentCloseResult.rows.length > 0) {
+        const closeTime = new Date(recentCloseResult.rows[0].timestamp as string).getTime();
+        const now = Date.now();
+        const minutesSinceClose = (now - closeTime) / (1000 * 60);
+        const intervalMinutes = Number.parseInt(process.env.TRADING_INTERVAL_MINUTES || "5");
+        
+        // 如果距离上次平仓时间不足一个完整交易周期，拒绝开仓
+        if (minutesSinceClose < intervalMinutes) {
+          return {
+            success: false,
+            message: `拒绝开仓 ${symbol}：该币种在 ${minutesSinceClose.toFixed(1)} 分钟前刚平仓，需要等待至少 ${intervalMinutes} 分钟（一个完整交易周期）后才能重新开仓。这是为了防止同一周期内频繁交易，造成不必要的手续费损失和情绪化交易。`,
+          };
+        }
+        
+        logger.info(`${symbol} 距离上次平仓已 ${minutesSinceClose.toFixed(1)} 分钟，通过冷静期检查`);
+      }
+      
+      // 4. 获取账户信息
       const account = await client.getFuturesAccount();
       const unrealisedPnl = Number.parseFloat(account.unrealisedPnl || "0");
       const totalBalance = Number.parseFloat(account.total || "0") - unrealisedPnl;
@@ -119,7 +144,7 @@ export const openPositionTool = createTool({
         };
       }
       
-      // 4. 检查账户回撤（从数据库获取初始净值和峰值净值）
+      // 5. 检查账户回撤（从数据库获取初始净值和峰值净值）
       // 注释：已移除回撤10%禁止开仓的限制
       // const initialBalanceResult = await dbClient.execute(
       //   "SELECT total_value FROM account_history ORDER BY timestamp ASC LIMIT 1"
@@ -146,7 +171,7 @@ export const openPositionTool = createTool({
       //   };
       // }
       
-      // 5. 检查总敞口（不超过账户净值的15倍）
+      // 6. 检查总敞口（不超过账户净值的15倍）
       let currentTotalExposure = 0;
       for (const pos of activePositions) {
         const posSize = Math.abs(Number.parseInt(pos.size || "0"));
@@ -169,7 +194,7 @@ export const openPositionTool = createTool({
         };
       }
       
-      // 6. 检查单笔仓位（建议不超过账户净值的30%）
+      // 7. 检查单笔仓位（建议不超过账户净值的30%）
       const maxSinglePosition = totalBalance * 0.30; // 30%
       if (amountUsdt > maxSinglePosition) {
         logger.warn(`开仓金额 ${amountUsdt.toFixed(2)} USDT 超过建议仓位 ${maxSinglePosition.toFixed(2)} USDT（账户净值的30%）`);
@@ -446,7 +471,7 @@ export const openPositionTool = createTool({
           "open",
           actualFillPrice, // 使用实际成交价格
           finalQuantity,   // 使用实际成交数量
-          leverage,
+          adjustedLeverage, // 使用实际调整后的杠杆
           fee,            // 手续费
           getChinaTimeISO(),
           dbStatus,
@@ -523,7 +548,7 @@ export const openPositionTool = createTool({
             actualFillPrice,
             liquidationPrice,
             0,
-            leverage,
+            adjustedLeverage, // 使用实际调整后的杠杆
             side,
             takeProfit || null,
             stopLoss || null,
@@ -547,7 +572,7 @@ export const openPositionTool = createTool({
             actualFillPrice,
             liquidationPrice,
             0,
-            leverage,
+            adjustedLeverage, // 使用实际调整后的杠杆
             side,
             takeProfit || null,
             stopLoss || null,
