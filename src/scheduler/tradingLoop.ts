@@ -759,12 +759,13 @@ async function getPositions(cachedGatePositions?: any[]) {
     // 如果提供了缓存数据，使用缓存；否则重新获取
     const gatePositions = cachedGatePositions || await gateClient.getPositions();
     
-    // 从数据库获取持仓的开仓时间和峰值盈利（数据库中保存了正确的数据）
-    const dbResult = await dbClient.execute("SELECT symbol, opened_at, peak_pnl_percent FROM positions");
+    // 从数据库获取持仓的开仓时间、峰值盈利和杠杆数（数据库中保存了正确的数据）
+    const dbResult = await dbClient.execute("SELECT symbol, opened_at, peak_pnl_percent, leverage FROM positions");
     const dbDataMap = new Map(
       dbResult.rows.map((row: any) => [row.symbol, {
         opened_at: row.opened_at,
-        peak_pnl_percent: Number.parseFloat(row.peak_pnl_percent as string || "0")
+        peak_pnl_percent: Number.parseFloat(row.peak_pnl_percent as string || "0"),
+        leverage: Number.parseInt(row.leverage as string || "1")
       }])
     );
     
@@ -775,10 +776,22 @@ async function getPositions(cachedGatePositions?: any[]) {
         const size = Number.parseInt(p.size || "0");
         const symbol = p.contract.replace("_USDT", "");
         
-        // 从数据库读取开仓时间和峰值盈利 195440 2025年11月06日20:50:49
+        // 从数据库读取开仓时间、峰值盈利和杠杆数
         const dbData = dbDataMap.get(symbol);
         let openedAt = dbData?.opened_at;
         const peakPnlPercent = dbData?.peak_pnl_percent || 0;
+        const gateLeverage = Number.parseInt(p.leverage || "1");
+        
+        // 🔧 修复：优先使用数据库中记录的杠杆数（开仓时的杠杆数），而不是 Gate.io 的实时杠杆数
+        const leverage = dbData?.leverage || gateLeverage;
+        
+        // 如果杠杆数不一致，记录警告
+        if (dbData && gateLeverage !== leverage) {
+          logger.warn(
+            `⚠️ ${symbol} 杠杆数不一致: Gate.io=${gateLeverage}x, 数据库(开仓时)=${leverage}x. ` +
+            `将使用开仓时的杠杆数 ${leverage}x。`
+          );
+        }
         
         // 如果数据库中没有开仓时间，尝试从Gate.io的create_time获取
         if (!openedAt && p.create_time) {
@@ -805,7 +818,7 @@ async function getPositions(cachedGatePositions?: any[]) {
           current_price: Number.parseFloat(p.markPrice || "0"),
           liquidation_price: Number.parseFloat(p.liqPrice || "0"),
           unrealized_pnl: Number.parseFloat(p.unrealisedPnl || "0"),
-          leverage: Number.parseInt(p.leverage || "1"),
+          leverage, // 使用数据库中的杠杆数
           margin: Number.parseFloat(p.margin || "0"),
           opened_at: openedAt,
           peak_pnl_percent: peakPnlPercent, // 添加峰值盈利字段

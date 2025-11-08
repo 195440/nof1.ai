@@ -471,7 +471,7 @@ export const openPositionTool = createTool({
           "open",
           actualFillPrice, // 使用实际成交价格
           finalQuantity,   // 使用实际成交数量
-          leverage,
+          adjustedLeverage, // 使用实际调整后的杠杆
           fee,            // 手续费
           getChinaTimeISO(),
           dbStatus,
@@ -548,7 +548,7 @@ export const openPositionTool = createTool({
             actualFillPrice,
             liquidationPrice,
             0,
-            leverage,
+            adjustedLeverage, // 使用实际调整后的杠杆
             side,
             takeProfit || null,
             stopLoss || null,
@@ -572,7 +572,7 @@ export const openPositionTool = createTool({
             actualFillPrice,
             liquidationPrice,
             0,
-            leverage,
+            adjustedLeverage, // 使用实际调整后的杠杆
             side,
             takeProfit || null,
             stopLoss || null,
