@@ -17,27 +17,47 @@
  */
 
 /**
- * 移动止盈监控器 - 每10秒执行一次（仅限波段策略）
+ * 实时峰值监控器 - 每10秒执行一次（适用所有策略）
+ * 同时监控持仓峰值盈利和账户净值峰值
  * 
- * 适用范围：
- * - 仅对 TRADING_STRATEGY=swing-trend（波段趋势策略）生效
- * - 其他策略（ultra-short, conservative, balanced, aggressive）不启用此监控
+ * 功能分层：
  * 
- * 功能：
- * 1. 每10秒从Gate.io获取最新持仓价格（markPrice）
+ * 【核心功能 1 - 持仓峰值盈利监控（所有策略共享）】
+ * 1. 每10秒从 Gate.io 获取最新持仓价格（markPrice）
  * 2. 计算每个持仓的当前盈利和峰值盈利
- * 3. 根据多级规则判断是否触发移动止盈
- * 4. 触发时立即平仓，记录到交易历史和决策数据
+ * 3. 实时更新数据库中的峰值盈利（peak_pnl_percent）
+ * 4. 确保 AI 在每个交易周期看到准确的持仓峰值回撤数据
  * 
- * 移动止盈规则（多级，按盈利阶段递进）：
+ * 【核心功能 2 - 账户净值峰值监控（所有策略共享）】
+ * 5. 每10秒从 Gate.io 获取账户信息（total + unrealisedPnl）
+ * 6. 计算账户总净值（包含未实现盈亏）
+ * 7. 如果净值创新高，立即记录到 account_history 表
+ * 8. 确保 AI 在每个交易周期看到准确的账户峰值回撤数据
+ * 
+ * 【扩展功能 - 仅波段策略】
+ * 9. 根据多级规则判断是否触发移动止盈
+ * 10. 触发时立即平仓，记录到交易历史和决策数据
+ * 
+ * 策略适用范围：
+ * - ultra-short, conservative, balanced, aggressive: 
+ *   功能1-8（持仓峰值 + 账户峰值）
+ * - swing-trend（波段趋势策略）: 
+ *   功能1-10（完整功能，包含自动平仓）
+ * 
+ * 移动止盈规则（多级，仅波段策略）：
  * - 阶段1：峰值盈利 4-10%  → 回退2%时平仓（保底2%利润）
  * - 阶段2：峰值盈利 10-20% → 回退3%时平仓（保底7%利润）
- * - 阶段3：峰值盈利 20%+   → 回退5%时平仓（保底15%利润）
+ * - 阶段3：峰值盈利 20-30% → 回退5%时平仓（保底15%利润）
+ * - 阶段4：峰值盈利 30-50% → 回退7%时平仓（保底23%利润）
+ * - 阶段5：峰值盈利 50%+   → 回退10%时平仓（保底40%利润）
  * 
- * 注意：
- * - 每个持仓独立跟踪，不是整体账户
- * - 盈利计算已考虑杠杆倍数
- * - 峰值会自动更新到最高点
+ * 重要说明：
+ * - 持仓峰值：每个持仓独立跟踪，盈利计算已考虑杠杆倍数
+ * - 账户峰值：总净值包含未实现盈亏，净值创新高时立即入库
+ * - 数据存储：持仓峰值存储在 positions.peak_pnl_percent
+ * - 数据存储：账户峰值可通过 MAX(account_history.total_value) 查询
+ * - 解决问题：彻底解决"交易周期长导致错过峰值"的问题
+ * - 记录策略：账户净值创新高才入库，避免数据库记录过多
  */
 
 import { createLogger } from "../utils/loggerUtils";
@@ -46,6 +66,7 @@ import { createGateClient } from "../services/gateClient";
 import { getChinaTimeISO } from "../utils/timeUtils";
 import { getQuantoMultiplier } from "../utils/contractUtils";
 import { getTradingStrategy, getStrategyParams } from "../agents/tradingAgent";
+import { recordAccountAssets } from "./accountRecorder";
 
 const logger = createLogger({
   name: "trailing-stop-monitor",
@@ -110,6 +131,11 @@ const positionPnlHistory = new Map<string, {
   lastCheckTime: number;
   checkCount: number; // 检查次数，用于日志
 }>();
+
+// 账户净值峰值记录（用于精确捕获账户净值峰值）
+let accountPeakBalance: number = 0;
+let lastAccountCheckTime: number = 0;
+let accountCheckCount: number = 0;
 
 let monitorInterval: NodeJS.Timeout | null = null;
 let isRunning = false;
@@ -428,17 +454,71 @@ async function executeTrailingStopClose(
 }
 
 /**
- * 检查所有持仓的移动止盈条件
+ * 检查所有持仓的峰值盈利并执行移动止盈（如果启用）
+ * @param autoCloseEnabled 是否启用自动平仓（仅波段策略）
  */
-async function checkTrailingStop() {
+async function checkPeakPnlAndTrailingStop(autoCloseEnabled: boolean) {
   if (!isRunning) {
     return;
   }
   
   try {
     const gateClient = createGateClient();
+    const now = Date.now();
     
-    // 1. 获取所有持仓
+    // 1. ===== 账户净值峰值监控（所有策略共享）=====
+    // 每 10 秒检查一次账户净值，如果创新高则记录到数据库
+    try {
+      accountCheckCount++;
+      
+      // 获取账户信息
+      const account = await gateClient.getFuturesAccount();
+      const accountTotal = Number.parseFloat(account.total || "0");
+      const unrealisedPnl = Number.parseFloat(account.unrealisedPnl || "0");
+      const totalBalance = accountTotal + unrealisedPnl; // 包含未实现盈亏的真实总资产
+      
+      // 初始化峰值（首次运行）
+      if (accountPeakBalance === 0) {
+        // 从数据库获取历史峰值
+        const peakResult = await dbClient.execute(
+          "SELECT MAX(total_value) as peak FROM account_history"
+        );
+        accountPeakBalance = peakResult.rows[0]?.peak 
+          ? Number.parseFloat(peakResult.rows[0].peak as string)
+          : totalBalance;
+        
+        logger.info(`账户净值峰值初始化: ${accountPeakBalance.toFixed(2)} USDT`);
+      }
+      
+      // 如果当前净值创新高，立即记录到数据库
+      if (totalBalance > accountPeakBalance) {
+        const oldPeak = accountPeakBalance;
+        accountPeakBalance = totalBalance;
+        
+        // 记录到数据库（跳过日志，避免过多输出）
+        await recordAccountAssets(true);
+        
+        logger.info(`💰 账户净值创新高: ${oldPeak.toFixed(2)} USDT → ${accountPeakBalance.toFixed(2)} USDT`);
+      } else {
+        // 每 60 次检查（约 10 分钟）输出一次调试日志
+        if (accountCheckCount % 60 === 0) {
+          const drawdown = accountPeakBalance > 0 
+            ? ((accountPeakBalance - totalBalance) / accountPeakBalance * 100) 
+            : 0;
+          logger.debug(
+            `账户净值监控: 当前=${totalBalance.toFixed(2)} USDT, ` +
+            `峰值=${accountPeakBalance.toFixed(2)} USDT, ` +
+            `回撤=${drawdown.toFixed(2)}%`
+          );
+        }
+      }
+      
+      lastAccountCheckTime = now;
+    } catch (error: any) {
+      logger.warn(`账户净值监控失败: ${error.message}`);
+    }
+    
+    // 2. 获取所有持仓
     const gatePositions = await gateClient.getPositions();
     const activePositions = gatePositions.filter((p: any) => Number.parseInt(p.size || "0") !== 0);
     
@@ -448,15 +528,13 @@ async function checkTrailingStop() {
       return;
     }
     
-    // 2. 从数据库获取持仓信息（获取开仓时间）
+    // 3. 从数据库获取持仓信息（获取开仓时间）
     const dbResult = await dbClient.execute("SELECT symbol, opened_at FROM positions");
     const dbOpenedAtMap = new Map(
       dbResult.rows.map((row: any) => [row.symbol, row.opened_at])
     );
     
-    const now = Date.now();
-    
-    // 3. 检查每个持仓
+    // 4. 检查每个持仓
     for (const pos of activePositions) {
       const size = Number.parseInt(pos.size || "0");
       const symbol = pos.contract.replace("_USDT", "");
@@ -468,7 +546,7 @@ async function checkTrailingStop() {
       
       // 验证数据有效性
       if (entryPrice === 0 || currentPrice === 0 || leverage === 0) {
-        logger.warn(`${symbol} 数据无效，跳过移动止盈检查`);
+        logger.warn(`${symbol} 数据无效，跳过峰值监控`);
         continue;
       }
       
@@ -484,13 +562,13 @@ async function checkTrailingStop() {
           checkCount: 0,
         };
         positionPnlHistory.set(symbol, history);
-        logger.info(`${symbol} 开始跟踪移动止盈，初始盈利: ${pnlPercent.toFixed(2)}%`);
+        logger.info(`${symbol} 开始跟踪峰值盈利${autoCloseEnabled ? '和移动止盈' : '（仅更新峰值）'}，初始盈利: ${pnlPercent.toFixed(2)}%`);
       }
       
       // 增加检查次数
       history.checkCount++;
       
-      // 更新峰值盈利
+      // ===== 核心功能：更新峰值盈利（所有策略共享）=====
       if (pnlPercent > history.peakPnlPercent) {
         const oldPeak = history.peakPnlPercent;
         history.peakPnlPercent = pnlPercent;
@@ -507,7 +585,13 @@ async function checkTrailingStop() {
       // 更新最后检查时间
       history.lastCheckTime = now;
       
-      // 4. 检查移动止盈条件（多级规则）
+      // ===== 可选功能：移动止盈自动平仓（仅波段策略）=====
+      if (!autoCloseEnabled) {
+        // 非波段策略：仅更新峰值，不执行自动平仓
+        continue;
+      }
+      
+      // 5. 检查移动止盈条件（多级规则）- 仅波段策略
       // 根据峰值盈利确定回退阈值和阶段信息
       const thresholdInfo = getDrawdownThreshold(history.peakPnlPercent);
       
@@ -561,7 +645,7 @@ async function checkTrailingStop() {
       }
     }
     
-    // 5. 清理已平仓的记录
+    // 6. 清理已平仓的记录
     const activeSymbols = new Set(
       activePositions.map((p: any) => p.contract.replace("_USDT", ""))
     );
@@ -579,43 +663,62 @@ async function checkTrailingStop() {
 }
 
 /**
- * 启动移动止盈监控
+ * 启动峰值盈利监控和移动止盈（适用所有策略）
+ * - 所有策略：每10秒更新持仓峰值盈利
+ * - 波段策略：额外执行自动移动止盈平仓
  */
 export function startTrailingStopMonitor() {
-  // 检查是否为波段策略
-  if (!isTrailingStopEnabled()) {
-    const strategy = process.env.TRADING_STRATEGY || "balanced";
-    logger.info(`当前策略 [${strategy}] 未启用代码级移动止盈监控（仅 swing-trend 波段策略启用）`);
-    return;
-  }
-  
   if (isRunning) {
-    logger.warn("移动止盈监控已在运行中");
+    logger.warn("峰值盈利监控已在运行中");
     return;
   }
   
-  const config = getTrailingStopConfig();
-  if (!config) {
-    logger.error("波段策略移动止盈配置缺失");
-    return;
-  }
+  const strategy = getTradingStrategy();
+  const autoCloseEnabled = isTrailingStopEnabled(); // swing-trend 策略返回 true
   
   isRunning = true;
-  logger.info("启动移动止盈监控（优化版 - 5级规则，更细致 - 仅波段策略）");
-  logger.info("  适用策略: swing-trend（波段趋势策略）");
-  logger.info("  检查间隔: 10秒");
-  logger.info(`  阶段1: ${config.stage1.description}`);
-  logger.info(`  阶段2: ${config.stage2.description}`);
-  logger.info(`  阶段3: ${config.stage3.description}`);
-  logger.info(`  阶段4: ${config.stage4.description}`);
-  logger.info(`  阶段5: ${config.stage5.description}`);
+  
+  logger.info("=".repeat(60));
+  logger.info("🚀 启动实时峰值监控（持仓 + 账户）");
+  logger.info("=".repeat(60));
+  logger.info(`  当前策略: ${strategy}`);
+  logger.info(`  检查间隔: 10秒`);
+  logger.info(``);
+  logger.info(`  【持仓峰值监控】`);
+  logger.info(`    峰值更新: ✅ 启用（所有策略）`);
+  logger.info(`    自动平仓: ${autoCloseEnabled ? '✅ 启用（波段策略）' : '❌ 禁用（由 AI 决策）'}`);
+  logger.info(``);
+  logger.info(`  【账户净值峰值监控】`);
+  logger.info(`    峰值更新: ✅ 启用（所有策略）`);
+  logger.info(`    精确记录: 净值创新高时立即写入数据库`);
+  logger.info(`    解决问题: 交易周期长导致错过净值峰值`);
+  
+  if (autoCloseEnabled) {
+    const config = getTrailingStopConfig();
+    if (config) {
+      logger.info(``);
+      logger.info(`  【移动止盈规则】（仅波段策略）`);
+      logger.info(`    阶段1: ${config.stage1.description}`);
+      logger.info(`    阶段2: ${config.stage2.description}`);
+      logger.info(`    阶段3: ${config.stage3.description}`);
+      logger.info(`    阶段4: ${config.stage4.description}`);
+      logger.info(`    阶段5: ${config.stage5.description}`);
+    }
+  } else {
+    logger.info(``);
+    logger.info(`  【说明】`);
+    logger.info(`    • 持仓：仅更新峰值盈利，不执行自动平仓`);
+    logger.info(`    • 账户：精确捕获净值峰值，供 AI 计算回撤`);
+    logger.info(`    • 决策：所有平仓决策由 AI 根据峰值数据判断`);
+  }
+  logger.info("=".repeat(60));
   
   // 立即执行一次
-  checkTrailingStop();
+  checkPeakPnlAndTrailingStop(autoCloseEnabled);
   
   // 每10秒执行一次
   monitorInterval = setInterval(() => {
-    checkTrailingStop();
+    checkPeakPnlAndTrailingStop(autoCloseEnabled);
   }, 10 * 1000);
 }
 
