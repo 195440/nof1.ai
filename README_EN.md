@@ -6,7 +6,7 @@
 
 [![VoltAgent](https://img.shields.io/badge/Framework-VoltAgent-purple.svg)](https://voltagent.dev)
 [![OpenAI Compatible](https://img.shields.io/badge/AI-OpenAI_Compatible-orange.svg)](https://openrouter.ai)
-[![Gate.io](https://img.shields.io/badge/Exchange-Gate.io-00D4AA.svg)](https://www.gatesite.org/signup/VVVEA10LVQ?ref_type=103)
+[![Gate.io](https://img.shields.io/badge/Exchange-Gate.io-00D4AA.svg)](https://www.gatesite.org/signup/NOFIAIOO?ref_type=103)
 [![TypeScript](https://img.shields.io/badge/Language-TypeScript-3178C6.svg?logo=typescript&logoColor=white)](https://www.typescriptlang.org)
 [![Node.js](https://img.shields.io/badge/Runtime-Node.js%2020+-339933.svg?logo=node.js&logoColor=white)](https://nodejs.org)
 [![License](https://img.shields.io/badge/License-AGPL--3.0-blue.svg)](./LICENSE)
@@ -80,7 +80,7 @@ The system follows a **minimal human intervention** design philosophy, abandonin
 |-----------|-----------|---------|
 | Framework | [VoltAgent](https://voltagent.dev) | AI Agent orchestration and management |
 | AI Provider | OpenAI Compatible API | Supports OpenRouter, OpenAI, DeepSeek and other compatible providers |
-| Exchange | [Gate.io](https://www.gatesite.org/signup/VVVEA10LVQ?ref_type=103) | Cryptocurrency trading (testnet & mainnet) |
+| Exchange | [Gate.io](https://www.gatesite.org/signup/NOFIAIOO?ref_type=103) | Cryptocurrency trading (testnet & mainnet) |
 | Database | LibSQL (SQLite) | Local data persistence |
 | Web Server | Hono | High-performance HTTP framework |
 | Language | TypeScript | Type-safe development |
@@ -194,9 +194,9 @@ AI_MODEL_NAME=deepseek/deepseek-v3.2-exp      # Model name
 - OpenAI: https://platform.openai.com/api-keys
 - DeepSeek: https://platform.deepseek.com/api_keys
 - Gate.io Testnet: https://www.gate.io/testnet
-- Gate.io Mainnet: https://www.gatesite.org/signup/VVVEA10LVQ?ref_type=103
+- Gate.io Mainnet: https://www.gatesite.org/signup/NOFIAIOO?ref_type=103
 
-> **Tip**: Register a Gate.io account using the above referral link or invitation code `VVVEA10LVQ` to receive commission rebates on your trades.
+> **Tip**: Register a Gate.io account using the above referral link or invitation code `NOFIAIOO` to receive commission rebates on your trades.
 
 ### Database Initialization
 
@@ -228,24 +228,43 @@ open-nof1.ai/
 │   │   └── tradingAgent.ts           # AI trading agent implementation
 │   ├── api/
 │   │   └── routes.ts                 # HTTP API endpoints for monitoring
+│   ├── config/
+│   │   └── riskParams.ts             # Risk parameter configuration
 │   ├── database/
 │   │   ├── init.ts                   # Database initialization logic
 │   │   ├── schema.ts                 # Database schema definitions
 │   │   └── sync-from-gate.ts         # Exchange data synchronization
 │   ├── scheduler/
-│   │   └── tradingLoop.ts            # Trading cycle orchestration
+│   │   ├── tradingLoop.ts            # Trading cycle orchestration
+│   │   ├── stopLossMonitor.ts        # Stop-loss monitoring
+│   │   ├── trailingStopMonitor.ts    # Trailing stop monitoring
+│   │   └── accountRecorder.ts        # Account recorder
 │   ├── services/
 │   │   ├── gateClient.ts             # Gate.io API client wrapper
 │   │   └── multiTimeframeAnalysis.ts # Multi-timeframe data aggregator
+│   ├── strategies/                   # Trading strategy implementations
+│   │   ├── index.ts                  # Strategy module exports
+│   │   ├── types.ts                  # Strategy type definitions
+│   │   ├── ultraShort.ts             # Ultra-short strategy
+│   │   ├── swingTrend.ts             # Swing trend strategy
+│   │   ├── conservative.ts           # Conservative strategy
+│   │   ├── balanced.ts               # Balanced strategy
+│   │   └── aggressive.ts             # Aggressive strategy
 │   ├── tools/
-│   │   └── trading/                  # VoltAgent tool implementations
+│   │   ├── analysis/                 # Analysis tools
+│   │   └── trading/                  # VoltAgent trading tool implementations
 │   │       ├── accountManagement.ts  # Account query and management
 │   │       ├── marketData.ts         # Market data retrieval
 │   │       └── tradeExecution.ts     # Order placement and management
 │   ├── types/
 │   │   └── gate.d.ts                 # TypeScript type definitions
 │   └── utils/
-│       └── timeUtils.ts              # Time/date utility functions
+│       ├── timeUtils.ts              # Time/date utility functions
+│       ├── contractUtils.ts          # Contract utility functions
+│       ├── encodingUtils.ts          # Encoding utility functions
+│       └── loggerUtils.ts            # Logger utility functions
+├── docs/                             # Documentation directory
+│   └── TRADING_STRATEGIES_ZH.md      # Trading strategies guide (Chinese)
 ├── public/                           # Web dashboard static files
 │   ├── index.html                    # Dashboard HTML
 │   ├── app.js                        # Dashboard JavaScript
@@ -285,6 +304,35 @@ open-nof1.ai/
 | `ACCOUNT_DRAWDOWN_WARNING_PERCENT` | Account drawdown warning threshold: triggers risk alert (%) | 20 | No |
 | `ACCOUNT_DRAWDOWN_NO_NEW_POSITION_PERCENT` | Drawdown threshold to stop opening new positions, only allow closing (%) | 30 | No |
 | `ACCOUNT_DRAWDOWN_FORCE_CLOSE_PERCENT` | Drawdown threshold to force close all positions to protect remaining funds (%) | 50 | No |
+
+### Trading Strategies
+
+The system supports 5 trading strategies for different market conditions and risk preferences:
+
+| Strategy Code | Strategy Name | Execution Cycle | Holding Period | Risk Level | Features |
+|--------------|--------------|----------------|---------------|------------|----------|
+| `ultra-short` | Ultra-short | 5 minutes | 30min-2hours | Medium-High | Quick in-out, 2% cycle lock-in, 30min profit close |
+| `swing-trend` | Swing Trend (Recommended) | 20 minutes | Hours-3days | Medium-Low | Medium-long swing, capture trends, steady growth |
+| `conservative` | Conservative | 5-15 minutes | Hours-24hours | Low | Low risk, low leverage, principal protection first |
+| `balanced` | Balanced | 5-15 minutes | Hours-24hours | Medium | Risk-reward balanced (default strategy) |
+| `aggressive` | Aggressive | 5-15 minutes | Hours-24hours | High | High returns, high risk |
+
+Strategy implementation files:
+- [Ultra-short Strategy](./src/strategies/ultraShort.ts)
+- [Swing Trend Strategy](./src/strategies/swingTrend.ts)
+- [Conservative Strategy](./src/strategies/conservative.ts)
+- [Balanced Strategy](./src/strategies/balanced.ts)
+- [Aggressive Strategy](./src/strategies/aggressive.ts)
+
+**Recommended Configuration - Swing Trend Strategy** (Suitable for medium-long term steady growth):
+```bash
+TRADING_STRATEGY=swing-trend
+TRADING_INTERVAL_MINUTES=20
+MAX_LEVERAGE=10
+MAX_POSITIONS=3
+```
+
+For detailed strategy descriptions, please refer to: [Trading Strategies Guide](./docs/TRADING_STRATEGIES_ZH.md) (Chinese)
 
 ### AI Model Configuration
 
@@ -729,8 +777,8 @@ npm run trading:start
 
 If you don't have a Gate.io account yet, we recommend registering through this referral:
 
-- **Referral Link**: [https://www.gatesite.org/signup/VVVEA10LVQ?ref_type=103](https://www.gatesite.org/signup/VVVEA10LVQ?ref_type=103)
-- **Invitation Code**: `VVVEA10LVQ`
+- **Referral Link**: [https://www.gatesite.org/signup/NOFIAIOO?ref_type=103](https://www.gatesite.org/signup/NOFIAIOO?ref_type=103)
+- **Invitation Code**: `NOFIAIOO`
 
 > By registering with the referral code, you'll receive trading commission rebates while helping maintain this open-source project's long-term operation. It benefits both you and the project, completely free with no extra costs.
 

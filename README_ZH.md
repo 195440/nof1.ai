@@ -6,7 +6,7 @@
 
 [![VoltAgent](https://img.shields.io/badge/Framework-VoltAgent-purple.svg)](https://voltagent.dev)
 [![OpenAI Compatible](https://img.shields.io/badge/AI-OpenAI_Compatible-orange.svg)](https://openrouter.ai)
-[![Gate.io](https://img.shields.io/badge/Exchange-Gate.io-00D4AA.svg)](https://www.gatesite.org/signup/VVVEA10LVQ?ref_type=103)
+[![Gate.io](https://img.shields.io/badge/Exchange-Gate.io-00D4AA.svg)](https://www.gatesite.org/signup/NOFIAIOO?ref_type=103)
 [![TypeScript](https://img.shields.io/badge/Language-TypeScript-3178C6.svg?logo=typescript&logoColor=white)](https://www.typescriptlang.org)
 [![Node.js](https://img.shields.io/badge/Runtime-Node.js%2020+-339933.svg?logo=node.js&logoColor=white)](https://nodejs.org)
 [![License](https://img.shields.io/badge/License-AGPL--3.0-blue.svg)](./LICENSE)
@@ -80,7 +80,7 @@ open-nof1.ai 是一个 AI 驱动的加密货币自动交易系统，将大语言
 |------|------|------|
 | 框架 | [VoltAgent](https://voltagent.dev) | AI Agent 编排与管理 |
 | AI 提供商 | OpenAI 兼容 API | 支持 OpenRouter、OpenAI、DeepSeek 等兼容供应商 |
-| 交易所 | [Gate.io](https://www.gatesite.org/signup/VVVEA10LVQ?ref_type=103) | 加密货币交易(测试网 & 正式网) |
+| 交易所 | [Gate.io](https://www.gatesite.org/signup/NOFIAIOO?ref_type=103) | 加密货币交易(测试网 & 正式网) |
 | 数据库 | LibSQL (SQLite) | 本地数据持久化 |
 | Web 服务器 | Hono | 高性能 HTTP 框架 |
 | 开发语言 | TypeScript | 类型安全开发 |
@@ -193,9 +193,9 @@ AI_MODEL_NAME=deepseek/deepseek-v3.2-exp      # 模型名称
 - OpenAI: https://platform.openai.com/api-keys
 - DeepSeek: https://platform.deepseek.com/api_keys
 - Gate.io 测试网: https://www.gate.io/testnet
-- Gate.io 正式网: https://www.gatesite.org/signup/VVVEA10LVQ?ref_type=103
+- Gate.io 正式网: https://www.gatesite.org/signup/NOFIAIOO?ref_type=103
 
-> **提示**: 通过上方邀请链接或使用邀请码 `VVVEA10LVQ` 注册 Gate.io 账户，您将获得交易佣金返还优惠。
+> **提示**: 通过上方邀请链接或使用邀请码 `NOFIAIOO` 注册 Gate.io 账户，您将获得交易佣金返还优惠。
 
 ### 数据库初始化
 
@@ -227,24 +227,43 @@ open-nof1.ai/
 │   │   └── tradingAgent.ts           # AI 交易 Agent 实现
 │   ├── api/
 │   │   └── routes.ts                 # 监控界面 HTTP API 端点
+│   ├── config/
+│   │   └── riskParams.ts             # 风险参数配置
 │   ├── database/
 │   │   ├── init.ts                   # 数据库初始化逻辑
 │   │   ├── schema.ts                 # 数据库模式定义
 │   │   └── sync-from-gate.ts         # 交易所数据同步
 │   ├── scheduler/
-│   │   └── tradingLoop.ts            # 交易循环编排
+│   │   ├── tradingLoop.ts            # 交易循环编排
+│   │   ├── stopLossMonitor.ts        # 止损监控
+│   │   ├── trailingStopMonitor.ts    # 移动止盈监控
+│   │   └── accountRecorder.ts        # 账户记录器
 │   ├── services/
 │   │   ├── gateClient.ts             # Gate.io API 客户端封装
 │   │   └── multiTimeframeAnalysis.ts # 多时间框架数据聚合器
+│   ├── strategies/                   # 交易策略实现
+│   │   ├── index.ts                  # 策略模块导出
+│   │   ├── types.ts                  # 策略类型定义
+│   │   ├── ultraShort.ts             # 超短线策略
+│   │   ├── swingTrend.ts             # 波段趋势策略
+│   │   ├── conservative.ts           # 稳健策略
+│   │   ├── balanced.ts               # 平衡策略
+│   │   └── aggressive.ts             # 激进策略
 │   ├── tools/
-│   │   └── trading/                  # VoltAgent 工具实现
+│   │   ├── analysis/                 # 分析工具
+│   │   └── trading/                  # VoltAgent 交易工具实现
 │   │       ├── accountManagement.ts  # 账户查询与管理
 │   │       ├── marketData.ts         # 市场数据获取
 │   │       └── tradeExecution.ts     # 订单下达与管理
 │   ├── types/
 │   │   └── gate.d.ts                 # TypeScript 类型定义
 │   └── utils/
-│       └── timeUtils.ts              # 时间/日期工具函数
+│       ├── timeUtils.ts              # 时间/日期工具函数
+│       ├── contractUtils.ts          # 合约工具函数
+│       ├── encodingUtils.ts          # 编码工具函数
+│       └── loggerUtils.ts            # 日志工具函数
+├── docs/                             # 文档目录
+│   └── TRADING_STRATEGIES_ZH.md      # 交易策略配置指南
 ├── public/                           # Web 仪表板静态文件
 │   ├── index.html                    # 仪表板 HTML
 │   ├── app.js                        # 仪表板 JavaScript
@@ -293,10 +312,17 @@ open-nof1.ai/
 | 策略代码 | 策略名称 | 执行周期 | 持仓时长 | 风险等级 | 特点 |
 |---------|---------|---------|---------|---------|------|
 | `ultra-short` | 超短线 | 5分钟 | 30分钟-2小时 | 中高 | 快进快出，2%周期锁利，30分钟盈利平仓 |
-| `swing-trend` | **波段趋势** ⭐ | **20分钟** | **数小时-3天** | **中低** | **中长线波段，捕捉趋势，稳健成长** |
+| `swing-trend` | 波段趋势（推荐） | 20分钟 | 数小时-3天 | 中低 | 中长线波段，捕捉趋势，稳健成长 |
 | `conservative` | 稳健 | 5-15分钟 | 数小时-24小时 | 低 | 低风险低杠杆，保护本金优先 |
 | `balanced` | 平衡 | 5-15分钟 | 数小时-24小时 | 中 | 风险收益平衡（默认策略） |
 | `aggressive` | 激进 | 5-15分钟 | 数小时-24小时 | 高 | 追求高收益，承担高风险 |
+
+策略实现文件位置：
+- [超短线策略](./src/strategies/ultraShort.ts)
+- [波段趋势策略](./src/strategies/swingTrend.ts)
+- [稳健策略](./src/strategies/conservative.ts)
+- [平衡策略](./src/strategies/balanced.ts)
+- [激进策略](./src/strategies/aggressive.ts)
 
 **推荐配置 - 波段趋势策略**（适合中长线稳健成长）：
 ```bash
@@ -756,8 +782,8 @@ npm run trading:start
 
 如果您还没有 Gate.io 账户，推荐通过以下邀请方式注册：
 
-- **邀请链接**: [https://www.gatesite.org/signup/VVVEA10LVQ?ref_type=103](https://www.gatesite.org/signup/VVVEA10LVQ?ref_type=103)
-- **邀请码**: `VVVEA10LVQ`
+- **邀请链接**: [https://www.gatesite.org/signup/NOFIAIOO?ref_type=103](https://www.gatesite.org/signup/NOFIAIOO?ref_type=103)
+- **邀请码**: `NOFIAIOO`
 
 > 使用邀请码注册，您将获得交易返佣优惠，同时帮助维护这个开源项目的长期运营。这对您和项目都有益，且完全免费无任何额外费用。
 
