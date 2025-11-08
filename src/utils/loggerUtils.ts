@@ -90,7 +90,12 @@ function wrapLoggerMethods(loggerInstance: any) {
     warn: createSafeLogger(loggerInstance.warn.bind(loggerInstance)),
     debug: createSafeLogger(loggerInstance.debug.bind(loggerInstance)),
     trace: createSafeLogger(loggerInstance.trace.bind(loggerInstance)),
-    fatal: createSafeLogger(loggerInstance.fatal.bind(loggerInstance))
+    fatal: createSafeLogger(loggerInstance.fatal.bind(loggerInstance)),
+    // 添加 child 方法支持
+    child: (bindings: any) => {
+      const childLogger = loggerInstance.child(bindings);
+      return wrapLoggerMethods(childLogger);
+    }
   };
 }
 

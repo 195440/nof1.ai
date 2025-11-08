@@ -510,11 +510,32 @@ body {
 
 .account-header {
     margin-bottom: 1rem;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
 }
 
 .account-header h2 {
-    font-size: 0.9rem;
-    color: var(--text-dim);
+    font-size: 1rem;
+    color: var(--text-primary);
+    margin: 0;
+}
+
+.theme-toggle-btn {
+    color: var(--text-secondary);
+    font-size: 0.8rem;
+    transition: all 0.3s;
+    padding: 0.3rem 0.6rem;
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    background-color: var(--bg-tertiary);
+    white-space: nowrap;
+}
+
+.theme-toggle-btn:hover {
+    color: var(--accent-green);
+    border-color: var(--accent-green);
+    box-shadow: 0 0 5px var(--accent-green);
 }
 
 .account-value {
@@ -1308,6 +1329,16 @@ body {
         overflow-wrap: break-word;
     }
 
+    /* 移动端主题切换按钮 */
+    .theme-toggle-btn {
+        font-size: 0.7rem;
+        padding: 0.2rem 0.4rem;
+    }
+    
+    .account-header h2 {
+        font-size: 0.9rem;
+    }
+
     /* 移动端 Markdown 样式 */
     .markdown-content h1 {
         font-size: 1.1rem;
@@ -1590,6 +1621,23 @@ body {
         font-size: 0.8rem;
         margin-bottom: 0.6rem;
         padding-bottom: 0.4rem;
+    }
+
+    /* 移动端主题切换按钮 */
+    .theme-toggle-btn {
+        font-size: 0.65rem;
+        padding: 0.15rem 0.3rem;
+    }
+    
+    .theme-toggle-btn span {
+        display: inline-block;
+        max-width: 80px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+    
+    .account-header h2 {
+        font-size: 0.85rem;
     }
 
     /* 继承768px的列隐藏规则 */
