@@ -17,11 +17,12 @@
  */
 
 /**
- * 止损监控器 - 每10秒执行一次（仅限波段策略）
+ * 止损监控器 - 每10秒执行一次（根据策略配置启用）
  * 
  * 适用范围：
- * - 仅对 TRADING_STRATEGY=swing-trend（波段趋势策略）生效
- * - 其他策略（ultra-short, conservative, balanced, aggressive）不启用此监控
+ * - 策略配置 enableCodeLevelProtection = true 时启用
+ * - 默认只有 swing-trend（波段趋势策略）启用，其他策略可根据需要启用
+ * - 需要策略配置中定义 codeLevelStopLoss 配置
  * 
  * 功能：
  * 1. 每10秒从Gate.io获取最新持仓价格（markPrice）
@@ -29,10 +30,10 @@
  * 3. 根据止损规则判断是否触发止损
  * 4. 触发时立即平仓，记录到交易历史和决策数据
  * 
- * 止损规则（考虑杠杆）：
- * - 低风险（5-7倍杠杆）：亏损达到 -8% 时止损
- * - 中风险（8-12倍杠杆）：亏损达到 -6% 时止损
- * - 高风险（13倍以上杠杆）：亏损达到 -5% 时止损
+ * 止损规则（示例 - swing-trend 策略）：
+ * - 低风险（5-7倍杠杆）：亏损达到 -6% 时止损
+ * - 中风险（8-12倍杠杆）：亏损达到 -5% 时止损
+ * - 高风险（13倍以上杠杆）：亏损达到 -4% 时止损
  * 
  * 注意：
  * - 每个持仓独立监控，不是整体账户
@@ -118,8 +119,9 @@ let isRunning = false;
  * 检查当前策略是否启用代码级止损
  */
 function isStopLossEnabled(): boolean {
-  const strategy = process.env.TRADING_STRATEGY || "balanced";
-  return strategy === "swing-trend";
+  const strategy = getTradingStrategy();
+  const params = getStrategyParams(strategy);
+  return params.enableCodeLevelProtection === true;
 }
 
 /**
@@ -539,10 +541,12 @@ async function checkStopLoss() {
  * 启动止损监控（仅限波段策略）
  */
 export function startStopLossMonitor() {
-  // 检查是否为波段策略
+  // 检查当前策略是否启用代码级止损
+  const strategy = getTradingStrategy();
+  const params = getStrategyParams(strategy);
+  
   if (!isStopLossEnabled()) {
-    const strategy = process.env.TRADING_STRATEGY || "balanced";
-    logger.info(`当前策略 [${strategy}] 未启用代码级止损监控（仅 swing-trend 波段策略启用）`);
+    logger.info(`当前策略 [${params.name}] 未启用代码级止损监控（enableCodeLevelProtection = false）`);
     return;
   }
   
@@ -553,13 +557,13 @@ export function startStopLossMonitor() {
   
   const config = getStopLossConfig();
   if (!config) {
-    logger.error("波段策略止损配置缺失");
+    logger.error(`策略 [${params.name}] 的止损配置缺失`);
     return;
   }
   
   isRunning = true;
-  logger.info("启动止损监控（自动止损系统 - 仅波段策略）");
-  logger.info("  适用策略: swing-trend（波段趋势策略）");
+  logger.info(`启动止损监控（自动止损系统 - ${params.name}策略）`);
+  logger.info(`  当前策略: ${strategy} (${params.name})`);
   logger.info("  检查间隔: 10秒");
   logger.info(`  低风险: ${config.lowRisk.description}`);
   logger.info(`  中风险: ${config.mediumRisk.description}`);

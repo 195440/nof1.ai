@@ -6,7 +6,7 @@
 
 [![VoltAgent](https://img.shields.io/badge/Framework-VoltAgent-purple.svg)](https://voltagent.dev)
 [![OpenAI Compatible](https://img.shields.io/badge/AI-OpenAI_Compatible-orange.svg)](https://openrouter.ai)
-[![Gate.io](https://img.shields.io/badge/Exchange-Gate.io-00D4AA.svg)](https://www.gatesite.org/signup/VVVEA10LVQ?ref_type=103)
+[![Gate.io](https://img.shields.io/badge/Exchange-Gate.io-00D4AA.svg)](https://www.gatesite.org/signup/NOFIAIOO?ref_type=103)
 [![TypeScript](https://img.shields.io/badge/Language-TypeScript-3178C6.svg?logo=typescript&logoColor=white)](https://www.typescriptlang.org)
 [![Node.js](https://img.shields.io/badge/Runtime-Node.js%2020+-339933.svg?logo=node.js&logoColor=white)](https://nodejs.org)
 [![License](https://img.shields.io/badge/License-AGPL--3.0-blue.svg)](./LICENSE)
@@ -80,7 +80,7 @@ open-nof1.ai は、大規模言語モデルの知能と量的取引実践を深�
 |---------------|------|------|
 | フレームワーク | [VoltAgent](https://voltagent.dev) | AI Agent オーケストレーションと管理 |
 | AI プロバイダー | OpenAI 互換 API | OpenRouter、OpenAI、DeepSeek などの互換プロバイダーをサポート |
-| 取引所 | [Gate.io](https://www.gatesite.org/signup/VVVEA10LVQ?ref_type=103) | 暗号通貨取引(テストネット & 本番ネット) |
+| 取引所 | [Gate.io](https://www.gatesite.org/signup/NOFIAIOO?ref_type=103) | 暗号通貨取引(テストネット & 本番ネット) |
 | データベース | LibSQL (SQLite) | ローカルデータ永続化 |
 | Web サーバー | Hono | 高性能 HTTP フレームワーク |
 | 開発言語 | TypeScript | 型安全な開発 |
@@ -199,9 +199,9 @@ ACCOUNT_DRAWDOWN_FORCE_CLOSE_PERCENT=50      # 強制決済しきい値：すべ
 - OpenAI: https://platform.openai.com/api-keys
 - DeepSeek: https://platform.deepseek.com/api_keys
 - Gate.io テストネット: https://www.gate.io/testnet
-- Gate.io 本番ネット: https://www.gatesite.org/signup/VVVEA10LVQ?ref_type=103
+- Gate.io 本番ネット: https://www.gatesite.org/signup/NOFIAIOO?ref_type=103
 
-> **ヒント**: 上記の招待リンクまたは招待コード `VVVEA10LVQ` を使用して Gate.io アカウントを登録すると、取引手数料のリベートを受けられます。
+> **ヒント**: 上記の招待リンクまたは招待コード `NOFIAIOO` を使用して Gate.io アカウントを登録すると、取引手数料のリベートを受けられます。
 
 ### データベース初期化
 
@@ -233,24 +233,43 @@ open-nof1.ai/
 │   │   └── tradingAgent.ts           # AI 取引 Agent 実装
 │   ├── api/
 │   │   └── routes.ts                 # 監視インターフェース HTTP API エンドポイント
+│   ├── config/
+│   │   └── riskParams.ts             # リスクパラメータ設定
 │   ├── database/
 │   │   ├── init.ts                   # データベース初期化ロジック
 │   │   ├── schema.ts                 # データベーススキーマ定義
 │   │   └── sync-from-gate.ts         # 取引所データ同期
 │   ├── scheduler/
-│   │   └── tradingLoop.ts            # 取引ループオーケストレーション
+│   │   ├── tradingLoop.ts            # 取引ループオーケストレーション
+│   │   ├── stopLossMonitor.ts        # 損切り監視
+│   │   ├── trailingStopMonitor.ts    # トレーリングストップ監視
+│   │   └── accountRecorder.ts        # アカウントレコーダー
 │   ├── services/
 │   │   ├── gateClient.ts             # Gate.io API クライアントラッパー
 │   │   └── multiTimeframeAnalysis.ts # マルチタイムフレームデータアグリゲーター
+│   ├── strategies/                   # 取引戦略実装
+│   │   ├── index.ts                  # 戦略モジュールエクスポート
+│   │   ├── types.ts                  # 戦略型定義
+│   │   ├── ultraShort.ts             # 超短期戦略
+│   │   ├── swingTrend.ts             # スイングトレンド戦略
+│   │   ├── conservative.ts           # 保守的戦略
+│   │   ├── balanced.ts               # バランス戦略
+│   │   └── aggressive.ts             # 積極的戦略
 │   ├── tools/
-│   │   └── trading/                  # VoltAgent ツール実装
+│   │   ├── analysis/                 # 分析ツール
+│   │   └── trading/                  # VoltAgent 取引ツール実装
 │   │       ├── accountManagement.ts  # アカウント照会と管理
 │   │       ├── marketData.ts         # 市場データ取得
 │   │       └── tradeExecution.ts     # 注文出しと管理
 │   ├── types/
 │   │   └── gate.d.ts                 # TypeScript 型定義
 │   └── utils/
-│       └── timeUtils.ts              # 時間/日付ユーティリティ関数
+│       ├── timeUtils.ts              # 時間/日付ユーティリティ関数
+│       ├── contractUtils.ts          # 契約ユーティリティ関数
+│       ├── encodingUtils.ts          # エンコーディングユーティリティ関数
+│       └── loggerUtils.ts            # ロガーユーティリティ関数
+├── docs/                             # ドキュメントディレクトリ
+│   └── TRADING_STRATEGIES_ZH.md      # 取引戦略ガイド（中国語）
 ├── public/                           # Web ダッシュボード静的ファイル
 │   ├── index.html                    # ダッシュボード HTML
 │   ├── app.js                        # ダッシュボード JavaScript
@@ -290,6 +309,35 @@ open-nof1.ai/
 | `ACCOUNT_DRAWDOWN_WARNING_PERCENT` | アカウントドローダウン警告しきい値：リスク警告を発する(%) | 20 | いいえ |
 | `ACCOUNT_DRAWDOWN_NO_NEW_POSITION_PERCENT` | 新規注文停止しきい値：新規ポジションの開設を停止、決済のみ許可(%) | 30 | いいえ |
 | `ACCOUNT_DRAWDOWN_FORCE_CLOSE_PERCENT` | 強制決済しきい値：すべてのポジションを自動的に決済し、残り資金を保護(%) | 50 | いいえ |
+
+### 取引戦略
+
+システムは異なる市場状況とリスク選好に対応する5つの取引戦略をサポートします：
+
+| 戦略コード | 戦略名 | 実行サイクル | 保有期間 | リスクレベル | 特徴 |
+|-----------|--------|------------|----------|------------|------|
+| `ultra-short` | 超短期 | 5分 | 30分-2時間 | 中高 | 素早く出入り、2%サイクルロックイン、30分利益決済 |
+| `swing-trend` | スイングトレンド（推奨） | 20分 | 数時間-3日 | 中低 | 中長期スイング、トレンド捕捉、安定成長 |
+| `conservative` | 保守的 | 5-15分 | 数時間-24時間 | 低 | 低リスク、低レバレッジ、元本保護優先 |
+| `balanced` | バランス | 5-15分 | 数時間-24時間 | 中 | リスク・リターンバランス（デフォルト戦略） |
+| `aggressive` | 積極的 | 5-15分 | 数時間-24時間 | 高 | 高リターン、高リスク |
+
+戦略実装ファイルの場所：
+- [超短期戦略](./src/strategies/ultraShort.ts)
+- [スイングトレンド戦略](./src/strategies/swingTrend.ts)
+- [保守的戦略](./src/strategies/conservative.ts)
+- [バランス戦略](./src/strategies/balanced.ts)
+- [積極的戦略](./src/strategies/aggressive.ts)
+
+**推奨設定 - スイングトレンド戦略**（中長期安定成長に適しています）：
+```bash
+TRADING_STRATEGY=swing-trend
+TRADING_INTERVAL_MINUTES=20
+MAX_LEVERAGE=10
+MAX_POSITIONS=3
+```
+
+詳細な戦略説明については、次を参照してください：[取引戦略ガイド](./docs/TRADING_STRATEGIES_ZH.md)（中国語）
 
 ### AI モデル設定
 
@@ -735,8 +783,8 @@ npm run trading:start
 
 Gate.io アカウントをお持ちでない場合、以下の招待方式での登録をお勧めします：
 
-- **招待リンク**: [https://www.gatesite.org/signup/VVVEA10LVQ?ref_type=103](https://www.gatesite.org/signup/VVVEA10LVQ?ref_type=103)
-- **招待コード**: `VVVEA10LVQ`
+- **招待リンク**: [https://www.gatesite.org/signup/NOFIAIOO?ref_type=103](https://www.gatesite.org/signup/NOFIAIOO?ref_type=103)
+- **招待コード**: `NOFIAIOO`
 
 > 招待コードで登録すると、取引手数料のリベートを受けられ、同時にこのオープンソースプロジェクトの長期運営を支援できます。あなたとプロジェクトの両方にメリットがあり、完全無料で追加費用は一切ありません。
 
