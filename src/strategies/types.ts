@@ -1,0 +1,258 @@
+/**
+ * 交易策略类型定义
+ * 
+ * 支持5种交易策略：
+ * - conservative: 稳健策略，低风险低杠杆
+ * - balanced: 平衡策略，中等风险，适合大多数投资者
+ * - aggressive: 激进策略，高风险高杠杆
+ * - ultra-short: 超短线策略，5分钟执行周期
+ * - swing-trend: 波段趋势策略，20分钟执行周期，中长线持仓
+ */
+export type TradingStrategy = "conservative" | "balanced" | "aggressive" | "ultra-short" | "swing-trend";
+
+/**
+ * 策略提示词生成上下文
+ * 
+ * 用于向各个策略的提示词生成函数传递运行时参数
+ */
+export interface StrategyPromptContext {
+  /** 交易执行周期（分钟），如5分钟、20分钟 */
+  intervalMinutes: number;
+  /** 最大同时持仓数量 */
+  maxPositions: number;
+  /** 系统强制止损阈值（百分比），如-15表示亏损15%强制平仓 */
+  extremeStopLossPercent: number;
+  /** 最大持仓时间（小时），超过后强制平仓 */
+  maxHoldingHours: number;
+  /** 交易的币种列表，如['BTC', 'ETH'] */
+  tradingSymbols: string[];
+}
+
+/**
+ * 策略参数配置接口
+ * 
+ * 定义了一个完整交易策略所需的所有配置参数，包括：
+ * - 杠杆配置
+ * - 仓位管理
+ * - 风控规则（止损、止盈、回撤保护）
+ * - 波动率调整
+ * - 自动监控配置（可选）
+ */
+export interface StrategyParams {
+  /** 策略名称（中文），如"激进"、"平衡"等 */
+  name: string;
+  
+  /** 策略描述，简要说明策略特点和适用人群 */
+  description: string;
+  
+  /** 最小杠杆倍数，策略允许使用的最低杠杆 */
+  leverageMin: number;
+  
+  /** 最大杠杆倍数，策略允许使用的最高杠杆 */
+  leverageMax: number;
+  
+  /** 推荐杠杆配置，根据信号强度选择不同杠杆 */
+  leverageRecommend: {
+    /** 普通信号时使用的杠杆，如"15倍" */
+    normal: string;
+    /** 良好信号时使用的杠杆，如"19倍" */
+    good: string;
+    /** 强信号时使用的杠杆，如"25倍" */
+    strong: string;
+  };
+  
+  /** 最小仓位大小（账户净值百分比），如25表示25% */
+  positionSizeMin: number;
+  
+  /** 最大仓位大小（账户净值百分比），如32表示32% */
+  positionSizeMax: number;
+  
+  /** 推荐仓位配置，根据信号强度选择不同仓位 */
+  positionSizeRecommend: {
+    /** 普通信号时使用的仓位，如"25-28%" */
+    normal: string;
+    /** 良好信号时使用的仓位，如"28-30%" */
+    good: string;
+    /** 强信号时使用的仓位，如"30-32%" */
+    strong: string;
+  };
+  
+  /** 止损配置，根据杠杆倍数分级（由AI主动执行） */
+  stopLoss: {
+    /** 低杠杆时的止损线（百分比），如-2.5表示亏损2.5%止损 */
+    low: number;
+    /** 中杠杆时的止损线（百分比），如-2表示亏损2%止损 */
+    mid: number;
+    /** 高杠杆时的止损线（百分比），如-1.5表示亏损1.5%止损 */
+    high: number;
+  };
+  
+  /** 移动止盈配置，盈利达到一定程度后移动止损线保护利润（由AI主动执行） */
+  trailingStop: {
+    /** 第一级：盈利达到trigger%时，止损线移至stopAt% */
+    level1: { trigger: number; stopAt: number };
+    /** 第二级：盈利达到trigger%时，止损线移至stopAt% */
+    level2: { trigger: number; stopAt: number };
+    /** 第三级：盈利达到trigger%时，止损线移至stopAt% */
+    level3: { trigger: number; stopAt: number };
+  };
+  
+  /** 分批止盈配置，逐步锁定利润（由AI主动执行） */
+  partialTakeProfit: {
+    /** 第一阶段：盈利达到trigger%时，平仓closePercent%的仓位 */
+    stage1: { trigger: number; closePercent: number };
+    /** 第二阶段：盈利达到trigger%时，平仓closePercent%的仓位 */
+    stage2: { trigger: number; closePercent: number };
+    /** 第三阶段：盈利达到trigger%时，平仓closePercent%的仓位（通常是100%全部清仓） */
+    stage3: { trigger: number; closePercent: number };
+  };
+  
+  /** 峰值回撤保护阈值（百分比），盈利从峰值回撤达到此值时强烈建议平仓 */
+  peakDrawdownProtection: number;
+  
+  /** 波动率调整系数，根据市场波动率动态调整杠杆和仓位 */
+  volatilityAdjustment: {
+    /** 高波动时的调整系数（ATR > 5%） */
+    highVolatility: {
+      /** 杠杆调整系数，如0.8表示降低20%杠杆 */
+      leverageFactor: number;
+      /** 仓位调整系数，如0.85表示降低15%仓位 */
+      positionFactor: number;
+    };
+    /** 正常波动时的调整系数（ATR 2-5%） */
+    normalVolatility: {
+      /** 杠杆调整系数，1.0表示不调整 */
+      leverageFactor: number;
+      /** 仓位调整系数，1.0表示不调整 */
+      positionFactor: number;
+    };
+    /** 低波动时的调整系数（ATR < 2%） */
+    lowVolatility: {
+      /** 杠杆调整系数，如1.2表示提高20%杠杆 */
+      leverageFactor: number;
+      /** 仓位调整系数，如1.1表示提高10%仓位 */
+      positionFactor: number;
+    };
+  };
+  
+  /** 入场条件描述，说明开仓时需要满足的信号要求 */
+  entryCondition: string;
+  
+  /** 风险容忍度描述，说明策略的风险承受能力 */
+  riskTolerance: string;
+  
+  /** 交易风格描述，说明策略的交易频率和持仓特点 */
+  tradingStyle: string;
+  
+  /**
+   * 是否启用代码级止损和移动止盈自动监控
+   * 
+   * true: 启用代码级保护，系统每10秒自动检查止损和移动止盈，AI不需要主动平仓
+   * false: 禁用代码级保护，由AI根据策略规则主动执行止损和止盈
+   * 
+   * 默认配置：
+   * - swing-trend（波段策略）：true（启用）
+   * - 其他策略：false（禁用，由AI主动执行）
+   */
+  enableCodeLevelProtection: boolean;
+  
+  /**
+   * 代码级自动监控止损配置（可选）
+   * 
+   * 仅当 enableCodeLevelProtection = true 时生效
+   * 系统每10秒自动检查所有持仓，触发条件时立即自动平仓
+   * 
+   * 配置说明：
+   * - 根据杠杆倍数分级保护（低风险、中风险、高风险）
+   * - 杠杆越高，止损越严格（因为杠杆放大亏损）
+   * - AI 无需介入，完全由代码自动执行
+   */
+  codeLevelStopLoss?: {
+    /** 低风险级别：杠杆在 minLeverage-maxLeverage 之间时，亏损达到 stopLossPercent% 触发止损 */
+    lowRisk: {
+      /** 最小杠杆倍数 */
+      minLeverage: number;
+      /** 最大杠杆倍数 */
+      maxLeverage: number;
+      /** 止损阈值（负数），如-6表示亏损6%时止损 */
+      stopLossPercent: number;
+      /** 规则描述，用于日志和AI提示词 */
+      description: string;
+    };
+    /** 中风险级别：杠杆在 minLeverage-maxLeverage 之间时，亏损达到 stopLossPercent% 触发止损 */
+    mediumRisk: {
+      minLeverage: number;
+      maxLeverage: number;
+      stopLossPercent: number;
+      description: string;
+    };
+    /** 高风险级别：杠杆 >= minLeverage 时，亏损达到 stopLossPercent% 触发止损 */
+    highRisk: {
+      minLeverage: number;
+      maxLeverage: number;
+      stopLossPercent: number;
+      description: string;
+    };
+  };
+  
+  /**
+   * 代码级自动监控移动止盈配置（可选）
+   * 
+   * 仅当 enableCodeLevelProtection = true 时生效
+   * 系统每10秒自动跟踪峰值盈利，当盈利从峰值回退达到阈值时自动平仓
+   * 
+   * 配置说明：
+   * - 多阶段规则，盈利越高保护越严格
+   * - 例如：峰值盈利4-6%时，回退1.5%平仓（保底2.5%）
+   * - 峰值盈利25%+时，回退5%平仓（保底20%）
+   * - AI 无需介入，完全由代码自动执行
+   */
+  codeLevelTrailingStop?: {
+    /** 阶段1：峰值盈利在 minProfit-maxProfit% 之间时，回退 drawdownPercent% 触发平仓 */
+    stage1: {
+      /** 阶段名称，如"阶段1" */
+      name: string;
+      /** 最小盈利百分比，如4表示4% */
+      minProfit: number;
+      /** 最大盈利百分比，如6表示6% */
+      maxProfit: number;
+      /** 回退百分比阈值，如1.5表示从峰值回退1.5%时平仓 */
+      drawdownPercent: number;
+      /** 规则描述，如"峰值4-6%，回退1.5%平仓（保底2.5%）" */
+      description: string;
+    };
+    /** 阶段2：峰值盈利在 minProfit-maxProfit% 之间时，回退 drawdownPercent% 触发平仓 */
+    stage2: {
+      name: string;
+      minProfit: number;
+      maxProfit: number;
+      drawdownPercent: number;
+      description: string;
+    };
+    /** 阶段3：峰值盈利在 minProfit-maxProfit% 之间时，回退 drawdownPercent% 触发平仓 */
+    stage3: {
+      name: string;
+      minProfit: number;
+      maxProfit: number;
+      drawdownPercent: number;
+      description: string;
+    };
+    /** 阶段4：峰值盈利在 minProfit-maxProfit% 之间时，回退 drawdownPercent% 触发平仓 */
+    stage4: {
+      name: string;
+      minProfit: number;
+      maxProfit: number;
+      drawdownPercent: number;
+      description: string;
+    };
+    /** 阶段5：峰值盈利 >= minProfit% 时，回退 drawdownPercent% 触发平仓 */
+    stage5: {
+      name: string;
+      minProfit: number;
+      maxProfit: number; // 通常设为 Infinity
+      drawdownPercent: number;
+      description: string;
+    };
+  };
+}
+

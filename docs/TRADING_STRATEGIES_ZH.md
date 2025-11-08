@@ -2,6 +2,18 @@
 
 本文档详细说明 open-nof1.ai 系统支持的所有交易策略及其配置方法。
 
+## 策略文件位置
+
+所有策略实现文件位于 `src/strategies/` 目录下：
+
+- `src/strategies/index.ts` - 策略模块统一导出
+- `src/strategies/types.ts` - 策略类型定义
+- `src/strategies/ultraShort.ts` - 超短线策略实现
+- `src/strategies/swingTrend.ts` - 波段趋势策略实现
+- `src/strategies/conservative.ts` - 稳健策略实现
+- `src/strategies/balanced.ts` - 平衡策略实现
+- `src/strategies/aggressive.ts` - 激进策略实现
+
 ## 策略概览
 
 系统目前支持 **5 种交易策略**，适应不同的市场环境和风险偏好：
@@ -377,7 +389,44 @@ GATE_USE_TESTNET=true                  # 使用测试网
 
 ---
 
+## 技术实现
+
+所有策略的实现遵循统一的架构模式：
+
+1. **策略参数定义**：每个策略在对应的 `.ts` 文件中定义了完整的参数配置，包括杠杆范围、仓位大小、止损范围等
+2. **提示词生成**：每个策略文件包含 `generateXxxPrompt()` 函数，为 AI 生成特定于该策略的决策提示词
+3. **统一导出**：通过 `src/strategies/index.ts` 统一导出所有策略，方便系统调用
+
+### 策略选择逻辑
+
+系统根据环境变量 `TRADING_STRATEGY` 动态加载对应策略：
+
+```typescript
+// 在 src/strategies/index.ts 中
+export function getStrategyParams(strategy: TradingStrategy, maxLeverage: number): StrategyParams {
+  switch (strategy) {
+    case "ultra-short":
+      return getUltraShortStrategy(maxLeverage);
+    case "swing-trend":
+      return getSwingTrendStrategy(maxLeverage);
+    case "conservative":
+      return getConservativeStrategy(maxLeverage);
+    case "balanced":
+      return getBalancedStrategy(maxLeverage);
+    case "aggressive":
+      return getAggressiveStrategy(maxLeverage);
+    default:
+      return getBalancedStrategy(maxLeverage);
+  }
+}
+```
+
 ## 版本历史
+
+### v2.1 - 2025年11月8日
+- 优化项目结构：将策略实现统一放置在 `src/strategies/` 目录
+- 完善所有 README 文档，添加策略文件链接
+- 更新策略配置指南，增加技术实现说明
 
 ### v2.0 - 2025年11月4日
 - 波段策略仓位调整：12-20% → 20-35%
