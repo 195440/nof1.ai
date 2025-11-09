@@ -138,7 +138,18 @@ async function executePartialClose(
   
   try {
     // 计算本次平仓数量
-    const closeQuantity = Math.floor(totalQuantity * closePercent / 100);
+    let closeQuantity = Math.floor(totalQuantity * closePercent / 100);
+    
+    // 特殊处理：如果累计平仓比例达到100%，直接平掉所有剩余仓位
+    if (totalClosedPercent >= 100) {
+      closeQuantity = totalQuantity;
+      logger.warn(`${symbol} 累计平仓达到100%，平掉所有剩余仓位: ${closeQuantity} 张`);
+    }
+    // 如果计算结果为0但还有剩余持仓，至少平掉1张（避免小数量问题）
+    else if (closeQuantity === 0 && totalQuantity > 0) {
+      closeQuantity = Math.min(1, totalQuantity);
+      logger.warn(`${symbol} 计算平仓数量为0，至少平掉1张: ${closeQuantity}/${totalQuantity} 张`);
+    }
     
     if (closeQuantity === 0) {
       logger.warn(`${symbol} 计算平仓数量为0，跳过平仓`);
