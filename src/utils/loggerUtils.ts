@@ -62,37 +62,18 @@ const DEFAULT_CONFIG: LoggerConfig = {
  * @returns Pino日志实例
  */
 function createPinoInstance(config: LoggerConfig) {
-  // 确保logs目录存在
-  const fs = require('fs');
-  const path = require('path');
-  const logsDir = path.join(process.cwd(), 'logs');
-  if (!fs.existsSync(logsDir)) {
-    fs.mkdirSync(logsDir, { recursive: true });
-  }
-
   return createPinoLogger({
     name: config.name,
     level: config.level,
     transport: {
-      targets: [
-        {
-          target: 'pino-pretty',
-          options: {
-            colorize: config.colorize ?? true,
-            translateTime: config.timeFormat ?? 'SYS:yyyy-mm-dd HH:MM:ss',
-            ignore: 'pid,hostname,env,component',
-            messageFormat: '{msg}',
-            singleLine: config.singleLine ?? true
-          }
-        },
-        {
-          target: 'pino/file',
-          options: {
-            destination: path.join(logsDir, `${config.name}.log`),
-            mkdir: true
-          }
-        }
-      ]
+      target: 'pino-pretty',
+      options: {
+        colorize: config.colorize ?? true,
+        translateTime: config.timeFormat ?? 'SYS:yyyy-mm-dd HH:MM:ss',
+        ignore: 'pid,hostname,env,component',
+        messageFormat: '{msg}',
+        singleLine: config.singleLine ?? true
+      }
     }
   });
 }

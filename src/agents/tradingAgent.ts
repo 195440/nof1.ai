@@ -465,6 +465,8 @@ function generateInstructions(strategy: TradingStrategy, intervalMinutes: number
   const params = getStrategyParams(strategy);
   // 判断是否启用自动监控止损和移动止盈（根据策略配置）
   const isCodeLevelProtectionEnabled = params.enableCodeLevelProtection;
+  // 判断是否启用反向交易模式
+  const reverseTradingEnabled = process.env.REVERSE_TRADING_ENABLED === 'true';
   
   // 生成止损规则描述（基于 stopLoss 配置和杠杆范围）
   const generateStopLossDescriptions = () => {
