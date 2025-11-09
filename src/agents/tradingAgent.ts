@@ -318,9 +318,9 @@ ${isCodeLevelProtectionEnabled ? `│                                         �
       const now = new Date();
       const holdingMinutes = Math.floor((now.getTime() - openedTime.getTime()) / (1000 * 60));
       const holdingHours = (holdingMinutes / 60).toFixed(1);
-      const remainingHours = Math.max(0, 36 - parseFloat(holdingHours));
+      const remainingHours = Math.max(0, RISK_PARAMS.MAX_HOLDING_HOURS - parseFloat(holdingHours));
       const holdingCycles = Math.floor(holdingMinutes / intervalMinutes); // 根据实际执行周期计算
-      const maxCycles = Math.floor(36 * 60 / intervalMinutes); // 36小时的总周期数
+      const maxCycles = Math.floor(RISK_PARAMS.MAX_HOLDING_HOURS * 60 / intervalMinutes); // 最大持仓时间的总周期数
       const remainingCycles = Math.max(0, maxCycles - holdingCycles);
       
       // 计算峰值回撤（使用绝对回撤，即百分点）
@@ -347,13 +347,13 @@ ${isCodeLevelProtectionEnabled ? `│                                         �
       prompt += `  当前价: ${pos.current_price.toFixed(2)}\n`;
       prompt += `  开仓时间: ${formatChinaTime(pos.opened_at)}\n`;
       prompt += `  已持仓: ${holdingHours} 小时 (${holdingMinutes} 分钟, ${holdingCycles} 个周期)\n`;
-      prompt += `  距离36小时限制: ${remainingHours.toFixed(1)} 小时 (${remainingCycles} 个周期)\n`;
+      prompt += `  距离${RISK_PARAMS.MAX_HOLDING_HOURS}小时限制: ${remainingHours.toFixed(1)} 小时 (${remainingCycles} 个周期)\n`;
       
-      // 如果接近36小时,添加警告
+      // 如果接近最大持仓时间,添加警告
       if (remainingHours < 2) {
-        prompt += `  警告: 即将达到36小时持仓限制,必须立即平仓!\n`;
+        prompt += `  警告: 即将达到${RISK_PARAMS.MAX_HOLDING_HOURS}小时持仓限制,必须立即平仓!\n`;
       } else if (remainingHours < 4) {
-        prompt += `  提醒: 距离36小时限制不足4小时,请准备平仓\n`;
+        prompt += `  提醒: 距离${RISK_PARAMS.MAX_HOLDING_HOURS}小时限制不足4小时,请准备平仓\n`;
       }
       
       prompt += "\n";
@@ -657,10 +657,10 @@ ${strategySpecificContent}
   * 总名义敞口不超过账户净值的${params.leverageMax}倍
 - 交易费用：每笔交易约0.05%（往返总计0.1%）。每笔交易应有至少2-3%的盈利潜力。
 - **执行周期**：系统每${intervalMinutes}分钟执行一次，这意味着：
-  * 36小时 = ${Math.floor(36 * 60 / intervalMinutes)}个执行周期
+  * ${RISK_PARAMS.MAX_HOLDING_HOURS}小时 = ${Math.floor(RISK_PARAMS.MAX_HOLDING_HOURS * 60 / intervalMinutes)}个执行周期
   * 您无法实时监控价格波动，必须设置保守的止损和止盈
   * 在${intervalMinutes}分钟内市场可能剧烈波动，因此杠杆必须保守
-- **最大持仓时间**：不要持有任何持仓超过36小时（${Math.floor(36 * 60 / intervalMinutes)}个周期）。无论盈亏，在36小时内平仓所有持仓。
+- **最大持仓时间**：不要持有任何持仓超过${RISK_PARAMS.MAX_HOLDING_HOURS}小时（${Math.floor(RISK_PARAMS.MAX_HOLDING_HOURS * 60 / intervalMinutes)}个周期）。无论盈亏，在${RISK_PARAMS.MAX_HOLDING_HOURS}小时内平仓所有持仓。
 - **开仓前强制检查**：
   1. 使用getAccountBalance检查可用资金和账户净值
   2. 使用getPositions检查现有持仓数量和总敞口
@@ -784,7 +784,7 @@ ${strategySpecificContent}
   (5) 时间止盈建议：
      * 盈利 > 25% 且持仓 ≥ 4小时 → 可考虑主动获利了结
      * 持仓 > 24小时且未盈利 → 考虑平仓释放资金
-     * 系统会在36小时强制平仓，您无需在35小时主动平仓
+     * 系统会在${RISK_PARAMS.MAX_HOLDING_HOURS}小时强制平仓，您无需在${RISK_PARAMS.MAX_HOLDING_HOURS - 1}小时主动平仓
 - 账户级风控保护：
   * 注意账户回撤情况，谨慎交易
 
