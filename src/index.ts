@@ -89,7 +89,7 @@ async function main() {
   
   const strategy = getTradingStrategy();
   const params = getStrategyParams(strategy);
-  const isCodeLevelEnabled = strategy === "swing-trend";
+  const isCodeLevelEnabled = params.enableCodeLevelProtection === true;
   
   logger.info("\n" + "=".repeat(80));
   logger.info("系统启动完成！");

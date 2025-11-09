@@ -56,7 +56,7 @@ async function syncFromGate() {
     
     // 2. 获取持仓信息
     const positions = await gateClient.getPositions();
-    const activePositions = positions.filter(p => Number.parseInt(p.size || "0") !== 0);
+    const activePositions = positions.filter((p: any) => Number.parseInt(p.size || "0") !== 0);
     logger.info(`   当前持仓数: ${activePositions.length}`);
     
     if (activePositions.length > 0) {

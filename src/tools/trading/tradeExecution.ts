@@ -343,7 +343,11 @@ export const openPositionTool = createTool({
       quantity = Math.max(quantity, minSize);
       quantity = Math.min(quantity, maxSize);
       
-      let size = side === "long" ? quantity : -quantity;
+      // 反向交易逻辑：如果开启反向交易，则反转开仓方向
+      const reverseTradingEnabled = process.env.REVERSE_TRADING_ENABLED === "true";
+      let actualSide = reverseTradingEnabled ? (side === "long" ? "short" : "long") : side;
+      
+      let size = actualSide === "long" ? quantity : -quantity;
       
       // 最后验证：如果 size 为 0 或者太小，放弃开仓
       if (Math.abs(size) < minSize) {
@@ -357,7 +361,7 @@ export const openPositionTool = createTool({
       // 计算实际使用的保证金
       let actualMargin = (Math.abs(size) * quantoMultiplier * currentPrice) / leverage;
       
-      logger.info(`开仓 ${symbol} ${side === "long" ? "做多" : "做空"} ${Math.abs(size)}张 (杠杆${leverage}x)`);
+      logger.info(`开仓 ${symbol} ${actualSide === "long" ? "做多" : "做空"} ${Math.abs(size)}张 (杠杆${leverage}x)${reverseTradingEnabled ? " [反向交易]" : ""}`);
       
       //  市价单开仓（不设置止盈止损）
       const order = await client.placeOrder({
@@ -467,7 +471,7 @@ export const openPositionTool = createTool({
         args: [
           order.id?.toString() || "",
           symbol,
-          side,            // 持仓方向（long/short）
+          actualSide, // 实际持仓方向（long/short），已考虑反向交易
           "open",
           actualFillPrice, // 使用实际成交价格
           finalQuantity,   // 使用实际成交数量
@@ -522,7 +526,7 @@ export const openPositionTool = createTool({
       
       // 如果未能从 Gate.io 获取强平价，使用估算公式（仅作为后备）
       if (liquidationPrice === 0) {
-        liquidationPrice = side === "long" 
+        liquidationPrice = actualSide === "long" 
           ? actualFillPrice * (1 - 0.9 / leverage)
           : actualFillPrice * (1 + 0.9 / leverage);
         logger.warn(`使用估算强平价: ${liquidationPrice}`);
@@ -549,7 +553,7 @@ export const openPositionTool = createTool({
             liquidationPrice,
             0,
             adjustedLeverage, // 使用实际调整后的杠杆
-            side,
+            actualSide, // 使用实际持仓方向（已考虑反向交易）
             takeProfit || null,
             stopLoss || null,
             tpOrderId || null,
@@ -573,7 +577,7 @@ export const openPositionTool = createTool({
             liquidationPrice,
             0,
             adjustedLeverage, // 使用实际调整后的杠杆
-            side,
+            actualSide, // 使用实际持仓方向（已考虑反向交易）
             takeProfit || null,
             stopLoss || null,
             tpOrderId || null,
@@ -597,7 +601,7 @@ export const openPositionTool = createTool({
         price: actualFillPrice,
         leverage,
         actualMargin,
-        message: `✅ 成功开仓 ${symbol} ${side === "long" ? "做多" : "做空"} ${Math.abs(size)} 张 (${contractAmount.toFixed(4)} ${symbol})，成交价 ${actualFillPrice.toFixed(2)}，保证金 ${actualMargin.toFixed(2)} USDT，杠杆 ${leverage}x。⚠️ 未设置止盈止损，请在每个周期主动决策是否平仓。`,
+        message: `✅ 成功开仓 ${symbol} ${actualSide === "long" ? "做多" : "做空"} ${Math.abs(size)} 张 (${contractAmount.toFixed(4)} ${symbol})，成交价 ${actualFillPrice.toFixed(2)}，保证金 ${actualMargin.toFixed(2)} USDT，杠杆 ${leverage}x${reverseTradingEnabled ? " [反向交易]" : ""}。⚠️ 未设置止盈止损，请在每个周期主动决策是否平仓。`
       };
     } catch (error: any) {
       return {
@@ -726,7 +730,9 @@ export const closePositionTool = createTool({
       // 净盈亏 = 毛盈亏 - 总手续费（此值为预估，平仓后会基于实际成交价重新计算）
       let pnl = grossPnl - totalFees;
       
-      logger.info(`平仓 ${symbol} ${side === "long" ? "做多" : "做空"} ${closeSize}张 (入场: ${entryPrice.toFixed(2)}, 当前: ${currentPrice.toFixed(2)})`);
+      // 反向交易日志提示
+      const reverseTradingEnabled = process.env.REVERSE_TRADING_ENABLED === "true";
+      logger.info(`平仓 ${symbol} ${side === "long" ? "做多" : "做空"} ${closeSize}张 (入场: ${entryPrice.toFixed(2)}, 当前: ${currentPrice.toFixed(2)})${reverseTradingEnabled ? " [反向交易]" : ""}`);
       
       //  市价单平仓（Gate.io 市价单：price 为 "0"，不设置 tif）
       const order = await client.placeOrder({
@@ -956,7 +962,7 @@ export const closePositionTool = createTool({
         pnl,                          // 净盈亏（已扣除手续费）
         fee: totalFee,                // 总手续费
         totalBalance,
-        message: `成功平仓 ${symbol} ${actualCloseSize} 张，入场价 ${entryPrice.toFixed(4)}，平仓价 ${actualExitPrice.toFixed(4)}，净盈亏 ${pnl >= 0 ? '+' : ''}${pnl.toFixed(2)} USDT (已扣手续费 ${totalFee.toFixed(2)} USDT)，当前总资产 ${totalBalance.toFixed(2)} USDT`,
+        message: `成功平仓 ${symbol} ${actualCloseSize} 张，入场价 ${entryPrice.toFixed(4)}，平仓价 ${actualExitPrice.toFixed(4)}，净盈亏 ${pnl >= 0 ? '+' : ''}${pnl.toFixed(2)} USDT (已扣手续费 ${totalFee.toFixed(2)} USDT)，当前总资产 ${totalBalance.toFixed(2)} USDT${reverseTradingEnabled ? " [反向交易]" : ""}`,
       };
     } catch (error: any) {
       logger.error(`平仓失败: ${error.message}`, error);
