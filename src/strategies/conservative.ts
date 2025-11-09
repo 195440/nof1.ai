@@ -32,7 +32,7 @@ import type { StrategyParams, StrategyPromptContext } from "./types";
  * 核心策略：
  * - 单边行情：谨慎参与（标准仓位+低杠杆）
  * - 震荡行情：严格防守（最小仓位+最低杠杆）
- * - 风控方式：AI 主动止损止盈（enableCodeLevelProtection = false）
+ * - 风控方式：AI 主动止损止盈（enableCodeLevelProtection = false，由AI主动判断执行）
  * 
  * @param maxLeverage - 系统允许的最大杠杆倍数（从配置文件读取）
  * @returns 稳健策略的完整参数配置
@@ -73,16 +73,22 @@ export function getConservativeStrategy(maxLeverage: number): StrategyParams {
       strong: "20-22%",   // 强信号：较大仓位，把握确定性机会
     },
     
-    // ==================== AI 主动止损配置 ====================
-    // 根据杠杆倍数分级止损（由AI主动执行）
+    // ==================== 止损配置 ====================
+    // 根据杠杆倍数分级止损
+    // 执行方式：
+    //   - enableCodeLevelProtection = true：代码自动执行（每10秒检查，stopLossMonitor.ts）
+    //   - enableCodeLevelProtection = false：AI根据此配置主动判断和执行
     stopLoss: {
       low: -3.5,   // 低杠杆时：亏损3.5%止损（如使用1-3倍杠杆）
       mid: -3,     // 中杠杆时：亏损3%止损（如使用4-8倍杠杆）
       high: -2.5,  // 高杠杆时：亏损2.5%止损（如使用9倍以上杠杆）
     },
     
-    // ==================== AI 主动移动止盈配置 ====================
-    // 盈利后移动止损线保护利润（由AI主动执行）
+    // ==================== 移动止盈配置 ====================
+    // 盈利后移动止损线保护利润
+    // 执行方式：
+    //   - enableCodeLevelProtection = true：代码自动执行（每10秒检查，trailingStopMonitor.ts）
+    //   - enableCodeLevelProtection = false：AI根据此配置主动判断和执行
     trailingStop: {
       // 保守策略：较早锁定利润（基准：15倍杠杆）
       // 注意：这些是基准值，实际使用时AI会根据杠杆动态调整
@@ -91,8 +97,11 @@ export function getConservativeStrategy(maxLeverage: number): StrategyParams {
       level3: { trigger: 20, stopAt: 12 },  // 盈利达到 +20% 时，止损线移至 +12%（保护8%空间）
     },
     
-    // ==================== AI 主动分批止盈配置 ====================
-    // 逐步锁定利润（由AI主动执行）
+    // ==================== 分批止盈配置 ====================
+    // 逐步锁定利润
+    // 执行方式：
+    //   - enableCodeLevelProtection = true：代码自动执行（每10秒检查，partialProfitMonitor.ts）
+    //   - enableCodeLevelProtection = false：AI根据此配置主动判断和执行
     partialTakeProfit: {
       // 保守策略：较早分批止盈，提前锁定利润
       stage1: { trigger: 20, closePercent: 50 },   // +20%时平仓50%（较早锁定）
@@ -127,11 +136,11 @@ export function getConservativeStrategy(maxLeverage: number): StrategyParams {
     riskTolerance: "单笔交易风险控制在15-22%之间，严格控制回撤",  // 风险容忍度
     tradingStyle: "谨慎交易，宁可错过机会也不冒险，优先保护本金",  // 交易风格
     
-    // ==================== 代码级保护配置 ====================
-    // 禁用代码级保护，由AI主动执行止损止盈
-    // AI会根据市场情况灵活判断，不受固定规则限制
+    // ==================== 代码级保护开关 ====================
+    // 控制上述 stopLoss、trailingStop、partialTakeProfit 的执行方式
+    // - true：代码自动执行（监控器每10秒检查，AI只需负责开仓）
+    // - false：AI主动执行（AI根据配置在交易周期中判断和执行）
     enableCodeLevelProtection: false,
-    // 如需启用代码级保护，stopLossMonitor 会自动使用上面的 stopLoss 配置
   };
 }
 
