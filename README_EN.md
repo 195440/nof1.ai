@@ -169,11 +169,16 @@ Create `.env` file in project root:
 PORT=3100
 
 # Trading Parameters
-TRADING_INTERVAL_MINUTES=5      # Trading loop interval
-MAX_LEVERAGE=10                 # Maximum leverage multiplier
-MAX_POSITIONS=5                 # Maximum number of positions
-MAX_HOLDING_HOURS=36            # Maximum holding time (hours)
-INITIAL_BALANCE=2000            # Initial capital in USDT
+TRADING_STRATEGY=balanced               # Trading strategy
+TRADING_INTERVAL_MINUTES=20             # Trading loop interval
+MAX_LEVERAGE=25                         # Maximum leverage multiplier
+MAX_POSITIONS=5                         # Maximum number of positions
+MAX_HOLDING_HOURS=36                    # Maximum holding time (hours)
+EXTREME_STOP_LOSS_PERCENT=-30           # Extreme stop loss percentage
+INITIAL_BALANCE=1000                    # Initial capital in USDT
+ACCOUNT_STOP_LOSS_USDT=50               # Account stop loss line
+ACCOUNT_TAKE_PROFIT_USDT=20000          # Account take profit line
+SYNC_CONFIG_ON_STARTUP=true             # Sync config on startup
 
 # Database
 DATABASE_URL=file:./.voltagent/trading.db
@@ -187,6 +192,14 @@ GATE_USE_TESTNET=true
 OPENAI_API_KEY=your_api_key_here
 OPENAI_BASE_URL=https://openrouter.ai/api/v1  # Optional, supports OpenRouter, OpenAI, DeepSeek, etc.
 AI_MODEL_NAME=deepseek/deepseek-v3.2-exp      # Model name
+
+# Account Drawdown Risk Control
+ACCOUNT_DRAWDOWN_WARNING_PERCENT=20           # Warning threshold
+ACCOUNT_DRAWDOWN_NO_NEW_POSITION_PERCENT=30   # No new positions threshold
+ACCOUNT_DRAWDOWN_FORCE_CLOSE_PERCENT=50       # Force close threshold
+
+# Account Recording
+ACCOUNT_RECORD_INTERVAL_MINUTES=1             # Account record interval
 ```
 
 **API Key Acquisition**:
@@ -288,12 +301,17 @@ open-nof1.ai/
 
 | Variable | Description | Default | Required |
 |----------|-------------|---------|----------|
-| `PORT` | HTTP server port | 3141 | No |
-| `TRADING_INTERVAL_MINUTES` | Trading loop interval in minutes | 5 | No |
-| `MAX_LEVERAGE` | Maximum leverage multiplier | 10 | No |
+| `PORT` | HTTP server port | 3100 | No |
+| `TRADING_STRATEGY` | Trading strategy (`ultra-short`/`swing-trend`/`conservative`/`balanced`/`aggressive`) | balanced | No |
+| `TRADING_INTERVAL_MINUTES` | Trading loop interval in minutes | 20 | No |
+| `MAX_LEVERAGE` | Maximum leverage multiplier | 25 | No |
 | `MAX_POSITIONS` | Maximum number of positions | 5 | No |
 | `MAX_HOLDING_HOURS` | Maximum holding time in hours | 36 | No |
-| `INITIAL_BALANCE` | Initial capital in USDT | 2000 | No |
+| `EXTREME_STOP_LOSS_PERCENT` | Extreme stop loss percentage (prevent liquidation) | -30 | No |
+| `INITIAL_BALANCE` | Initial capital in USDT | 1000 | No |
+| `ACCOUNT_STOP_LOSS_USDT` | Account stop loss line (USDT) | 50 | No |
+| `ACCOUNT_TAKE_PROFIT_USDT` | Account take profit line (USDT) | 20000 | No |
+| `SYNC_CONFIG_ON_STARTUP` | Sync config on startup | true | No |
 | `DATABASE_URL` | SQLite database file path | file:./.voltagent/trading.db | No |
 | `GATE_API_KEY` | Gate.io API key | - | Yes |
 | `GATE_API_SECRET` | Gate.io API secret | - | Yes |
@@ -304,6 +322,7 @@ open-nof1.ai/
 | `ACCOUNT_DRAWDOWN_WARNING_PERCENT` | Account drawdown warning threshold: triggers risk alert (%) | 20 | No |
 | `ACCOUNT_DRAWDOWN_NO_NEW_POSITION_PERCENT` | Drawdown threshold to stop opening new positions, only allow closing (%) | 30 | No |
 | `ACCOUNT_DRAWDOWN_FORCE_CLOSE_PERCENT` | Drawdown threshold to force close all positions to protect remaining funds (%) | 50 | No |
+| `ACCOUNT_RECORD_INTERVAL_MINUTES` | Account asset record interval (minutes) | 1 | No |
 
 ### Trading Strategies
 

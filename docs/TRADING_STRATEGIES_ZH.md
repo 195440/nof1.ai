@@ -2,6 +2,29 @@
 
 本文档详细说明 open-nof1.ai 系统支持的所有交易策略及其配置方法。
 
+## 快速配置指南
+
+### 如何修改策略配置？
+
+1. **修改策略类型**：编辑 `.env` 文件，修改 `TRADING_STRATEGY` 参数
+2. **修改执行周期**：编辑 `.env` 文件，修改 `TRADING_INTERVAL_MINUTES` 参数
+3. **修改风控参数**：编辑 `.env` 文件，修改 `MAX_LEVERAGE`、`MAX_POSITIONS` 等参数
+4. **修改策略核心参数**：编辑对应策略文件（如 `src/strategies/swingTrend.ts`）
+5. **查看完整配置对照**：参考本文档末尾的"配置项与代码对照表"
+
+### 配置文件位置速查
+
+| 配置类型 | 文件位置 | 说明 |
+|---------|---------|------|
+| 环境变量配置 | `.env` | 策略选择、执行周期、风控参数 |
+| 策略参数定义 | `src/strategies/*.ts` | 各策略的杠杆、仓位、止损等参数 |
+| 风控参数 | `src/config/riskParams.ts` | 系统级风控参数 |
+| 策略选择逻辑 | `src/strategies/index.ts` | 策略切换逻辑 |
+| 交易循环 | `src/scheduler/tradingLoop.ts` | 自动监控、止损止盈实现 |
+| AI决策提示词 | `src/agents/tradingAgent.ts` | AI交易决策逻辑 |
+
+---
+
 ## 策略文件位置
 
 所有策略实现文件位于 `src/strategies/` 目录下：
@@ -33,19 +56,34 @@
 **核心理念**：快进快出，捕捉短期价格波动，严格执行锁利规则
 
 #### 策略参数
-- **执行周期**：5分钟
+
+> **配置文件位置**：`src/strategies/ultraShort.ts`
+
+- **执行周期**：5分钟（配置位置：`.env` 文件 `TRADING_INTERVAL_MINUTES=5`）
 - **建议持仓时长**：30分钟 - 2小时
 - **杠杆范围**：3-5倍（根据MAX_LEVERAGE的50%-75%）
+  - 代码：`leverageMin: Math.max(3, Math.ceil(maxLeverage * 0.5))`
+  - 代码：`leverageMax: Math.max(5, Math.ceil(maxLeverage * 0.75))`
 - **仓位大小**：18-25%
+  - 代码：`positionSizeMin: 18, positionSizeMax: 25`
 - **止损范围**：-1.5% ~ -2.5%
+  - 代码：`stopLoss: { low: -2.5, mid: -2, high: -1.5 }`
 
 #### 风控规则（系统强制执行）
+
+> **代码实现位置**：`src/agents/tradingAgent.ts` → AI提示词 + `src/scheduler/tradingLoop.ts`
+
 1. **周期锁利规则**：每个5分钟周期内，盈利>2%且<4%时，立即平仓锁定利润
+   - AI在每个周期会检查盈利情况并执行锁利
 2. **30分钟规则**：持仓超过30分钟且盈利>手续费成本时，如未达移动止盈线，执行保守平仓
+   - AI在提示词中包含此规则，自动判断执行
 3. **移动止盈**：
    - 盈利≥+4% → 止损移至+1.5%
+     - 代码：`trailingStop.level1: { trigger: 4, stopAt: 1.5 }`
    - 盈利≥+8% → 止损移至+4%
+     - 代码：`trailingStop.level2: { trigger: 8, stopAt: 4 }`
    - 盈利≥+15% → 止损移至+8%
+     - 代码：`trailingStop.level3: { trigger: 15, stopAt: 8 }`
 
 #### 适用场景
 - 市场波动剧烈，短期趋势明确
@@ -53,6 +91,9 @@
 - 追求快速资金周转
 
 #### 配置示例
+
+> **配置文件位置**：`.env` 文件（参考 `.env.example`）
+
 ```bash
 TRADING_STRATEGY=ultra-short
 TRADING_INTERVAL_MINUTES=5
@@ -61,16 +102,23 @@ MAX_LEVERAGE=10
 
 ---
 
-### 波段趋势策略 (`swing-trend`) **推荐新策略**
+### 波段趋势策略 (`swing-trend`)
 
 **核心理念**：短周期精准入场，耐心持仓，自动监控保护，让利润充分奔跑
 
 #### 策略参数
-- **执行周期**：**20分钟**
+
+> **配置文件位置**：`src/strategies/swingTrend.ts`
+
+- **执行周期**：**20分钟**（配置位置：`.env` 文件 `TRADING_INTERVAL_MINUTES=20`）
 - **建议持仓时长**：**数小时 - 3天**
 - **杠杆范围**：**2-5倍**（根据信号强度灵活选择）
+  - 代码：`leverageMin: Math.max(2, Math.ceil(maxLeverage * 0.2))`
+  - 代码：`leverageMax: Math.max(5, Math.ceil(maxLeverage * 0.5))`
 - **仓位大小**：**20-35%**（根据信号强度：普通20-25%、良好25-30%、强30-35%）
+  - 代码：`positionSizeMin: 20, positionSizeMax: 35`
 - **止损范围**：**-5.5% ~ -9%**（根据杠杆：高杠杆-5.5%、中杠杆-7.5%、低杠杆-9%）
+  - 代码：`stopLoss: { low: -9, mid: -7.5, high: -5.5 }`
 
 #### 核心优势
 1. **短周期精准入场**：使用1分钟、3分钟、5分钟、15分钟四个时间框架共振
@@ -80,11 +128,17 @@ MAX_LEVERAGE=10
 5. **追求趋势利润**：首次止盈目标+50%，最高可达+120%
 
 #### 自动监控止损（每10秒自动检查）
+
+> **代码实现位置**：`src/scheduler/tradingLoop.ts` → `stopLossMonitor()`
+
 - **5-7倍杠杆**：亏损达到 -8% 时自动止损
 - **8-12倍杠杆**：亏损达到 -6% 时自动止损
 - **13倍以上杠杆**：亏损达到 -5% 时自动止损
 
 #### 自动监控移动止盈（每10秒自动检查，5级规则）
+
+> **代码实现位置**：`src/scheduler/tradingLoop.ts` → `stopLossMonitor()`
+
 - **阶段1**：峰值盈利4-6%，回退1.5%自动平仓（保底2.5%）
 - **阶段2**：峰值盈利6-10%，回退2%自动平仓（保底4%）
 - **阶段3**：峰值盈利10-15%，回退2.5%自动平仓（保底7.5%）
@@ -109,13 +163,16 @@ MAX_LEVERAGE=10
 - **能接受数小时到数天的持仓周期**
 - **资金规模较大，重视风险控制**
 
-#### 配置示例（推荐）
+#### 配置示例
+
+> **配置文件位置**：`.env` 文件（参考 `.env.example`）
+
 ```bash
 # 环境变量配置
 TRADING_STRATEGY=swing-trend
 TRADING_INTERVAL_MINUTES=20
 MAX_LEVERAGE=10  # 策略实际使用2-5倍，留足安全边际
-MAX_POSITIONS=3  # 建议减少同时持仓数量
+MAX_POSITIONS=3  # 减少同时持仓数量
 INITIAL_BALANCE=2000
 ```
 
@@ -146,15 +203,25 @@ INITIAL_BALANCE=2000
 
 **核心理念**：保护本金优先，低风险低杠杆
 
+> **配置文件位置**：`src/strategies/conservative.ts`
+
 #### 策略参数
-- **杠杆范围**：2-6倍
+- **杠杆范围**：3-6倍（根据MAX_LEVERAGE的30%-60%）
+  - 代码：`leverageMin: Math.max(1, Math.ceil(maxLeverage * 0.3))`
+  - 代码：`leverageMax: Math.max(2, Math.ceil(maxLeverage * 0.6))`
+  - 注：当MAX_LEVERAGE=10时，实际为3-6倍
 - **仓位大小**：15-22%
+  - 代码：`positionSizeMin: 15, positionSizeMax: 22`
 - **止损范围**：-2.5% ~ -3.5%
+  - 代码：`stopLoss: { low: -3.5, mid: -3, high: -2.5 }`
 
 #### 移动止盈
 - 盈利≥+6% → 止损移至+2%
+  - 代码：`trailingStop.level1: { trigger: 6, stopAt: 2 }`
 - 盈利≥+12% → 止损移至+6%
+  - 代码：`trailingStop.level2: { trigger: 12, stopAt: 6 }`
 - 盈利≥+20% → 止损移至+12%
+  - 代码：`trailingStop.level3: { trigger: 20, stopAt: 12 }`
 
 ---
 
@@ -162,15 +229,25 @@ INITIAL_BALANCE=2000
 
 **核心理念**：风险收益平衡，适合大多数投资者
 
+> **配置文件位置**：`src/strategies/balanced.ts`
+
 #### 策略参数
-- **杠杆范围**：6-8倍
+- **杠杆范围**：6-9倍（根据MAX_LEVERAGE的60%-85%）
+  - 代码：`leverageMin: Math.max(2, Math.ceil(maxLeverage * 0.6))`
+  - 代码：`leverageMax: Math.max(3, Math.ceil(maxLeverage * 0.85))`
+  - 注：当MAX_LEVERAGE=10时，实际为6-9倍
 - **仓位大小**：20-27%
+  - 代码：`positionSizeMin: 20, positionSizeMax: 27`
 - **止损范围**：-2% ~ -3%
+  - 代码：`stopLoss: { low: -3, mid: -2.5, high: -2 }`
 
 #### 移动止盈
 - 盈利≥+8% → 止损移至+3%
+  - 代码：`trailingStop.level1: { trigger: 8, stopAt: 3 }`
 - 盈利≥+15% → 止损移至+8%
+  - 代码：`trailingStop.level2: { trigger: 15, stopAt: 8 }`
 - 盈利≥+25% → 止损移至+15%
+  - 代码：`trailingStop.level3: { trigger: 25, stopAt: 15 }`
 
 ---
 
@@ -178,43 +255,56 @@ INITIAL_BALANCE=2000
 
 **核心理念**：追求高收益，承担高风险
 
+> **配置文件位置**：`src/strategies/aggressive.ts`
+
 #### 策略参数
-- **杠杆范围**：8-10倍
+- **杠杆范围**：9-10倍（根据MAX_LEVERAGE的85%-100%）
+  - 代码：`leverageMin: Math.max(3, Math.ceil(maxLeverage * 0.85))`
+  - 代码：`leverageMax: maxLeverage`
+  - 注：当MAX_LEVERAGE=10时，实际为9-10倍
 - **仓位大小**：25-32%
-- **止损范围**：-1.5% ~ -2.5%
+  - 代码：`positionSizeMin: 25, positionSizeMax: 32`
+- **止损范围**：-6% ~ -10%
+  - 代码：`stopLoss: { low: -6, mid: -8, high: -10 }`
+  - 说明：低杠杆-6%止损，中杠杆-8%止损，高杠杆-10%止损
 
 #### 移动止盈
 - 盈利≥+10% → 止损移至+4%
+  - 代码：`trailingStop.level1: { trigger: 10, stopAt: 4 }`
 - 盈利≥+18% → 止损移至+10%
+  - 代码：`trailingStop.level2: { trigger: 18, stopAt: 10 }`
 - 盈利≥+30% → 止损移至+18%
+  - 代码：`trailingStop.level3: { trigger: 30, stopAt: 18 }`
 
 ---
 
 ## 策略切换指南
 
-### 何时使用波段趋势策略？
+### 波段趋势策略使用场景
 
-**推荐使用场景**：
+**适合场景**：
 - 希望系统自动化执行止损止盈，减少人为干预
 - 追求更稳定的自动化交易体验
 - 能接受数小时到数天的持仓周期
 - 资金规模较大，重视风险控制
 - 希望AI专注于开仓决策，不操心平仓
 
-**不推荐使用场景**：
+**不适合场景**：
 - 市场处于震荡盘整，无明确趋势
 - 你需要完全手动控制平仓时机
 - 你无法接受数天的持仓周期
 
-### 何时使用超短线策略？
+### 超短线策略使用场景
 
-**推荐使用场景**：
+**适合场景**：
 - 市场波动频繁，短期趋势明确
 - 你有充足时间监控系统
 - 你喜欢快进快出的交易节奏
 - 资金规模较小，需要快速积累
 
 ### 策略切换步骤
+
+> **配置文件位置**：`.env` 文件（参考 `.env.example`）
 
 1. **平仓所有持仓**（避免策略冲突）
 2. **修改环境变量**：
@@ -238,9 +328,21 @@ INITIAL_BALANCE=2000
 ## 风控对比
 
 ### 系统硬性底线（所有策略共同）
+
+> **配置文件位置**：
+> - 代码实现：`src/config/riskParams.ts`
+> - 环境变量：`.env` 文件
+
 - **极端止损**：单笔亏损≤-30%强制平仓（防止爆仓）
+  - 环境变量：`EXTREME_STOP_LOSS_PERCENT=-30`
+  - 代码：`RISK_PARAMS.EXTREME_STOP_LOSS_PERCENT`
 - **36小时限制**：任何持仓超过36小时强制平仓（释放资金）
+  - 环境变量：`MAX_HOLDING_HOURS=36`
+  - 代码：`RISK_PARAMS.MAX_HOLDING_HOURS`
 - **账户回撤保护**：账户总回撤达到预设阈值时触发保护
+  - 警告阈值：`ACCOUNT_DRAWDOWN_WARNING_PERCENT=20`
+  - 禁止开仓：`ACCOUNT_DRAWDOWN_NO_NEW_POSITION_PERCENT=30`
+  - 强制平仓：`ACCOUNT_DRAWDOWN_FORCE_CLOSE_PERCENT=50`
 
 ### 策略专属风控
 
@@ -303,51 +405,97 @@ INITIAL_BALANCE=2000
 
 ## 配置示例
 
-### 生产环境 - 波段趋势策略（推荐）
+> **配置文件位置**：
+> - 主配置：`.env` 文件（参考 `.env.example` 模板）
+> - 策略实现：`src/strategies/` 目录
+> - 风控参数：`src/config/riskParams.ts`
+
+### 测试环境配置 - 波段趋势策略示例
+
+**⚠️ 强烈建议使用测试网进行策略测试，避免真实资金损失**
 
 ```bash
 # .env 文件配置
 
+# ============================================
+# 服务器配置
+# ============================================
+PORT=3100
+
+# ============================================
+# 交易配置
+# ============================================
 # 策略配置
 TRADING_STRATEGY=swing-trend           # 使用波段趋势策略
 TRADING_INTERVAL_MINUTES=20            # 20分钟执行周期
 
 # 风控配置
-MAX_LEVERAGE=10                        # 最大杠杆10倍（策略实际使用2-5倍）
-MAX_POSITIONS=3                        # 最多3个持仓
-MAX_HOLDING_HOURS=72                   # 最大持仓72小时（3天）
-INITIAL_BALANCE=2000                   # 初始资金2000 USDT
+MAX_LEVERAGE=25                        # 最大杠杆25倍（策略实际使用2-5倍）
+MAX_POSITIONS=5                        # 最多5个持仓
+MAX_HOLDING_HOURS=36                   # 最大持仓36小时
+EXTREME_STOP_LOSS_PERCENT=-30          # 极端止损-30%
+INITIAL_BALANCE=1000                   # 初始资金1000 USDT
 
 # 账户风控
-ACCOUNT_STOP_LOSS_USDT=1500           # 账户止损线
-ACCOUNT_TAKE_PROFIT_USDT=3000         # 账户止盈线
+ACCOUNT_STOP_LOSS_USDT=50              # 账户止损线
+ACCOUNT_TAKE_PROFIT_USDT=20000         # 账户止盈线
+SYNC_CONFIG_ON_STARTUP=true            # 启动时同步配置
 
-# API配置
-GATE_API_KEY=your_api_key
-GATE_API_SECRET=your_api_secret
-GATE_USE_TESTNET=false                # 生产环境
+# ============================================
+# 数据库配置
+# ============================================
+DATABASE_URL=file:./.voltagent/trading.db
 
-# AI配置
-OPENAI_API_KEY=your_openai_key
+# ============================================
+# Gate.io API 配置
+# ============================================
+GATE_API_KEY=your_api_key_here
+GATE_API_SECRET=your_api_secret_here
+GATE_USE_TESTNET=true                  # 使用测试网（推荐）
+
+# ============================================
+# AI 模型配置
+# ============================================
+OPENAI_API_KEY=your_api_key_here
 OPENAI_BASE_URL=https://openrouter.ai/api/v1
 AI_MODEL_NAME=deepseek/deepseek-v3.2-exp
+
+# ============================================
+# 账户回撤风控配置
+# ============================================
+ACCOUNT_DRAWDOWN_WARNING_PERCENT=20          # 警告阈值
+ACCOUNT_DRAWDOWN_NO_NEW_POSITION_PERCENT=30  # 禁止开仓阈值
+ACCOUNT_DRAWDOWN_FORCE_CLOSE_PERCENT=50      # 强制平仓阈值
+
+# ============================================
+# 账户记录配置
+# ============================================
+ACCOUNT_RECORD_INTERVAL_MINUTES=1            # 账户记录间隔
 ```
 
-### 测试环境 - 超短线策略
+### 测试环境配置 - 超短线策略示例
+
+**⚠️ 强烈建议使用测试网进行策略测试，避免真实资金损失**
 
 ```bash
-# 策略配置
+# .env 文件配置
+
+# ============================================
+# 交易配置
+# ============================================
 TRADING_STRATEGY=ultra-short           # 使用超短线策略
 TRADING_INTERVAL_MINUTES=5             # 5分钟执行周期
 
 # 风控配置
-MAX_LEVERAGE=10
+MAX_LEVERAGE=25
 MAX_POSITIONS=5                        # 超短线可以持仓更多
 MAX_HOLDING_HOURS=36
 INITIAL_BALANCE=1000                   # 测试环境小资金
 
-# 测试网络
-GATE_USE_TESTNET=true                  # 使用测试网
+# Gate.io API 配置
+GATE_USE_TESTNET=true                  # 使用测试网（推荐）
+
+# 其他配置参照波段策略示例
 ```
 
 ---
@@ -391,13 +539,35 @@ GATE_USE_TESTNET=true                  # 使用测试网
 
 ## 技术实现
 
+> **核心文件位置**：
+> - 策略模块：`src/strategies/` 目录
+> - 策略统一导出：`src/strategies/index.ts`
+> - 策略类型定义：`src/strategies/types.ts`
+> - 交易代理：`src/agents/tradingAgent.ts`
+> - 风控参数：`src/config/riskParams.ts`
+> - 交易循环：`src/scheduler/tradingLoop.ts`
+
 所有策略的实现遵循统一的架构模式：
 
 1. **策略参数定义**：每个策略在对应的 `.ts` 文件中定义了完整的参数配置，包括杠杆范围、仓位大小、止损范围等
+   - 超短线：`src/strategies/ultraShort.ts` → `getUltraShortStrategy()`
+   - 波段趋势：`src/strategies/swingTrend.ts` → `getSwingTrendStrategy()`
+   - 稳健策略：`src/strategies/conservative.ts` → `getConservativeStrategy()`
+   - 平衡策略：`src/strategies/balanced.ts` → `getBalancedStrategy()`
+   - 激进策略：`src/strategies/aggressive.ts` → `getAggressiveStrategy()`
+
 2. **提示词生成**：每个策略文件包含 `generateXxxPrompt()` 函数，为 AI 生成特定于该策略的决策提示词
+   - 超短线：`generateUltraShortPrompt()`
+   - 波段趋势：`generateSwingTrendPrompt()`
+   - 稳健策略：`generateConservativePrompt()`
+   - 平衡策略：`generateBalancedPrompt()`
+   - 激进策略：`generateAggressivePrompt()`
+
 3. **统一导出**：通过 `src/strategies/index.ts` 统一导出所有策略，方便系统调用
 
 ### 策略选择逻辑
+
+> **实现文件**：`src/strategies/index.ts`
 
 系统根据环境变量 `TRADING_STRATEGY` 动态加载对应策略：
 
@@ -421,7 +591,28 @@ export function getStrategyParams(strategy: TradingStrategy, maxLeverage: number
 }
 ```
 
+### 配置项与代码对照表
+
+| 配置项 | 环境变量 | 代码位置 | 说明 |
+|-------|---------|---------|------|
+| 交易策略 | `TRADING_STRATEGY` | `src/strategies/index.ts` | 策略选择逻辑 |
+| 执行周期 | `TRADING_INTERVAL_MINUTES` | `src/scheduler/tradingLoop.ts` | 交易循环间隔 |
+| 最大杠杆 | `MAX_LEVERAGE` | `.env` → 各策略文件 | 策略基准值 |
+| 最大持仓数 | `MAX_POSITIONS` | `src/config/riskParams.ts` | 风控参数 |
+| 最大持仓时长 | `MAX_HOLDING_HOURS` | `src/config/riskParams.ts` | 风控参数 |
+| 极端止损 | `EXTREME_STOP_LOSS_PERCENT` | `src/config/riskParams.ts` | 风控参数 |
+| 初始资金 | `INITIAL_BALANCE` | `src/config/riskParams.ts` | 资金管理 |
+| 账户回撤警告 | `ACCOUNT_DRAWDOWN_WARNING_PERCENT` | `src/config/riskParams.ts` | 风控参数 |
+| 账户回撤禁止开仓 | `ACCOUNT_DRAWDOWN_NO_NEW_POSITION_PERCENT` | `src/config/riskParams.ts` | 风控参数 |
+| 账户回撤强制平仓 | `ACCOUNT_DRAWDOWN_FORCE_CLOSE_PERCENT` | `src/config/riskParams.ts` | 风控参数 |
+
 ## 版本历史
+
+### v2.2 - 2025年11月9日
+- 为所有策略参数标注配置文件位置和代码位置
+- 添加配置项与代码对照表，方便快速定位配置
+- 完善技术实现章节，详细说明各文件的作用
+- 标注环境变量配置位置（`.env` 文件）
 
 ### v2.1 - 2025年11月8日
 - 优化项目结构：将策略实现统一放置在 `src/strategies/` 目录
@@ -437,6 +628,21 @@ export function getStrategyParams(strategy: TradingStrategy, maxLeverage: number
 
 ### v1.0 - 2025年11月3日
 - 初始版本发布
+
+---
+
+## 免责声明
+
+**⚠️ 重要风险提示**
+
+1. **投资风险**：加密货币交易具有极高风险，可能导致部分或全部本金损失。
+2. **策略风险**：本文档描述的所有交易策略均为技术实现说明，不构成任何投资建议或收益承诺。
+3. **测试建议**：强烈建议使用测试网（GATE_USE_TESTNET=true）进行充分测试后，再考虑是否使用真实资金。
+4. **自负盈亏**：使用本系统进行交易的所有盈亏由使用者自行承担，开发者不承担任何责任。
+5. **无保证声明**：本系统按"原样"提供，不提供任何明示或暗示的保证，包括但不限于适销性、特定用途适用性的保证。
+6. **合规责任**：使用者需自行确保遵守所在地区的法律法规，开发者不对任何违法使用承担责任。
+
+**请在充分理解风险并能承受可能的损失的前提下使用本系统。**
 
 ---
 

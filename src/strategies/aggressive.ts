@@ -1,3 +1,21 @@
+/**
+ * open-nof1.ai - AI 加密货币自动交易系统
+ * Copyright (C) 2025 195440
+ * 
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ * 
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+ * GNU Affero General Public License for more details.
+ * 
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program. If not, see <https://www.gnu.org/licenses/>.
+ */
+
 import type { StrategyParams, StrategyPromptContext } from "./types";
 
 /**
@@ -22,11 +40,15 @@ import type { StrategyParams, StrategyPromptContext } from "./types";
 export function getAggressiveStrategy(maxLeverage: number): StrategyParams {
   // 激进策略：使用 85%-100% 的最大杠杆
   // 例如：系统最大杠杆25倍时，使用21-25倍
-  const aggressiveLevMin = Math.max(3, Math.ceil(maxLeverage * 0.85));
-  const aggressiveLevMax = maxLeverage;
-  const aggressiveLevNormal = aggressiveLevMin;
-  const aggressiveLevGood = Math.ceil((aggressiveLevMin + aggressiveLevMax) / 2);
-  const aggressiveLevStrong = aggressiveLevMax;
+  // 计算激进策略的杠杆范围：使用 85%-100% 的最大杠杆
+  // 例如：系统最大杠杆25倍时，计算出21-25倍的杠杆范围
+  const aggressiveLevMin = Math.max(3, Math.ceil(maxLeverage * 0.85));  // 最小杠杆：85%最大杠杆，至少3倍
+  const aggressiveLevMax = maxLeverage;  // 最大杠杆：100%系统最大杠杆
+  
+  // 计算不同信号强度下推荐的杠杆倍数
+  const aggressiveLevNormal = aggressiveLevMin;  // 普通信号：使用最小杠杆（保守入场）
+  const aggressiveLevGood = Math.ceil((aggressiveLevMin + aggressiveLevMax) / 2);  // 良好信号：使用中间值
+  const aggressiveLevStrong = aggressiveLevMax;  // 强信号：使用最大杠杆（全力进攻）
   
   return {
     // 策略基本信息
@@ -53,9 +75,9 @@ export function getAggressiveStrategy(maxLeverage: number): StrategyParams {
     
     // AI 主动止损配置：根据杠杆倍数分级
     stopLoss: {
-      low: -2.5,   // 低杠杆（如3-10倍）：亏损2.5%止损
-      mid: -2,     // 中杠杆（如11-18倍）：亏损2%止损
-      high: -1.5,  // 高杠杆（如19-25倍）：亏损1.5%止损（杠杆越高，止损越严）
+      low: -6,    // 低杠杆（如3-12倍，以30倍杠杆为例，亏损6%止损）
+      mid: -8,  // 中杠杆（如13-21倍，以30倍杠杆为例，亏损8%止损）
+      high: -10,   // 高杠杆（如22-30倍，以30倍杠杆为例，亏损10%止损）
     },
     
     // AI 主动移动止盈配置：盈利后移动止损线保护利润
@@ -102,12 +124,19 @@ export function getAggressiveStrategy(maxLeverage: number): StrategyParams {
     // 代码级保护：禁用，由AI主动执行止损止盈
     // AI会根据市场情况灵活判断，不受固定规则限制
     // 如需启用代码级保护，stopLossMonitor 会自动使用上面的 stopLoss 配置
-    enableCodeLevelProtection: false,
+    enableCodeLevelProtection: true,
   };
 }
 
 /**
  * 生成激进策略特有的提示词
+ * 
+ * 根据策略参数和运行上下文，生成传递给AI的策略提示词。
+ * AI会根据这些提示词来指导交易决策。
+ * 
+ * @param params - 策略参数配置（从 getAggressiveStrategy 获得）
+ * @param context - 运行时上下文（包含执行周期、持仓数量等）
+ * @returns 激进策略专属的AI提示词
  */
 export function generateAggressivePrompt(params: StrategyParams, context: StrategyPromptContext): string {
   return `

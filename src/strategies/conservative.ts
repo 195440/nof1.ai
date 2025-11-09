@@ -1,68 +1,149 @@
+/**
+ * open-nof1.ai - AI 加密货币自动交易系统
+ * Copyright (C) 2025 195440
+ * 
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ * 
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+ * GNU Affero General Public License for more details.
+ * 
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program. If not, see <https://www.gnu.org/licenses/>.
+ */
+
 import type { StrategyParams, StrategyPromptContext } from "./types";
 
 /**
  * 稳健策略配置
- * 低风险低杠杆，严格入场条件，适合保守投资者
+ * 
+ * 策略特点：
+ * - 风险等级：低风险
+ * - 杠杆范围：30%-60% 最大杠杆（如最大25倍，则使用8-15倍）
+ * - 仓位大小：15-22%
+ * - 适用人群：保守投资者，优先保护本金，追求稳健收益
+ * - 目标月回报：10-20%
+ * - 交易频率：谨慎交易，宁可错过机会也不冒险
+ * 
+ * 核心策略：
+ * - 单边行情：谨慎参与（标准仓位+低杠杆）
+ * - 震荡行情：严格防守（最小仓位+最低杠杆）
+ * - 风控方式：AI 主动止损止盈（enableCodeLevelProtection = false）
+ * 
+ * @param maxLeverage - 系统允许的最大杠杆倍数（从配置文件读取）
+ * @returns 稳健策略的完整参数配置
  */
 export function getConservativeStrategy(maxLeverage: number): StrategyParams {
-  // 保守策略：30%-60% 的最大杠杆
-  const conservativeLevMin = Math.max(1, Math.ceil(maxLeverage * 0.3));
-  const conservativeLevMax = Math.max(2, Math.ceil(maxLeverage * 0.6));
-  const conservativeLevNormal = conservativeLevMin;
-  const conservativeLevGood = Math.ceil((conservativeLevMin + conservativeLevMax) / 2);
-  const conservativeLevStrong = conservativeLevMax;
+  // 计算稳健策略的杠杆范围：使用 30%-60% 的最大杠杆
+  // 例如：系统最大杠杆25倍时，计算出8-15倍的杠杆范围
+  const conservativeLevMin = Math.max(1, Math.ceil(maxLeverage * 0.3));  // 最小杠杆：30%最大杠杆，至少1倍
+  const conservativeLevMax = Math.max(2, Math.ceil(maxLeverage * 0.6));  // 最大杠杆：60%最大杠杆，至少2倍
+  
+  // 计算不同信号强度下推荐的杠杆倍数
+  const conservativeLevNormal = conservativeLevMin;  // 普通信号：使用最小杠杆（最保守）
+  const conservativeLevGood = Math.ceil((conservativeLevMin + conservativeLevMax) / 2);  // 良好信号：使用中等杠杆
+  const conservativeLevStrong = conservativeLevMax;  // 强信号：使用最大杠杆（但仍然保守）
   
   return {
-    name: "稳健",
-    description: "低风险低杠杆，严格入场条件，适合保守投资者",
-    leverageMin: conservativeLevMin,
-    leverageMax: conservativeLevMax,
+    // ==================== 策略基本信息 ====================
+    name: "稳健",  // 策略名称（中文）
+    description: "低风险低杠杆，严格入场条件，适合保守投资者",  // 策略描述
+    
+    // ==================== 杠杆配置 ====================
+    // 杠杆范围：使用 30%-60% 最大杠杆（如系统最大25倍，则使用8-15倍）
+    leverageMin: conservativeLevMin,  // 最小杠杆倍数
+    leverageMax: conservativeLevMax,  // 最大杠杆倍数
     leverageRecommend: {
-      normal: `${conservativeLevNormal}倍`,
-      good: `${conservativeLevGood}倍`,
-      strong: `${conservativeLevStrong}倍`,
+      normal: `${conservativeLevNormal}倍`,   // 普通信号：使用最小杠杆（最保守）
+      good: `${conservativeLevGood}倍`,       // 良好信号：使用中等杠杆（稳健平衡）
+      strong: `${conservativeLevStrong}倍`,   // 强信号：使用最大杠杆（但仍保守）
     },
-    positionSizeMin: 15,
-    positionSizeMax: 22,
+    
+    // ==================== 仓位配置 ====================
+    // 仓位范围：15-22%（小仓位，优先保护本金）
+    positionSizeMin: 15,  // 最小仓位：15%（最保守）
+    positionSizeMax: 22,  // 最大仓位：22%（强信号时）
     positionSizeRecommend: {
-      normal: "15-17%",
-      good: "17-20%",
-      strong: "20-22%",
+      normal: "15-17%",   // 普通信号：最小仓位，严控风险
+      good: "17-20%",     // 良好信号：中等仓位，稳健参与
+      strong: "20-22%",   // 强信号：较大仓位，把握确定性机会
     },
+    
+    // ==================== AI 主动止损配置 ====================
+    // 根据杠杆倍数分级止损（由AI主动执行）
     stopLoss: {
-      low: -3.5,
-      mid: -3,
-      high: -2.5,
+      low: -3.5,   // 低杠杆时：亏损3.5%止损（如使用1-3倍杠杆）
+      mid: -3,     // 中杠杆时：亏损3%止损（如使用4-8倍杠杆）
+      high: -2.5,  // 高杠杆时：亏损2.5%止损（如使用9倍以上杠杆）
     },
+    
+    // ==================== AI 主动移动止盈配置 ====================
+    // 盈利后移动止损线保护利润（由AI主动执行）
     trailingStop: {
       // 保守策略：较早锁定利润（基准：15倍杠杆）
-      // 注意：这些是基准值，实际使用时会根据杠杆动态调整
-      level1: { trigger: 6, stopAt: 2 },   // 基准：盈利达到 +6% 时，止损线移至 +2%
-      level2: { trigger: 12, stopAt: 6 },  // 基准：盈利达到 +12% 时，止损线移至 +6%
-      level3: { trigger: 20, stopAt: 12 }, // 基准：盈利达到 +20% 时，止损线移至 +12%
+      // 注意：这些是基准值，实际使用时AI会根据杠杆动态调整
+      level1: { trigger: 6, stopAt: 2 },    // 盈利达到 +6% 时，止损线移至 +2%（保护4%空间）
+      level2: { trigger: 12, stopAt: 6 },   // 盈利达到 +12% 时，止损线移至 +6%（保护6%空间）
+      level3: { trigger: 20, stopAt: 12 },  // 盈利达到 +20% 时，止损线移至 +12%（保护8%空间）
     },
+    
+    // ==================== AI 主动分批止盈配置 ====================
+    // 逐步锁定利润（由AI主动执行）
     partialTakeProfit: {
       // 保守策略：较早分批止盈，提前锁定利润
-      stage1: { trigger: 20, closePercent: 50 },  // +20% 平仓50%
-      stage2: { trigger: 30, closePercent: 50 },  // +30% 平仓剩余50%
-      stage3: { trigger: 40, closePercent: 100 }, // +40% 全部清仓
+      stage1: { trigger: 20, closePercent: 50 },   // +20%时平仓50%（较早锁定）
+      stage2: { trigger: 30, closePercent: 50 },   // +30%时平仓剩余50%（累计平100%）
+      stage3: { trigger: 40, closePercent: 100 },  // +40%时全部清仓（防止利润回吐）
     },
-    peakDrawdownProtection: 25, // 保守策略：25%峰值回撤保护（更早保护利润）
+    
+    // ==================== 峰值回撤保护 ====================
+    // 盈利从峰值回撤25%时，AI强烈建议平仓（更早保护利润）
+    // 例如：峰值+25%，回撤到+0%时（回撤25个百分点），触发保护
+    peakDrawdownProtection: 25,
+    
+    // ==================== 波动率调整 ====================
+    // 根据市场波动自动调整杠杆和仓位
     volatilityAdjustment: {
-      highVolatility: { leverageFactor: 0.6, positionFactor: 0.7 },   // 高波动：大幅降低
-      normalVolatility: { leverageFactor: 1.0, positionFactor: 1.0 }, // 正常波动：不调整
-      lowVolatility: { leverageFactor: 1.0, positionFactor: 1.0 },    // 低波动：不调整（保守不追求）
+      highVolatility: { 
+        leverageFactor: 0.6,   // 高波动时，杠杆降低40%（如10倍→6倍）
+        positionFactor: 0.7    // 高波动时，仓位降低30%（如20%→14%）
+      },
+      normalVolatility: { 
+        leverageFactor: 1.0,   // 正常波动时，杠杆不调整
+        positionFactor: 1.0    // 正常波动时，仓位不调整
+      },
+      lowVolatility: { 
+        leverageFactor: 1.0,   // 低波动时，杠杆不调整（保守策略不追求激进）
+        positionFactor: 1.0    // 低波动时，仓位不调整（保持稳健）
+      },
     },
-    entryCondition: "至少3个关键时间框架信号一致，4个或更多更佳",
-    riskTolerance: "单笔交易风险控制在15-22%之间，严格控制回撤",
-    tradingStyle: "谨慎交易，宁可错过机会也不冒险，优先保护本金",
-    enableCodeLevelProtection: false, // 稳健策略：AI 主动止损止盈
+    
+    // ==================== 策略规则描述 ====================
+    entryCondition: "至少3个关键时间框架信号一致，4个或更多更佳",  // 入场条件（严格）
+    riskTolerance: "单笔交易风险控制在15-22%之间，严格控制回撤",  // 风险容忍度
+    tradingStyle: "谨慎交易，宁可错过机会也不冒险，优先保护本金",  // 交易风格
+    
+    // ==================== 代码级保护配置 ====================
+    // 禁用代码级保护，由AI主动执行止损止盈
+    // AI会根据市场情况灵活判断，不受固定规则限制
+    enableCodeLevelProtection: false,
     // 如需启用代码级保护，stopLossMonitor 会自动使用上面的 stopLoss 配置
   };
 }
 
 /**
  * 生成稳健策略特有的提示词
+ * 
+ * 根据策略参数和运行上下文，生成传递给AI的策略提示词。
+ * AI会根据这些提示词来指导交易决策。
+ * 
+ * @param params - 策略参数配置（从 getConservativeStrategy 获得）
+ * @param context - 运行时上下文（包含执行周期、持仓数量等）
+ * @returns 稳健策略专属的AI提示词
  */
 export function generateConservativePrompt(params: StrategyParams, context: StrategyPromptContext): string {
   return `

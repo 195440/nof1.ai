@@ -1,0 +1,597 @@
+# 取引戦略設定ガイド
+
+このドキュメントは、open-nof1.aiシステムがサポートするすべての取引戦略とその設定方法を詳しく説明します。
+
+## クイック設定ガイド
+
+### 戦略設定を変更するには?
+
+1. **戦略タイプの変更**: `.env`ファイルを編集し、`TRADING_STRATEGY`パラメータを変更
+2. **実行サイクルの変更**: `.env`ファイルを編集し、`TRADING_INTERVAL_MINUTES`パラメータを変更
+3. **リスク管理パラメータの変更**: `.env`ファイルを編集し、`MAX_LEVERAGE`、`MAX_POSITIONS`などのパラメータを変更
+4. **戦略コアパラメータの変更**: 対応する戦略ファイル(例: `src/strategies/swingTrend.ts`)を編集
+5. **完全な設定参照の表示**: このドキュメントの最後にある「設定項目とコード対照表」を参照
+
+### 設定ファイルの場所クイックリファレンス
+
+| 設定タイプ | ファイルの場所 | 説明 |
+|----------|-------------|------|
+| 環境変数設定 | `.env` | 戦略選択、実行サイクル、リスク管理パラメータ |
+| 戦略パラメータ | `src/strategies/*.ts` | 各戦略のレバレッジ、ポジションサイズ、ストップロスパラメータ |
+| リスク管理パラメータ | `src/config/riskParams.ts` | システムレベルのリスク管理パラメータ |
+| 戦略選択ロジック | `src/strategies/index.ts` | 戦略切り替えロジック |
+| 取引ループ | `src/scheduler/tradingLoop.ts` | 自動監視、ストップロスとテイクプロフィット実装 |
+| AI意思決定プロンプト | `src/agents/tradingAgent.ts` | AI取引意思決定ロジック |
+
+---
+
+## 戦略ファイルの場所
+
+すべての戦略実装ファイルは`src/strategies/`ディレクトリにあります:
+
+- `src/strategies/index.ts` - 統一戦略モジュールエクスポート
+- `src/strategies/types.ts` - 戦略タイプ定義
+- `src/strategies/ultraShort.ts` - 超短期戦略実装
+- `src/strategies/swingTrend.ts` - スイングトレンド戦略実装
+- `src/strategies/conservative.ts` - 保守的戦略実装
+- `src/strategies/balanced.ts` - バランス戦略実装
+- `src/strategies/aggressive.ts` - 積極的戦略実装
+
+## 戦略概要
+
+システムは現在**5つの取引戦略**をサポートしており、異なる市場環境とリスク選好に適しています:
+
+| 戦略コード | 戦略名 | 実行サイクル | 保有期間 | リスクレベル | 適した人 |
+|----------|-------|------------|---------|------------|---------|
+| `ultra-short` | 超短期 | 5分 | 30分~2時間 | 中高 | 高頻度取引を好み、素早い出入りを好むトレーダー |
+| `swing-trend` | **スイングトレンド** | **20分** | **数時間~3日** | **中低** | **中長期トレンドを追求し、安定した成長を求める投資家** |
+| `conservative` | 保守的 | 5-15分 | 数時間~24時間 | 低 | 保守的な投資家 |
+| `balanced` | バランス | 5-15分 | 数時間~24時間 | 中 | 一般的な投資家 |
+| `aggressive` | 積極的 | 5-15分 | 数時間~24時間 | 高 | 積極的な投資家 |
+
+## 詳細な戦略説明
+
+### 超短期戦略 (`ultra-short`)
+
+**コア理念**: 素早い出入り、短期価格変動を捉え、厳格な利益確定ルールを実行
+
+#### 戦略パラメータ
+
+> **設定ファイルの場所**: `src/strategies/ultraShort.ts`
+
+- **実行サイクル**: 5分(設定場所: `.env`ファイル `TRADING_INTERVAL_MINUTES=5`)
+- **推奨保有期間**: 30分 - 2時間
+- **レバレッジ範囲**: 3-5倍(MAX_LEVERAGEの50%-75%)
+  - コード: `leverageMin: Math.max(3, Math.ceil(maxLeverage * 0.5))`
+  - コード: `leverageMax: Math.max(5, Math.ceil(maxLeverage * 0.75))`
+- **ポジションサイズ**: 18-25%
+  - コード: `positionSizeMin: 18, positionSizeMax: 25`
+- **ストップロス範囲**: -1.5% ~ -2.5%
+  - コード: `stopLoss: { low: -2.5, mid: -2, high: -1.5 }`
+
+#### リスク管理ルール(システム強制実行)
+
+> **コード実装場所**: `src/agents/tradingAgent.ts` → AIプロンプト + `src/scheduler/tradingLoop.ts`
+
+1. **サイクル利益確定ルール**: 各5分サイクル内で、利益が>2%かつ<4%の場合、即座にポジションをクローズして利益を確定
+   - AIは各サイクルで利益状況をチェックし、確定を実行
+2. **30分ルール**: 30分以上保有し、利益>手数料コストの場合、トレーリングストップに達していなければ保守的にクローズ
+   - AIはこのルールをプロンプトに含め、自動的に実行
+3. **トレーリングストップ**:
+   - 利益≥+4% → ストップを+1.5%に移動
+     - コード: `trailingStop.level1: { trigger: 4, stopAt: 1.5 }`
+   - 利益≥+8% → ストップを+4%に移動
+     - コード: `trailingStop.level2: { trigger: 8, stopAt: 4 }`
+   - 利益≥+15% → ストップを+8%に移動
+     - コード: `trailingStop.level3: { trigger: 15, stopAt: 8 }`
+
+#### 適用シナリオ
+- 大きなボラティリティのある市場で、短期トレンドが明確
+- システム運用を監視する十分な時間がある
+- 迅速な資本回転を追求
+
+#### 設定例
+
+> **設定ファイルの場所**: `.env`ファイル(`.env.example`を参照)
+
+```bash
+TRADING_STRATEGY=ultra-short
+TRADING_INTERVAL_MINUTES=5
+MAX_LEVERAGE=10
+```
+
+---
+
+### スイングトレンド戦略 (`swing-trend`) **推奨新戦略**
+
+**コア理念**: 短サイクル精密エントリー、忍耐強い保有、自動監視保護、利益を十分に走らせる
+
+#### 戦略パラメータ
+
+> **設定ファイルの場所**: `src/strategies/swingTrend.ts`
+
+- **実行サイクル**: **20分**(設定場所: `.env`ファイル `TRADING_INTERVAL_MINUTES=20`)
+- **推奨保有期間**: **数時間 - 3日**
+- **レバレッジ範囲**: **2-5倍**(シグナル強度に基づいて柔軟に選択)
+  - コード: `leverageMin: Math.max(2, Math.ceil(maxLeverage * 0.2))`
+  - コード: `leverageMax: Math.max(5, Math.ceil(maxLeverage * 0.5))`
+- **ポジションサイズ**: **20-35%**(シグナル強度に基づく: 通常20-25%、良好25-30%、強30-35%)
+  - コード: `positionSizeMin: 20, positionSizeMax: 35`
+- **ストップロス範囲**: **-5.5% ~ -9%**(レバレッジに基づく: 高レバレッジ-5.5%、中レバレッジ-7.5%、低レバレッジ-9%)
+  - コード: `stopLoss: { low: -9, mid: -7.5, high: -5.5 }`
+
+#### コアアドバンテージ
+1. **短サイクル精密エントリー**: 1分、3分、5分、15分の4つの時間枠の共鳴を使用
+2. **自動監視保護**: ストップロスとテイクプロフィットは自動監視システムによって完全に実行(10秒ごとにチェック)
+3. **AIはオープニングに集中**: AIは高品質なオープニング機会を見つけることのみを担当し、積極的にポジションをクローズしない
+4. **より大きなポジションサイズ**: 最大35%で、利益ポテンシャルを増加
+5. **トレンド利益の追求**: 最初のテイクプロフィット目標+50%、最大+120%まで
+
+#### 自動監視ストップロス(10秒ごとに自動チェック)
+
+> **コード実装場所**: `src/scheduler/tradingLoop.ts` → `stopLossMonitor()`
+
+- **5-7倍レバレッジ**: 損失が-8%に達したら自動ストップロス
+- **8-12倍レバレッジ**: 損失が-6%に達したら自動ストップロス
+- **13倍以上のレバレッジ**: 損失が-5%に達したら自動ストップロス
+
+#### 自動監視トレーリングストップ(10秒ごとに自動チェック、5レベルルール)
+
+> **コード実装場所**: `src/scheduler/tradingLoop.ts` → `stopLossMonitor()`
+
+- **ステージ1**: ピーク利益4-6%、1.5%のプルバックで自動クローズ(最低2.5%)
+- **ステージ2**: ピーク利益6-10%、2%のプルバックで自動クローズ(最低4%)
+- **ステージ3**: ピーク利益10-15%、2.5%のプルバックで自動クローズ(最低7.5%)
+- **ステージ4**: ピーク利益15-25%、3%のプルバックで自動クローズ(最低12%)
+- **ステージ5**: ピーク利益25%+、5%のプルバックで自動クローズ(最低20%)
+
+#### エントリー条件(AI実行)
+- **1分、3分、5分、15分の4つの時間枠すべてのシグナルが強く一致する必要がある**
+- **主要指標の共鳴(MACD、RSI、EMA方向が一致)**
+- **短サイクル精密キャプチャ、迅速なエントリー**
+- **シグナルの質を数量より重視**
+
+#### AIの責任
+- **オープニングのみを担当**: 市場を分析し、高品質なオープニング機会を見つける
+- **積極的なクローズなし**: AIはクローズ操作を積極的に呼び出すべきではなく、呼び出さない
+- **監視と報告**: ポジション状態を分析し、レポートでリスクとトレンドの健全性を説明
+- **自動監視を信頼**: すべてのクローズは自動監視システムによって自動的に処理される
+
+#### 適用シナリオ
+- **安定したリターンを追求し、人的介入を減らす**
+- **自動化された利益保護を希望**
+- **数時間から数日の保有期間を受け入れられる**
+- **大きな資本規模、リスク管理を重視**
+
+#### 設定例(推奨)
+
+> **設定ファイルの場所**: `.env`ファイル(`.env.example`を参照)
+
+```bash
+# 環境変数設定
+TRADING_STRATEGY=swing-trend
+TRADING_INTERVAL_MINUTES=20
+MAX_LEVERAGE=10  # 戦略は実際に2-5倍を使用し、十分な安全マージンを残す
+MAX_POSITIONS=3  # 同時保有数を減らすことを推奨
+INITIAL_BALANCE=2000
+```
+
+#### 期待リターン
+- **月間目標リターン**: 20-35%
+- **勝率目標**: 35-45%
+- **リスク・リワード比率目標**: ≥2:1
+- **シャープレシオ**: ≥1.5
+
+#### 超短期戦略との比較
+
+| 次元 | 超短期 (ultra-short) | スイングトレンド (swing-trend) |
+|-----|---------------------|----------------------------|
+| 実行サイクル | 5分 | **20分** |
+| レバレッジ | 3-5倍 | **2-5倍** |
+| ポジションサイズ | 18-25% | **20-35%** |
+| ストップロス | -1.5%~-2.5% | **-5.5%~-9%** |
+| エントリー時間枠 | 複数の時間枠 | **1m/3m/5m/15m精密** |
+| 保有期間 | 30分~2時間 | **数時間~3日** |
+| クローズ方法 | AIが積極的に実行 | **自動監視が実行** |
+| AIの責任 | オープン+クローズ | **オープンのみ** |
+| リスクレベル | 中高 | **中低** |
+| 適した市場 | 短期変動 | **中期トレンド** |
+
+---
+
+### 保守的戦略 (`conservative`)
+
+**コア理念**: 資本保護優先、低リスク低レバレッジ
+
+> **設定ファイルの場所**: `src/strategies/conservative.ts`
+
+#### 戦略パラメータ
+- **レバレッジ範囲**: 3-6倍(MAX_LEVERAGEの30%-60%)
+  - コード: `leverageMin: Math.max(1, Math.ceil(maxLeverage * 0.3))`
+  - コード: `leverageMax: Math.max(2, Math.ceil(maxLeverage * 0.6))`
+  - 注: MAX_LEVERAGE=10の場合、実際は3-6倍
+- **ポジションサイズ**: 15-22%
+  - コード: `positionSizeMin: 15, positionSizeMax: 22`
+- **ストップロス範囲**: -2.5% ~ -3.5%
+  - コード: `stopLoss: { low: -3.5, mid: -3, high: -2.5 }`
+
+#### トレーリングストップ
+- 利益≥+6% → ストップを+2%に移動
+  - コード: `trailingStop.level1: { trigger: 6, stopAt: 2 }`
+- 利益≥+12% → ストップを+6%に移動
+  - コード: `trailingStop.level2: { trigger: 12, stopAt: 6 }`
+- 利益≥+20% → ストップを+12%に移動
+  - コード: `trailingStop.level3: { trigger: 20, stopAt: 12 }`
+
+---
+
+### バランス戦略 (`balanced`)
+
+**コア理念**: リスク・リターンのバランス、ほとんどの投資家に適している
+
+> **設定ファイルの場所**: `src/strategies/balanced.ts`
+
+#### 戦略パラメータ
+- **レバレッジ範囲**: 6-9倍(MAX_LEVERAGEの60%-85%)
+  - コード: `leverageMin: Math.max(2, Math.ceil(maxLeverage * 0.6))`
+  - コード: `leverageMax: Math.max(3, Math.ceil(maxLeverage * 0.85))`
+  - 注: MAX_LEVERAGE=10の場合、実際は6-9倍
+- **ポジションサイズ**: 20-27%
+  - コード: `positionSizeMin: 20, positionSizeMax: 27`
+- **ストップロス範囲**: -2% ~ -3%
+  - コード: `stopLoss: { low: -3, mid: -2.5, high: -2 }`
+
+#### トレーリングストップ
+- 利益≥+8% → ストップを+3%に移動
+  - コード: `trailingStop.level1: { trigger: 8, stopAt: 3 }`
+- 利益≥+15% → ストップを+8%に移動
+  - コード: `trailingStop.level2: { trigger: 15, stopAt: 8 }`
+- 利益≥+25% → ストップを+15%に移動
+  - コード: `trailingStop.level3: { trigger: 25, stopAt: 15 }`
+
+---
+
+### 積極的戦略 (`aggressive`)
+
+**コア理念**: 高リターンを追求し、高リスクを受け入れる
+
+> **設定ファイルの場所**: `src/strategies/aggressive.ts`
+
+#### 戦略パラメータ
+- **レバレッジ範囲**: 9-10倍(MAX_LEVERAGEの85%-100%)
+  - コード: `leverageMin: Math.max(3, Math.ceil(maxLeverage * 0.85))`
+  - コード: `leverageMax: maxLeverage`
+  - 注: MAX_LEVERAGE=10の場合、実際は9-10倍
+- **ポジションサイズ**: 25-32%
+  - コード: `positionSizeMin: 25, positionSizeMax: 32`
+- **ストップロス範囲**: -1.5% ~ -2.5%
+  - コード: `stopLoss: { low: -2.5, mid: -2, high: -1.5 }`
+
+#### トレーリングストップ
+- 利益≥+10% → ストップを+4%に移動
+  - コード: `trailingStop.level1: { trigger: 10, stopAt: 4 }`
+- 利益≥+18% → ストップを+10%に移動
+  - コード: `trailingStop.level2: { trigger: 18, stopAt: 10 }`
+- 利益≥+30% → ストップを+18%に移動
+  - コード: `trailingStop.level3: { trigger: 30, stopAt: 18 }`
+
+---
+
+## 戦略切り替えガイド
+
+### スイングトレンド戦略をいつ使用するか?
+
+**推奨使用ケース**:
+- 自動化されたストップロスとテイクプロフィットを希望し、人的介入を減らす
+- より安定した自動取引体験を追求
+- 数時間から数日の保有期間を受け入れられる
+- 大きな資本規模、リスク管理を重視
+- AIがオープニング決定に集中し、クローズを心配しないことを希望
+
+**推奨されない使用ケース**:
+- 市場が保ち合いで明確なトレンドがない
+- クローズタイミングを完全に手動で制御する必要がある
+- 数日の保有期間を受け入れられない
+
+### 超短期戦略をいつ使用するか?
+
+**推奨使用ケース**:
+- 頻繁なボラティリティのある市場で、短期トレンドが明確
+- システムを監視する十分な時間がある
+- 素早い出入りの取引リズムを好む
+- 小さな資本規模、迅速な蓄積が必要
+
+### 戦略切り替え手順
+
+> **設定ファイルの場所**: `.env`ファイル(`.env.example`を参照)
+
+1. **すべてのポジションをクローズ**(戦略の競合を避ける)
+2. **環境変数を変更**:
+   ```bash
+   # スイングトレンド戦略に切り替え
+   TRADING_STRATEGY=swing-trend
+   TRADING_INTERVAL_MINUTES=20
+   
+   # または超短期戦略に切り替え
+   TRADING_STRATEGY=ultra-short
+   TRADING_INTERVAL_MINUTES=5
+   ```
+3. **システムを再起動**:
+   ```bash
+   docker-compose down
+   docker-compose up -d
+   ```
+
+---
+
+## リスク管理比較
+
+### システムハード制限(すべての戦略共通)
+
+> **設定ファイルの場所**:
+> - コード実装: `src/config/riskParams.ts`
+> - 環境変数: `.env`ファイル
+
+- **極端なストップロス**: 単一損失≤-30%で強制クローズ(清算を防ぐ)
+  - 環境変数: `EXTREME_STOP_LOSS_PERCENT=-30`
+  - コード: `RISK_PARAMS.EXTREME_STOP_LOSS_PERCENT`
+- **36時間制限**: 36時間以上保有したポジションは強制クローズ(資本を解放)
+  - 環境変数: `MAX_HOLDING_HOURS=36`
+  - コード: `RISK_PARAMS.MAX_HOLDING_HOURS`
+- **口座ドローダウン保護**: 口座の総ドローダウンが設定された閾値に達したときに保護をトリガー
+  - 警告閾値: `ACCOUNT_DRAWDOWN_WARNING_PERCENT=20`
+  - 新規ポジションなし: `ACCOUNT_DRAWDOWN_NO_NEW_POSITION_PERCENT=30`
+  - 強制クローズ: `ACCOUNT_DRAWDOWN_FORCE_CLOSE_PERCENT=50`
+
+### 戦略固有のリスク管理
+
+| 戦略 | 固有のリスク管理ルール | 特徴 |
+|-----|-------------------|-----|
+| ultra-short | 2%サイクル利益確定、30分利益クローズ | システム**強制実行** |
+| swing-trend | 自動監視ストップロス(10秒ごと)、自動監視トレーリングストップ(10秒ごと、5レベルルール) | システム**自動実行**、AI介入なし |
+| conservative/balanced/aggressive | 固有のルールなし | AI完全裁量 |
+
+---
+
+## ベストプラクティス推奨
+
+### スイングトレンド戦略のベストプラクティス
+
+1. **シグナルを辛抱強く待つ**
+   - 4つの時間枠(1m/3m/5m/15m)すべてが共鳴するのを待つ
+   - MACD、RSI、EMA方向が一致していることを確認
+   - 急いでオープンしない、質は量より重要
+
+2. **自動監視を信頼**
+   - 自動監視システムは10秒ごとにチェック
+   - ストップロスとテイクプロフィットは自動的に実行され、AI介入は不要
+   - AIは高品質なオープニング機会を見つけることに集中
+
+3. **合理的なポジションサイジング**
+   - 通常のシグナル: 20-25%ポジション
+   - 良いシグナル: 25-30%ポジション
+   - 強いシグナル: 30-35%ポジション(慎重に使用)
+
+4. **合理的なレバレッジ使用**
+   - 通常のシグナル: 2倍レバレッジ(最も安全)
+   - 良いシグナル: 3倍レバレッジ(バランス)
+   - 強いシグナル: 5倍レバレッジ(最大値、慎重に使用)
+
+5. **同時保有数を制御**
+   - 推奨: 1-3ポジション(`MAX_POSITIONS=3`)
+   - 過度な分散を避け、資本の集中度を維持
+
+6. **自動化された保護を理解**
+   - ストップロス: ストップロスラインに触れたら即座に自動クローズ
+   - テイクプロフィット: ピークプルバック目標に達したら即座に自動クローズ
+   - AIはレポートでポジション状態を説明するだけでよい
+
+### 超短期戦略のベストプラクティス
+
+1. **素早い出入り**
+   - 利益>2%の場合、即座に利益確定を検討
+   - 欲張らない、小さな利益も利益
+
+2. **ルールを厳格に遵守**
+   - システムの2%利益確定と30分ルールは経験の要約
+   - 手動介入を試みない
+
+3. **高頻度監視**
+   - 5分サイクルは、より頻繁な監視が必要
+   - システムの安定した動作を確保
+
+---
+
+## 設定例
+
+> **設定ファイルの場所**:
+> - メイン設定: `.env`ファイル(`.env.example`テンプレートを参照)
+> - 戦略実装: `src/strategies/`ディレクトリ
+> - リスク管理パラメータ: `src/config/riskParams.ts`
+
+### 本番環境 - スイングトレンド戦略(推奨)
+
+```bash
+# .envファイル設定
+
+# 戦略設定
+TRADING_STRATEGY=swing-trend           # スイングトレンド戦略を使用
+TRADING_INTERVAL_MINUTES=20            # 20分実行サイクル
+
+# リスク管理設定
+MAX_LEVERAGE=10                        # 最大レバレッジ10倍(戦略は実際に2-5倍を使用)
+MAX_POSITIONS=3                        # 最大3ポジション
+MAX_HOLDING_HOURS=72                   # 最大保有72時間(3日)
+INITIAL_BALANCE=2000                   # 初期資本2000 USDT
+
+# 口座リスク管理
+ACCOUNT_STOP_LOSS_USDT=1500           # 口座ストップロスライン
+ACCOUNT_TAKE_PROFIT_USDT=3000         # 口座テイクプロフィットライン
+
+# API設定
+GATE_API_KEY=your_api_key
+GATE_API_SECRET=your_api_secret
+GATE_USE_TESTNET=false                # 本番環境
+
+# AI設定
+OPENAI_API_KEY=your_openai_key
+OPENAI_BASE_URL=https://openrouter.ai/api/v1
+AI_MODEL_NAME=deepseek/deepseek-v3.2-exp
+```
+
+### テスト環境 - 超短期戦略
+
+```bash
+# 戦略設定
+TRADING_STRATEGY=ultra-short           # 超短期戦略を使用
+TRADING_INTERVAL_MINUTES=5             # 5分実行サイクル
+
+# リスク管理設定
+MAX_LEVERAGE=10
+MAX_POSITIONS=5                        # 超短期はより多くのポジションを保有可能
+MAX_HOLDING_HOURS=36
+INITIAL_BALANCE=1000                   # テスト環境の小資本
+
+# テストネットワーク
+GATE_USE_TESTNET=true                  # テストネットを使用
+```
+
+---
+
+## よくある質問
+
+### Q1: スイング戦略でAIが積極的にポジションをクローズしないのはなぜですか?
+**A**: より安定した一貫したリスク管理実行を実現するため。自動監視システムは10秒ごとにチェックし、条件を満たすと即座にポジションをクローズします。これはAIの20分実行サイクルよりもタイムリーです。AIは高品質なオープニング機会を見つけることに集中し、クローズは自動監視システムによって処理され、責任の分離を実現し、より高い効率を達成します。
+
+### Q2: 自動監視はポジションを早すぎる時期にクローズしませんか?
+**A**: 自動監視は5レベルのトレーリングストップルールを使用し、利益のピークに基づいて動的に調整します。例えば、10%のピークでは2.5%のプルバックでのみクローズし、これは利益を保護し(最低7.5%)、トレンドに十分なスペースを与えます。このバランスは慎重に設計されています。
+
+### Q3: スイング戦略が1m/3m/5m/15mの短サイクルを使用するのはなぜですか?
+**A**: 「スイング」と呼ばれていますが、エントリータイミングは精密である必要があります。短サイクルの組み合わせ(1-15分)は、トレンド形成の初期シグナルをより速くキャプチャでき、4時間などの長サイクルを使用することによる遅れを避けます。保有時間は依然として数日に達することができ、利益を十分に走らせます。
+
+### Q4: 20-35%のポジションサイズは大きすぎませんか?
+**A**: これはシグナル強度に依存します。30-35%は強いシグナル(4つの時間枠が完璧に共鳴+技術指標が極めて一致)の場合にのみ使用され、通常のシグナルは20-25%のみを使用します。2-5倍の低レバレッジと厳格な自動監視ストップロスを組み合わせることで、リスクは管理可能です。
+
+### Q5: 複数の戦略を同時に実行できますか?
+**A**: 推奨されません。各戦略には異なるリスク管理ルールと実行ロジックがあり、同時に実行すると競合が発生する可能性があります。市場状況に基づいて1つの戦略を選択して集中することをお勧めします。
+
+### Q6: 戦略の効果を評価するにはどうすればよいですか?
+**A**: これらのメトリクスに注目:
+- **勝率**: 利益を上げた取引の割合(スイング戦略目標35-45%)
+- **リスク・リワード比率**: 平均利益/平均損失(目標≥2:1)
+- **月間リターン**: 月間総リターン(スイング戦略目標20-35%)
+- **シャープレシオ**: リスク調整後リターン(目標≥1.5)
+- **最大ドローダウン**: ピークから谷への最大下落(20%以内に制御)
+- **ストップロスの適時性**: 自動監視の応答速度(10秒チェック)
+
+---
+
+## テクニカルサポート
+
+質問や提案がある場合は、以下の方法でお問い合わせください:
+
+- **GitHub Issues**: [https://github.com/195440/open-nof1.ai/issues](https://github.com/195440/open-nof1.ai/issues)
+- **ディスカッションフォーラム**: [https://github.com/195440/open-nof1.ai/discussions](https://github.com/195440/open-nof1.ai/discussions)
+
+---
+
+## 技術実装
+
+> **コアファイルの場所**:
+> - 戦略モジュール: `src/strategies/`ディレクトリ
+> - 統一戦略エクスポート: `src/strategies/index.ts`
+> - 戦略タイプ定義: `src/strategies/types.ts`
+> - 取引エージェント: `src/agents/tradingAgent.ts`
+> - リスク管理パラメータ: `src/config/riskParams.ts`
+> - 取引ループ: `src/scheduler/tradingLoop.ts`
+
+すべての戦略実装は統一されたアーキテクチャパターンに従います:
+
+1. **戦略パラメータ定義**: 各戦略は、対応する`.ts`ファイルで、レバレッジ範囲、ポジションサイズ、ストップロス範囲などを含む完全なパラメータ設定を定義します
+   - 超短期: `src/strategies/ultraShort.ts` → `getUltraShortStrategy()`
+   - スイングトレンド: `src/strategies/swingTrend.ts` → `getSwingTrendStrategy()`
+   - 保守的: `src/strategies/conservative.ts` → `getConservativeStrategy()`
+   - バランス: `src/strategies/balanced.ts` → `getBalancedStrategy()`
+   - 積極的: `src/strategies/aggressive.ts` → `getAggressiveStrategy()`
+
+2. **プロンプト生成**: 各戦略ファイルには`generateXxxPrompt()`関数が含まれており、AIに対して戦略固有の決定プロンプトを生成します
+   - 超短期: `generateUltraShortPrompt()`
+   - スイングトレンド: `generateSwingTrendPrompt()`
+   - 保守的: `generateConservativePrompt()`
+   - バランス: `generateBalancedPrompt()`
+   - 積極的: `generateAggressivePrompt()`
+
+3. **統一エクスポート**: すべての戦略は`src/strategies/index.ts`を通じて統一的にエクスポートされ、システム呼び出しを容易にします
+
+### 戦略選択ロジック
+
+> **実装ファイル**: `src/strategies/index.ts`
+
+システムは`TRADING_STRATEGY`環境変数に基づいて、対応する戦略を動的にロードします:
+
+```typescript
+// src/strategies/index.ts内
+export function getStrategyParams(strategy: TradingStrategy, maxLeverage: number): StrategyParams {
+  switch (strategy) {
+    case "ultra-short":
+      return getUltraShortStrategy(maxLeverage);
+    case "swing-trend":
+      return getSwingTrendStrategy(maxLeverage);
+    case "conservative":
+      return getConservativeStrategy(maxLeverage);
+    case "balanced":
+      return getBalancedStrategy(maxLeverage);
+    case "aggressive":
+      return getAggressiveStrategy(maxLeverage);
+    default:
+      return getBalancedStrategy(maxLeverage);
+  }
+}
+```
+
+### 設定項目とコード対照表
+
+| 設定項目 | 環境変数 | コードの場所 | 説明 |
+|---------|---------|------------|------|
+| 取引戦略 | `TRADING_STRATEGY` | `src/strategies/index.ts` | 戦略選択ロジック |
+| 実行サイクル | `TRADING_INTERVAL_MINUTES` | `src/scheduler/tradingLoop.ts` | 取引ループ間隔 |
+| 最大レバレッジ | `MAX_LEVERAGE` | `.env` → 各戦略ファイル | 戦略ベースライン値 |
+| 最大ポジション数 | `MAX_POSITIONS` | `src/config/riskParams.ts` | リスク管理パラメータ |
+| 最大保有時間 | `MAX_HOLDING_HOURS` | `src/config/riskParams.ts` | リスク管理パラメータ |
+| 極端なストップロス | `EXTREME_STOP_LOSS_PERCENT` | `src/config/riskParams.ts` | リスク管理パラメータ |
+| 初期資本 | `INITIAL_BALANCE` | `src/config/riskParams.ts` | 資本管理 |
+| 口座ドローダウン警告 | `ACCOUNT_DRAWDOWN_WARNING_PERCENT` | `src/config/riskParams.ts` | リスク管理パラメータ |
+| 口座ドローダウン新規ポジションなし | `ACCOUNT_DRAWDOWN_NO_NEW_POSITION_PERCENT` | `src/config/riskParams.ts` | リスク管理パラメータ |
+| 口座ドローダウン強制クローズ | `ACCOUNT_DRAWDOWN_FORCE_CLOSE_PERCENT` | `src/config/riskParams.ts` | リスク管理パラメータ |
+
+## バージョン履歴
+
+### v2.2 - 2025年11月9日
+- すべての戦略パラメータに設定ファイルの場所とコードの場所を注釈
+- 設定項目とコード対照表を追加し、迅速な場所特定を容易に
+- 技術実装セクションを改善し、各ファイルの詳細な説明を追加
+- 環境変数設定の場所を注釈(`.env`ファイル)
+
+### v2.1 - 2025年11月8日
+- プロジェクト構造の最適化: 戦略実装を`src/strategies/`ディレクトリに統一配置
+- すべてのREADMEドキュメントを改善し、戦略ファイルリンクを追加
+- 戦略設定ガイドを更新し、技術実装の説明を追加
+
+### v2.0 - 2025年11月4日
+- スイング戦略ポジション調整: 12-20% → 20-35%
+- スイング戦略時間枠最適化: 15m-4h → 1m/3m/5m/15m精密キャプチャ
+- スイング戦略ストップロス微調整: -5%~-8% → -5.5%~-9%
+- AI責任調整: AIはオープニングのみを担当し、クローズは自動監視システムが実行
+- 用語最適化: 「コードレベル」を「自動監視」に変更
+
+### v1.0 - 2025年11月3日
+- 初版リリース
+
+---
+
+## 著作権表示
+
+Copyright (C) 2025 195440
+
+このドキュメントはGNU Affero General Public License v3.0ライセンスに従います。
+

@@ -168,11 +168,16 @@ npm install
 PORT=3100
 
 # 取引パラメータ
-TRADING_INTERVAL_MINUTES=5      # 取引ループ間隔
-MAX_LEVERAGE=10                 # 最大レバレッジ倍率
-MAX_POSITIONS=5                 # 最大ポジション数
-MAX_HOLDING_HOURS=36            # 最大保有時間(時間)
-INITIAL_BALANCE=2000            # 初期資金(USDT)
+TRADING_STRATEGY=balanced               # 取引戦略
+TRADING_INTERVAL_MINUTES=20             # 取引ループ間隔
+MAX_LEVERAGE=25                         # 最大レバレッジ倍率
+MAX_POSITIONS=5                         # 最大ポジション数
+MAX_HOLDING_HOURS=36                    # 最大保有時間(時間)
+EXTREME_STOP_LOSS_PERCENT=-30           # 極端なストップロスの割合
+INITIAL_BALANCE=1000                    # 初期資金(USDT)
+ACCOUNT_STOP_LOSS_USDT=50               # 口座ストップロスライン
+ACCOUNT_TAKE_PROFIT_USDT=20000          # 口座テイクプロフィットライン
+SYNC_CONFIG_ON_STARTUP=true             # 起動時の設定同期
 
 # データベース
 DATABASE_URL=file:./.voltagent/trading.db
@@ -192,6 +197,9 @@ AI_MODEL_NAME=deepseek/deepseek-v3.2-exp      # モデル名
 ACCOUNT_DRAWDOWN_WARNING_PERCENT=20          # 警告しきい値：リスク警告を発する
 ACCOUNT_DRAWDOWN_NO_NEW_POSITION_PERCENT=30  # 新規注文停止しきい値：新規ポジションの開設を停止、決済のみ許可
 ACCOUNT_DRAWDOWN_FORCE_CLOSE_PERCENT=50      # 強制決済しきい値：すべてのポジションを自動的に決済し、残り資金を保護
+
+# 口座記録設定
+ACCOUNT_RECORD_INTERVAL_MINUTES=1            # 口座記録間隔
 ```
 
 **API キー取得**:
@@ -294,11 +302,16 @@ open-nof1.ai/
 | 変数 | 説明 | デフォルト値 | 必須 |
 |------|------|-------------|------|
 | `PORT` | HTTP サーバーポート | 3100 | いいえ |
-| `TRADING_INTERVAL_MINUTES` | 取引ループ間隔(分) | 5 | いいえ |
-| `MAX_LEVERAGE` | 最大レバレッジ倍率 | 10 | いいえ |
+| `TRADING_STRATEGY` | 取引戦略 (`ultra-short`/`swing-trend`/`conservative`/`balanced`/`aggressive`) | balanced | いいえ |
+| `TRADING_INTERVAL_MINUTES` | 取引ループ間隔(分) | 20 | いいえ |
+| `MAX_LEVERAGE` | 最大レバレッジ倍率 | 25 | いいえ |
 | `MAX_POSITIONS` | 最大ポジション数 | 5 | いいえ |
 | `MAX_HOLDING_HOURS` | 最大保有時間(時間) | 36 | いいえ |
-| `INITIAL_BALANCE` | 初期資金(USDT) | 2000 | いいえ |
+| `EXTREME_STOP_LOSS_PERCENT` | 極端なストップロスの割合（清算防止） | -30 | いいえ |
+| `INITIAL_BALANCE` | 初期資金(USDT) | 1000 | いいえ |
+| `ACCOUNT_STOP_LOSS_USDT` | 口座ストップロスライン(USDT) | 50 | いいえ |
+| `ACCOUNT_TAKE_PROFIT_USDT` | 口座テイクプロフィットライン(USDT) | 20000 | いいえ |
+| `SYNC_CONFIG_ON_STARTUP` | 起動時の設定同期 | true | いいえ |
 | `DATABASE_URL` | SQLite データベースファイルパス | file:./.voltagent/trading.db | いいえ |
 | `GATE_API_KEY` | Gate.io API キー | - | はい |
 | `GATE_API_SECRET` | Gate.io API シークレット | - | はい |
@@ -309,6 +322,7 @@ open-nof1.ai/
 | `ACCOUNT_DRAWDOWN_WARNING_PERCENT` | アカウントドローダウン警告しきい値：リスク警告を発する(%) | 20 | いいえ |
 | `ACCOUNT_DRAWDOWN_NO_NEW_POSITION_PERCENT` | 新規注文停止しきい値：新規ポジションの開設を停止、決済のみ許可(%) | 30 | いいえ |
 | `ACCOUNT_DRAWDOWN_FORCE_CLOSE_PERCENT` | 強制決済しきい値：すべてのポジションを自動的に決済し、残り資金を保護(%) | 50 | いいえ |
+| `ACCOUNT_RECORD_INTERVAL_MINUTES` | 口座資産記録間隔(分) | 1 | いいえ |
 
 ### 取引戦略
 

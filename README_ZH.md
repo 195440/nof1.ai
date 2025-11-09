@@ -168,11 +168,16 @@ npm install
 PORT=3100
 
 # 交易参数
-TRADING_INTERVAL_MINUTES=5      # 交易循环间隔
-MAX_LEVERAGE=10                 # 最大杠杆倍数
-MAX_POSITIONS=5                 # 最大持仓数量
-MAX_HOLDING_HOURS=36            # 最大持有时长(小时)
-INITIAL_BALANCE=2000            # 初始资金(USDT)
+TRADING_STRATEGY=balanced               # 交易策略
+TRADING_INTERVAL_MINUTES=5              # 交易循环间隔
+MAX_LEVERAGE=25                         # 最大杠杆倍数
+MAX_POSITIONS=5                         # 最大持仓数量
+MAX_HOLDING_HOURS=36                    # 最大持有时长(小时)
+EXTREME_STOP_LOSS_PERCENT=-30           # 极端止损百分比
+INITIAL_BALANCE=1000                    # 初始资金(USDT)
+ACCOUNT_STOP_LOSS_USDT=50               # 账户止损线
+ACCOUNT_TAKE_PROFIT_USDT=20000          # 账户止盈线
+SYNC_CONFIG_ON_STARTUP=true             # 启动时同步配置
 
 # 数据库
 DATABASE_URL=file:./.voltagent/trading.db
@@ -186,6 +191,14 @@ GATE_USE_TESTNET=true
 OPENAI_API_KEY=your_api_key_here
 OPENAI_BASE_URL=https://openrouter.ai/api/v1  # 可选，支持 OpenRouter、OpenAI、DeepSeek 等
 AI_MODEL_NAME=deepseek/deepseek-v3.2-exp      # 模型名称
+
+# 账户回撤风控配置
+ACCOUNT_DRAWDOWN_WARNING_PERCENT=20           # 警告阈值
+ACCOUNT_DRAWDOWN_NO_NEW_POSITION_PERCENT=30   # 禁止开仓阈值
+ACCOUNT_DRAWDOWN_FORCE_CLOSE_PERCENT=50       # 强制平仓阈值
+
+# 账户记录配置
+ACCOUNT_RECORD_INTERVAL_MINUTES=1             # 账户记录间隔
 ```
 
 **API 密钥获取**:
@@ -289,11 +302,15 @@ open-nof1.ai/
 |------|------|--------|---------|
 | `PORT` | HTTP 服务器端口 | 3100 | 否 |
 | `TRADING_STRATEGY` | 交易策略(`ultra-short`/`swing-trend`/`conservative`/`balanced`/`aggressive`) | balanced | 否 |
-| `TRADING_INTERVAL_MINUTES` | 交易循环间隔(分钟) | 5 | 否 |
-| `MAX_LEVERAGE` | 最大杠杆倍数 | 10 | 否 |
+| `TRADING_INTERVAL_MINUTES` | 交易循环间隔(分钟) | 20 | 否 |
+| `MAX_LEVERAGE` | 最大杠杆倍数 | 25 | 否 |
 | `MAX_POSITIONS` | 最大持仓数量 | 5 | 否 |
 | `MAX_HOLDING_HOURS` | 最大持有时长(小时) | 36 | 否 |
-| `INITIAL_BALANCE` | 初始资金(USDT) | 2000 | 否 |
+| `EXTREME_STOP_LOSS_PERCENT` | 极端止损百分比（防止爆仓） | -30 | 否 |
+| `INITIAL_BALANCE` | 初始资金(USDT) | 1000 | 否 |
+| `ACCOUNT_STOP_LOSS_USDT` | 账户止损线(USDT) | 50 | 否 |
+| `ACCOUNT_TAKE_PROFIT_USDT` | 账户止盈线(USDT) | 20000 | 否 |
+| `SYNC_CONFIG_ON_STARTUP` | 启动时同步配置 | true | 否 |
 | `DATABASE_URL` | SQLite 数据库文件路径 | file:./.voltagent/trading.db | 否 |
 | `GATE_API_KEY` | Gate.io API 密钥 | - | 是 |
 | `GATE_API_SECRET` | Gate.io API 密钥 | - | 是 |
@@ -304,6 +321,7 @@ open-nof1.ai/
 | `ACCOUNT_DRAWDOWN_WARNING_PERCENT` | 账户回撤警告阈值：发出风险警告提醒(%) | 20 | 否 |
 | `ACCOUNT_DRAWDOWN_NO_NEW_POSITION_PERCENT` | 禁止开仓阈值：停止开新仓位，只允许平仓(%) | 30 | 否 |
 | `ACCOUNT_DRAWDOWN_FORCE_CLOSE_PERCENT` | 强制平仓阈值：自动平掉所有仓位，保护剩余资金(%) | 50 | 否 |
+| `ACCOUNT_RECORD_INTERVAL_MINUTES` | 账户资产记录间隔(分钟) | 1 | 否 |
 
 ### 交易策略说明
 
