@@ -1,0 +1,307 @@
+/**
+ * open-nof1.ai - AI 加密货币自动交易系统
+ * Copyright (C) 2025 195440
+ * 
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ * 
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+ * GNU Affero General Public License for more details.
+ * 
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program. If not, see <https://www.gnu.org/licenses/>.
+ */
+
+import type { StrategyParams, StrategyPromptContext } from "./types";
+
+/**
+ * 返佣套利策略配置（撸手续费策略）
+ * 
+ * 策略特点：
+ * - 风险等级：中等风险
+ * - 杠杆范围：40%-60% 最大杠杆（如最大25倍，则使用10-15倍）
+ * - 仓位大小：15-22%
+ * - 适用人群：拥有高额手续费返佣的用户
+ * - 目标月回报：15-25%（主要来自高频交易累积+手续费返佣）
+ * - 交易频率：5分钟执行周期，高频交易
+ * 
+ * 核心策略：
+ * - 高频交易：5分钟执行周期，持仓10-60分钟
+ * - 微利即走：只要盈利覆盖手续费（0.5-0.8%）立即平仓
+ * - 小目标止盈：盈利>0.8%且<2%时，快速锁定利润
+ * - 严格趋势：只做顺趋势方向，拒绝震荡
+ * - 风控方式：代码级自动止损止盈（enableCodeLevelProtection = true）
+ * - 返佣收益：通过高频交易累积手续费返佣
+ * 
+ * 策略原理：
+ * - 手续费：开仓+平仓约0.1%（含Maker/Taker），考虑杠杆后实际成本约0.2-0.3%
+ * - 返佣率：假设50-80%手续费返佣
+ * - 盈利模式：每笔小盈利0.5-1% + 手续费返佣 = 双重收益
+ * - 频率优势：单日20-50笔交易，累积收益可观
+ * 
+ * @param maxLeverage - 系统允许的最大杠杆倍数（从配置文件读取）
+ * @returns 返佣套利策略的完整参数配置
+ */
+export function getRebateFarmingStrategy(maxLeverage: number): StrategyParams {
+  // 计算返佣套利策略的杠杆范围：使用 40%-60% 的最大杠杆
+  // 例如：系统最大杠杆25倍时，计算出10-15倍的杠杆范围
+  // 不用太高杠杆，避免快速止损；也不用太低，需要一定盈利空间
+  const rebateLevMin = Math.max(5, Math.ceil(maxLeverage * 0.4));   // 最小杠杆：40%最大杠杆，至少5倍
+  const rebateLevMax = Math.max(8, Math.ceil(maxLeverage * 0.6));  // 最大杠杆：60%最大杠杆，至少8倍
+  
+  // 推荐杠杆：中间偏上（适合快速进出）
+  const rebateLevGood = Math.max(6, Math.ceil(maxLeverage * 0.5));  // 50%
+  
+  return {
+    // ==================== 策略基本信息 ====================
+    name: "返佣套利",  // 策略名称（中文）
+    description: "高频微利交易，专注手续费返佣累积，2-3分钟执行",  // 策略描述
+    
+    // ==================== 杠杆配置 ====================
+    // 杠杆范围：使用 40%-60% 最大杠杆（如系统最大25倍，则使用10-15倍）
+    leverageMin: rebateLevMin,  // 最小杠杆倍数
+    leverageMax: rebateLevMax,  // 最大杠杆倍数
+    leverageRecommend: {
+      normal: `${rebateLevMin}倍`,  // 普通信号：使用最小杠杆（谨慎入场）
+      good: `${rebateLevGood}倍`,   // 良好信号：使用中等杠杆（标准配置）
+      strong: `${rebateLevMax}倍`,  // 强信号：使用最大杠杆（把握机会）
+    },
+    
+    // ==================== 仓位配置 ====================
+    // 仓位范围：15-22%（中小仓位，快进快出，频繁交易）
+    positionSizeMin: 15,  // 最小仓位：15%（普通信号）
+    positionSizeMax: 22,  // 最大仓位：22%（强信号）
+    positionSizeRecommend: {
+      normal: "15-17%",   // 普通信号：小仓位，快速试探
+      good: "17-20%",     // 良好信号：中等仓位，正常执行
+      strong: "20-22%",   // 强信号：较大仓位，短期进攻
+    },
+    
+    // ==================== 代码级止损配置 ====================
+    // 根据杠杆倍数分级止损（代码自动执行，AI不需要管）
+    // 返佣策略：快速止损，不恋战
+    stopLoss: {
+      low: -1.8,   // 低杠杆时：亏损1.8%止损（如使用5-8倍杠杆）
+      mid: -1.5,   // 中杠杆时：亏损1.5%止损（如使用9-12倍杠杆）
+      high: -1.2,  // 高杠杆时：亏损1.2%止损（如使用13倍以上杠杆）
+    },
+    
+    // ==================== 代码级移动止盈配置 ====================
+    // 盈利后移动止损线保护利润（代码自动执行，AI不需要管）
+    trailingStop: {
+      // 返佣套利策略：极快速锁利（微利即走，不贪心）
+      // 第一档触发点极低，只要覆盖手续费+微利就走
+      level1: { trigger: 1, stopAt: 0.6 },   // 盈利达到 +0.8% 时，止损线移至 +0.3%（保护0.5%空间）
+      level2: { trigger: 2, stopAt: 1 },     // 盈利达到 +2% 时，止损线移至 +0.8%（保护1.2%空间）
+      level3: { trigger: 4, stopAt: 2 },       // 盈利达到 +4% 时，止损线移至 +2%（保护2%空间，极少触发）
+    },
+    
+    // ==================== 代码级分批止盈配置 ====================
+    // 逐步锁定利润（代码自动执行，AI不需要管）
+    partialTakeProfit: {
+      // 返佣套利策略：快速全部止盈，不分批（高频交易模式）
+      // 第一档就大部分平仓，保留少量追求更高收益
+      stage1: { trigger: 3, closePercent: 70 },    // +3%时平仓70%（快速锁定大部分利润）
+      stage2: { trigger: 6, closePercent: 100 },   // +6%时平仓剩余30%（累计平100%）
+      stage3: { trigger: 10, closePercent: 100 },  // +10%时全部清仓（兜底，基本不会触发）
+    },
+    
+    // ==================== 峰值回撤保护 ====================
+    // 盈利从峰值回撤15%时，AI强烈建议平仓（快速保护微利）
+    // 例如：峰值+2%，回撤到-13%时（回撤15个百分点），触发保护
+    peakDrawdownProtection: 15,
+    
+    // ==================== 波动率调整 ====================
+    // 根据市场波动自动调整杠杆和仓位
+    volatilityAdjustment: {
+      highVolatility: { 
+        leverageFactor: 0.7,   // 高波动时，杠杆降低30%（如12倍→8.4倍）
+        positionFactor: 0.75   // 高波动时，仓位降低25%（如20%→15%）
+      },
+      normalVolatility: { 
+        leverageFactor: 1.0,   // 正常波动时，杠杆不调整
+        positionFactor: 1.0    // 正常波动时，仓位不调整
+      },
+      lowVolatility: { 
+        leverageFactor: 1.1,   // 低波动时，杠杆提高10%（如12倍→13.2倍）
+        positionFactor: 1.05   // 低波动时，仓位提高5%（如20%→21%）
+      },
+    },
+    
+    // ==================== 策略规则描述 ====================
+    entryCondition: "【严格】至少1个长周期（30m或1h）趋势明确 + 2个短周期（3m、5m或15m）方向一致，只做顺趋势",
+    riskTolerance: "单笔交易风险控制在15-22%之间，快速止损，不恋战",
+    tradingStyle: "高频微利交易，5分钟执行周期，持仓10-60分钟，只要覆盖手续费即止盈，累积返佣收益",
+    
+    // ==================== 代码级保护配置 ====================
+    // 启用代码级保护：系统每10秒自动检查止损和移动止盈
+    // AI只需要负责开仓，平仓由代码自动执行
+    enableCodeLevelProtection: true,
+  };
+}
+
+/**
+ * 生成返佣套利策略特有的提示词
+ * 
+ * 根据策略参数和运行上下文，生成传递给AI的策略提示词。
+ * AI会根据这些提示词来指导交易决策。
+ * 
+ * @param params - 策略参数配置（从 getRebateFarmingStrategy 获得）
+ * @param context - 运行时上下文（包含执行周期、持仓数量等）
+ * @returns 返佣套利策略专属的AI提示词
+ */
+export function generateRebateFarmingPrompt(params: StrategyParams, context: StrategyPromptContext): string {
+  return `
+**策略目标**：通过高频微利交易，累积手续费返佣收益
+**目标月回报**：15-25%（交易盈利10-15% + 手续费返佣5-10%）
+**盈亏比要求**：≥1.5:1（小目标，高胜率，快速止损）
+
+【返佣套利策略核心原则】
+
+本策略是专为拥有高额手续费返佣的用户设计的高频微利策略：
+- 主要收益来源：小额稳定盈利 + 高频交易手续费返佣
+- 核心理念：微利即走，不贪心，频次取胜
+- 执行周期：5分钟（高频）
+- 持仓时间：10-60分钟（快进快出）
+- **⚠️ 重要约束：不允许空仓，账户必须至少保持1个持仓**
+
+【手续费与盈利计算】
+
+1. 手续费成本：
+   - 单笔交易手续费：开仓+平仓约0.1%（Maker+Taker）
+   - 考虑杠杆影响：10倍杠杆下实际成本约0.2-0.3%
+   - 盈利目标：需要覆盖手续费 + 0.5%以上即可平仓
+
+2. 返佣收益：
+   - 假设手续费返佣比例50-80%
+   - 每笔交易额外获得手续费返佣收益
+   - 高频交易累积，月度可观
+
+3. 盈利目标（按10倍杠杆计算）：
+   - 最低目标：+0.5%（覆盖手续费+微利）
+   - 理想目标：+0.8-1.5%（小确定性盈利）
+   - 最高目标：+2-3%（趋势强劲时追求更多）
+
+【入场规则 - 严格执行】
+
+返佣套利策略的成功关键：**只做顺趋势，拒绝震荡！**
+
+必须同时满足以下条件才能入场：
+1. 【长周期趋势确认】至少1个长周期（30m或1h）趋势明确（涨或跌）
+2. 【短周期信号一致】至少2个短周期（3m、5m或15m）与长周期方向一致
+3. 【拒绝震荡】如果长周期处于震荡，短周期信号再强也不开仓
+4. 【拒绝逆势】绝不做逆趋势交易，即使短期信号诱人
+
+入场信号强度评估：
+- 强信号：1个长周期趋势 + 3个短周期一致 → 使用${params.leverageMax}倍杠杆，${params.positionSizeRecommend.strong}仓位
+- 良好信号：1个长周期趋势 + 2个短周期一致 → 使用${params.leverageRecommend.good}杠杆，${params.positionSizeRecommend.good}仓位  
+- 普通信号：1个长周期趋势 + 2个短周期一致但较弱 → 使用${params.leverageMin}倍杠杆，${params.positionSizeRecommend.normal}仓位
+
+【持仓管理 - AI职责】
+
+注意：本策略已启用代码级自动止损和移动止盈（每10秒检查），AI不需要主动平仓！
+
+代码自动执行的规则：
+1. 自动止损（根据杠杆自动触发）：
+   - ${params.leverageMin}-${Math.ceil(params.leverageMin + (params.leverageMax - params.leverageMin) * 0.33)}倍杠杆：亏损${params.stopLoss.low}%自动止损
+   - ${Math.ceil(params.leverageMin + (params.leverageMax - params.leverageMin) * 0.33) + 1}-${Math.ceil(params.leverageMin + (params.leverageMax - params.leverageMin) * 0.67)}倍杠杆：亏损${params.stopLoss.mid}%自动止损
+   - ${Math.ceil(params.leverageMin + (params.leverageMax - params.leverageMin) * 0.67) + 1}倍以上杠杆：亏损${params.stopLoss.high}%自动止损
+
+2. 自动移动止盈（核心规则）：
+   - Level 1: 盈利达到+${params.trailingStop.level1.trigger}%时，止损线移至+${params.trailingStop.level1.stopAt}%（微利即走）
+   - Level 2: 盈利达到+${params.trailingStop.level2.trigger}%时，止损线移至+${params.trailingStop.level2.stopAt}%（保护更多）
+   - Level 3: 盈利达到+${params.trailingStop.level3.trigger}%时，止损线移至+${params.trailingStop.level3.stopAt}%（极少触发）
+
+3. 自动分批止盈：
+   - 盈利达到+${params.partialTakeProfit.stage1.trigger}%时，自动平仓${params.partialTakeProfit.stage1.closePercent}%
+   - 盈利达到+${params.partialTakeProfit.stage2.trigger}%时，自动平仓剩余仓位（累计100%）
+
+AI的职责（重要）：
+- ✅ 专注分析市场，寻找顺趋势入场机会
+- ✅ 监控持仓状态，报告盈亏情况
+- ✅ 分析趋势是否继续强劲
+- ❌ 不要主动调用 closePosition 平仓（代码会自动执行）
+- ❌ 不要因为盈利小就想手动平仓（相信代码的移动止盈规则）
+
+【开仓频率控制】
+
+返佣策略是高频策略，但不是无脑开仓：
+- 每个执行周期（5分钟）最多开仓1次
+- 总持仓数不超过${context.maxPositions}个
+- 优先级：长周期趋势明确 > 短期信号频繁
+- 禁止：在长周期震荡时，因为短周期信号频繁就不断开仓
+
+【空仓管理 - 核心要求】
+
+⚠️ **返佣套利策略不允许空仓！**
+
+这是返佣套利策略的核心特点：
+1. **禁止完全空仓**：账户至少保持1个持仓（除非当前所有持仓都在止损/止盈过程中）
+2. **空仓即开仓**：如果当前持仓数为0，必须在当前周期内寻找机会开仓
+3. **优先开仓原则**：
+   - 空仓时，适当放宽入场条件（但仍需满足基本的趋势确认）
+   - 可以选择趋势最明确的币种，即使信号不是特别强
+   - 使用较小的杠杆和仓位（${params.leverageMin}倍杠杆，${params.positionSizeMin}%仓位）
+4. **为什么不允许空仓**：
+   - 返佣套利策略的核心是通过高频交易累积手续费返佣
+   - 空仓意味着没有交易，无法产生返佣收益
+   - 保持持仓可以随时把握市场机会，提高资金使用效率
+5. **空仓处理流程**：
+   - 检测到空仓 → 立即扫描所有币种 → 选择趋势最明确的1-2个币种
+   - 优先选择长周期（30m/1h）趋势明确的币种
+   - 如果所有币种都在震荡，选择波动最小、相对稳定的币种进行小仓位试探
+   - 开仓后严格执行代码级止损保护，快速止损不恋战
+
+【风险控制红线】
+
+1. 严格止损：代码会自动执行，AI无需担心
+2. 拒绝震荡：长周期震荡时，严禁开仓（这是最大风险）
+3. 拒绝逆势：绝不做逆趋势交易
+4. 快速止损：亏损不恋战，快速止损换下一个机会
+5. 持仓时间：单笔持仓超过30分钟需谨慎，趋势可能转变
+
+【成功要诀】
+
+✅ 保持持仓：不允许空仓，账户至少保持1个持仓，空仓时立即寻找机会开仓
+✅ 高频微利：单笔0.5-1.5%，单日20-50笔，月度累积可观
+✅ 顺势而为：只做顺趋势，拒绝震荡和逆势
+✅ 微利即走：不贪心，覆盖手续费+小盈利就满足
+✅ 快速止损：亏损不恋战，保持高胜率
+✅ 返佣收益：高频交易累积手续费返佣
+
+❌ 失败根源
+❌ 长期空仓：返佣策略不允许空仓，空仓=无法产生返佣收益
+❌ 震荡开仓：长周期震荡时频繁开仓=频繁止损
+❌ 逆势交易：短期诱惑逆势开仓=大概率止损
+❌ 过度贪心：微利不平仓，等待更高目标=利润回吐
+❌ 恋战不止损：亏损不愿止损=扩大损失
+
+【策略适用场景】
+
+最适合的市场环境：
+✅ 单边趋势行情（涨或跌都可以）
+✅ 短期波动但长期趋势明确
+✅ 市场流动性好，滑点小
+
+不适合的市场环境：
+❌ 横盘震荡（长周期无明确趋势）
+❌ 剧烈波动（止损频繁触发）
+❌ 流动性差（滑点大，影响盈利）
+
+【特别提醒】
+
+这是一个需要极度自律的策略：
+- 核心是"微利即走"，不是"追求暴利"
+- 成功靠的是频次和胜率，不是单笔大盈利
+- 严格遵守入场条件，拒绝诱惑
+- 相信代码的自动止盈规则，不要手动干预
+- 长期坚持，累积复利
+
+记住：小确定性盈利 > 大不确定性盈利！
+`;
+}
+

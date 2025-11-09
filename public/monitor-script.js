@@ -45,7 +45,8 @@ class TradingMonitor {
                 this.loadPositionsData(),
                 this.loadTradesData(),
                 this.loadLogsData(),
-                this.loadTickerPrices()
+                this.loadTickerPrices(),
+                this.loadStrategyData()
             ]);
         } catch (error) {
             console.error('加载初始数据失败:', error);
@@ -130,6 +131,39 @@ class TradingMonitor {
             
         } catch (error) {
             console.error('加载账户数据失败:', error);
+        }
+    }
+
+    // 加载策略数据
+    async loadStrategyData() {
+        try {
+            const response = await fetch('/api/strategy');
+            const data = await response.json();
+            
+            if (data.error) {
+                console.error('API错误:', data.error);
+                return;
+            }
+
+            // 更新策略名称徽章
+            const strategyBadge = document.getElementById('strategy-badge');
+            if (strategyBadge) {
+                strategyBadge.textContent = data.strategyName;
+                // 移除所有策略类名
+                strategyBadge.className = 'strategy-badge-inline';
+                // 添加当前策略类名
+                strategyBadge.classList.add(data.strategy);
+            }
+
+            // 更新策略详细信息（一行显示）
+            const strategyInfoInline = document.getElementById('strategy-info-inline');
+            if (strategyInfoInline) {
+                const protectionMode = data.enableCodeLevelProtection ? '代码级' : 'AI';
+                strategyInfoInline.textContent = `${data.intervalMinutes}分 | ${data.leverageRange} | ${data.positionSizeRange} | ${protectionMode}`;
+            }
+            
+        } catch (error) {
+            console.error('加载策略数据失败:', error);
         }
     }
 

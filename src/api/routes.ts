@@ -24,6 +24,8 @@ import { serveStatic } from "@hono/node-server/serve-static";
 import { createClient } from "@libsql/client";
 import { createGateClient } from "../services/gateClient";
 import { createLogger } from "../utils/loggerUtils";
+import { getTradingStrategy, getStrategyParams } from "../agents/tradingAgent";
+import { RISK_PARAMS } from "../config/riskParams";
 
 const logger = createLogger({
   name: "api-routes",
@@ -339,6 +341,41 @@ export function createApiRoutes() {
       );
       
       return c.json({ prices });
+    } catch (error: any) {
+      return c.json({ error: error.message }, 500);
+    }
+  });
+
+  /**
+   * 获取当前交易策略配置
+   */
+  app.get("/api/strategy", async (c) => {
+    try {
+      const strategy = getTradingStrategy();
+      const params = getStrategyParams(strategy);
+      const intervalMinutes = Number.parseInt(process.env.TRADING_INTERVAL_MINUTES || "20");
+      
+      // 策略名称映射
+      const strategyNames: Record<string, string> = {
+        "ultra-short": "超短线",
+        "swing-trend": "波段趋势",
+        "conservative": "稳健",
+        "balanced": "平衡",
+        "aggressive": "激进",
+        "rebate-farming": "返佣套利"
+      };
+      
+      return c.json({
+        strategy,
+        strategyName: strategyNames[strategy] || strategy,
+        intervalMinutes,
+        maxLeverage: RISK_PARAMS.MAX_LEVERAGE,
+        maxPositions: RISK_PARAMS.MAX_POSITIONS,
+        leverageRange: `${params.leverageMin}-${params.leverageMax}x`,
+        positionSizeRange: `${params.positionSizeMin}-${params.positionSizeMax}%`,
+        enableCodeLevelProtection: params.enableCodeLevelProtection,
+        description: params.description
+      });
     } catch (error: any) {
       return c.json({ error: error.message }, 500);
     }

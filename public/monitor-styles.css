@@ -68,8 +68,10 @@ body {
 
 @media (max-width: 768px) {
     .disclaimer-banner {
-        padding: 10px 1rem;
-        font-size: 0.8rem;
+        padding: 8px 1rem;
+        font-size: 0.7rem;
+        text-align: left;
+        justify-content: flex-start;
     }
 }
 
@@ -636,6 +638,49 @@ body {
 
 .detail-value.negative {
     color: var(--loss-color);
+}
+
+/* Strategy Info Inline Styles */
+.strategy-badge-inline {
+    padding: 0.15rem 0.5rem;
+    background-color: var(--text-primary);
+    color: var(--bg-primary);
+    border-radius: 3px;
+    font-size: 0.75rem;
+    font-weight: bold;
+    letter-spacing: 0.5px;
+    display: inline-block;
+    margin-right: 0.5rem;
+}
+
+.strategy-badge-inline.ultra-short {
+    background-color: #ff9500;
+}
+
+.strategy-badge-inline.swing-trend {
+    background-color: #00ffaa;
+}
+
+.strategy-badge-inline.conservative {
+    background-color: #5ac8fa;
+}
+
+.strategy-badge-inline.balanced {
+    background-color: #ffcc00;
+}
+
+.strategy-badge-inline.aggressive {
+    background-color: #ff3b30;
+}
+
+.strategy-badge-inline.rebate-farming {
+    background-color: #af52de;
+}
+
+.strategy-info-inline {
+    color: var(--text-dim);
+    font-size: 0.75rem;
+    font-weight: normal;
 }
 
 /* Positions Cards - Small cards under account section */
@@ -1457,6 +1502,17 @@ body {
         margin-top: 0.8rem;
         padding-top: 0.8rem;
         gap: 0.6rem;
+    }
+
+    /* Strategy Info Inline - Mobile */
+    .strategy-badge-inline {
+        padding: 0.12rem 0.4rem;
+        font-size: 0.7rem;
+        margin-right: 0.3rem;
+    }
+
+    .strategy-info-inline {
+        font-size: 0.7rem;
     }
 
     /* Tables */
