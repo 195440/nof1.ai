@@ -634,9 +634,10 @@ export const closePositionTool = createTool({
       
       //  直接从 Gate.io 获取最新的持仓信息（不依赖数据库）
       const allPositions = await client.getPositions();
-      const gatePosition = allPositions.find((p: any) => p.contract === contract);
+      // 🔧 修复：在双向持仓模式下，需要过滤掉 size=0 的记录，找到实际持仓
+      const gatePosition = allPositions.find((p: any) => p.contract === contract && Number.parseInt(p.size || "0") !== 0);
       
-      if (!gatePosition || Number.parseInt(gatePosition.size || "0") === 0) {
+      if (!gatePosition) {
         return {
           success: false,
           message: `没有找到 ${symbol} 的持仓`,
