@@ -494,8 +494,10 @@ export const openPositionTool = createTool({
           await new Promise(resolve => setTimeout(resolve, 1000 * (retryCount + 1))); // 递增等待时间
           
           const positions = await client.getPositions();
-          
-          const gatePosition = positions.find((p: any) => p.contract === contract);
+
+          // 在双向持仓模式下，需要过滤掉 size=0 的记录，找到实际持仓
+          const gatePosition = positions.find((p: any) => p.contract === contract
+              && Number.parseInt(p.size || "0") !== 0);
           if (gatePosition) {
             gatePositionSize = Number.parseInt(gatePosition.size || "0");
             
