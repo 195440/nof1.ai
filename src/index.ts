@@ -99,17 +99,22 @@ async function main() {
   logger.info(`交易间隔: ${process.env.TRADING_INTERVAL_MINUTES || 5} 分钟`);
   logger.info(`账户记录间隔: ${process.env.ACCOUNT_RECORD_INTERVAL_MINUTES || 10} 分钟`);
   
-  if (isCodeLevelEnabled && params.codeLevelTrailingStop && params.codeLevelStopLoss) {
-    logger.info(`\n📊 代码级移动止盈监控（仅波段策略，每10秒检查）:`);
-    logger.info(`  • ${params.codeLevelTrailingStop.stage1.description}`);
-    logger.info(`  • ${params.codeLevelTrailingStop.stage2.description}`);
-    logger.info(`  • ${params.codeLevelTrailingStop.stage3.description}`);
-    logger.info(`  • ${params.codeLevelTrailingStop.stage4.description}`);
-    logger.info(`  • ${params.codeLevelTrailingStop.stage5.description}`);
-    logger.info(`\n🛡️ 代码级自动止损监控（仅波段策略，每10秒检查）:`);
-    logger.info(`  • ${params.codeLevelStopLoss.lowRisk.description}`);
-    logger.info(`  • ${params.codeLevelStopLoss.mediumRisk.description}`);
-    logger.info(`  • ${params.codeLevelStopLoss.highRisk.description}`);
+  if (isCodeLevelEnabled) {
+    // 动态生成止损描述
+    const levMin = params.leverageMin;
+    const levMax = params.leverageMax;
+    const lowThreshold = Math.ceil(levMin + (levMax - levMin) * 0.33);
+    const midThreshold = Math.ceil(levMin + (levMax - levMin) * 0.67);
+    
+    logger.info(`\n📊 代码级移动止盈监控（每10秒检查）:`);
+    logger.info(`  • Level 1: 峰值达到 ${params.trailingStop.level1.trigger}% 时，回落至 ${params.trailingStop.level1.stopAt}% 平仓`);
+    logger.info(`  • Level 2: 峰值达到 ${params.trailingStop.level2.trigger}% 时，回落至 ${params.trailingStop.level2.stopAt}% 平仓`);
+    logger.info(`  • Level 3: 峰值达到 ${params.trailingStop.level3.trigger}% 时，回落至 ${params.trailingStop.level3.stopAt}% 平仓`);
+    
+    logger.info(`\n🛡️ 代码级自动止损监控（每10秒检查）:`);
+    logger.info(`  • ${levMin}-${lowThreshold}倍杠杆，亏损 ${params.stopLoss.low}% 时止损`);
+    logger.info(`  • ${lowThreshold + 1}-${midThreshold}倍杠杆，亏损 ${params.stopLoss.mid}% 时止损`);
+    logger.info(`  • ${midThreshold + 1}倍以上杠杆，亏损 ${params.stopLoss.high}% 时止损`);
   } else {
     logger.info(`\n⚠️  当前策略未启用代码级监控，止损止盈完全由AI控制`);
   }

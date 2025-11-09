@@ -57,6 +57,7 @@ export function getBalancedStrategy(maxLeverage: number): StrategyParams {
     riskTolerance: "单笔交易风险控制在20-27%之间，平衡风险与收益",
     tradingStyle: "在风险可控前提下积极把握机会，追求稳健增长",
     enableCodeLevelProtection: false, // 平衡策略：AI 主动止损止盈
+    // 如需启用代码级保护，stopLossMonitor 会自动使用上面的 stopLoss 配置
   };
 }
 

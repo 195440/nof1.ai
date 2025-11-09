@@ -5,15 +5,19 @@ import type { StrategyParams, StrategyPromptContext } from "./types";
  * 极短周期快进快出，5分钟执行，适合高频交易
  */
 export function getUltraShortStrategy(maxLeverage: number): StrategyParams {
+  // 超短线策略：50%-75% 的最大杠杆
+  const ultraShortLevMin = Math.max(3, Math.ceil(maxLeverage * 0.5));
+  const ultraShortLevMax = Math.max(5, Math.ceil(maxLeverage * 0.75));
+  
   return {
     name: "超短线",
     description: "极短周期快进快出，5分钟执行，适合高频交易",
-    leverageMin: Math.max(3, Math.ceil(maxLeverage * 0.5)),
-    leverageMax: Math.max(5, Math.ceil(maxLeverage * 0.75)),
+    leverageMin: ultraShortLevMin,
+    leverageMax: ultraShortLevMax,
     leverageRecommend: {
-      normal: `${Math.max(3, Math.ceil(maxLeverage * 0.5))}倍`,
+      normal: `${ultraShortLevMin}倍`,
       good: `${Math.max(4, Math.ceil(maxLeverage * 0.625))}倍`,
-      strong: `${Math.max(5, Math.ceil(maxLeverage * 0.75))}倍`,
+      strong: `${ultraShortLevMax}倍`,
     },
     positionSizeMin: 18,
     positionSizeMax: 25,
@@ -49,6 +53,7 @@ export function getUltraShortStrategy(maxLeverage: number): StrategyParams {
     riskTolerance: "单笔交易风险控制在18-25%之间，快进快出",
     tradingStyle: "超短线交易，5分钟执行周期，快速捕捉短期波动，严格执行2%周期锁利规则和30分钟盈利平仓规则",
     enableCodeLevelProtection: false, // 超短线策略：AI 主动止损止盈
+    // 如需启用代码级保护，stopLossMonitor 会自动使用上面的 stopLoss 配置
   };
 }
 

@@ -101,6 +101,7 @@ export function getAggressiveStrategy(maxLeverage: number): StrategyParams {
     
     // 代码级保护：禁用，由AI主动执行止损止盈
     // AI会根据市场情况灵活判断，不受固定规则限制
+    // 如需启用代码级保护，stopLossMonitor 会自动使用上面的 stopLoss 配置
     enableCodeLevelProtection: false,
   };
 }

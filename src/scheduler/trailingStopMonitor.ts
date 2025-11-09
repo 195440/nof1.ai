@@ -35,7 +35,7 @@
  * 8. 确保 AI 在每个交易周期看到准确的账户峰值回撤数据
  * 
  * 【扩展功能 - 代码级自动平仓（根据策略配置启用）】
- * 9. 根据多级规则判断是否触发移动止盈
+ * 9. 使用策略的 trailingStop 配置（3级规则）判断是否触发移动止盈
  * 10. 触发时立即平仓，记录到交易历史和决策数据
  * 
  * 策略适用范围：
@@ -44,12 +44,10 @@
  * - enableCodeLevelProtection = true（如 swing-trend）: 
  *   功能1-10（完整功能，包含自动平仓）
  * 
- * 移动止盈规则（示例 - swing-trend 策略）：
- * - 阶段1：峰值盈利 4-6%   → 回退1.5%时平仓（保底2.5%利润）
- * - 阶段2：峰值盈利 6-10%  → 回退2%时平仓（保底4%利润）
- * - 阶段3：峰值盈利 10-15% → 回退2.5%时平仓（保底7.5%利润）
- * - 阶段4：峰值盈利 15-25% → 回退3%时平仓（保底12%利润）
- * - 阶段5：峰值盈利 25%+   → 回退5%时平仓（保底20%利润）
+ * 移动止盈规则（示例 - swing-trend 策略，使用 trailingStop 配置）：
+ * - Level 1: 峰值达到 15% 时，回落至 8% 平仓
+ * - Level 2: 峰值达到 30% 时，回落至 20% 平仓
+ * - Level 3: 峰值达到 50% 时，回落至 35% 平仓
  * 
  * 重要说明：
  * - 持仓峰值：每个持仓独立跟踪，盈利计算已考虑杠杆倍数
@@ -78,51 +76,63 @@ const dbClient = createClient({
 });
 
 /**
- * 获取移动止盈配置（从策略配置读取）
+ * 根据峰值盈利和当前盈利判断是否触发移动止盈
+ * 使用策略的 trailingStop 配置
+ * 
+ * @returns { shouldClose: boolean, level: string, description: string }
  */
-function getTrailingStopConfig() {
+function checkTrailingStop(peakPnlPercent: number, currentPnlPercent: number): { 
+  shouldClose: boolean; 
+  level: string; 
+  description: string;
+  stopAt?: number;
+} {
   const strategy = getTradingStrategy();
   const params = getStrategyParams(strategy);
   
-  // 只有波段策略有代码级移动止盈配置
-  if (params.codeLevelTrailingStop) {
-    return params.codeLevelTrailingStop;
-  }
-  
-  // 其他策略返回 null，不启用代码级移动止盈
-  return null;
-}
-
-/**
- * 根据峰值盈利确定回退阈值和阶段信息
- */
-function getDrawdownThreshold(peakPnlPercent: number): { threshold: number; stage: string; description: string } {
-  const config = getTrailingStopConfig();
-  if (!config) {
-    // 不应该到这里，因为只有波段策略会启动移动止盈监控
+  if (!params.trailingStop) {
     throw new Error("移动止盈配置不存在");
   }
   
-  // 按照从高到低的顺序检查
-  const stages = [
-    config.stage5,
-    config.stage4,
-    config.stage3,
-    config.stage2,
-    config.stage1,
+  const { level1, level2, level3 } = params.trailingStop;
+  
+  // 按照从高到低的顺序检查（level3 -> level2 -> level1）
+  // 盈利达到 trigger% 时，如果当前盈利回落到 stopAt% 或以下，触发平仓
+  const levels = [
+    { name: "level3", trigger: level3.trigger, stopAt: level3.stopAt },
+    { name: "level2", trigger: level2.trigger, stopAt: level2.stopAt },
+    { name: "level1", trigger: level1.trigger, stopAt: level1.stopAt },
   ];
   
-  for (const stage of stages) {
-    if (peakPnlPercent >= stage.minProfit) {
-      return {
-        threshold: stage.drawdownPercent,
-        stage: stage.name,
-        description: stage.description,
-      };
+  for (const level of levels) {
+    if (peakPnlPercent >= level.trigger) {
+      // 峰值达到了触发点
+      if (currentPnlPercent <= level.stopAt) {
+        // 当前盈利回落到止损点或以下，触发平仓
+        return {
+          shouldClose: true,
+          level: level.name,
+          description: `峰值${peakPnlPercent.toFixed(2)}%，触发${level.trigger}%移动止盈，当前${currentPnlPercent.toFixed(2)}%已回落至${level.stopAt}%止损线`,
+          stopAt: level.stopAt,
+        };
+      } else {
+        // 还在止损线之上，继续持有
+        return {
+          shouldClose: false,
+          level: level.name,
+          description: `峰值${peakPnlPercent.toFixed(2)}%，触发${level.trigger}%移动止盈，止损线${level.stopAt}%，当前${currentPnlPercent.toFixed(2)}%`,
+          stopAt: level.stopAt,
+        };
+      }
     }
   }
   
-  return { threshold: 0, stage: "未达到阈值", description: "峰值盈利未达到4%，继续跟踪" };
+  // 峰值未达到任何触发点
+  return {
+    shouldClose: false,
+    level: "未触发",
+    description: `峰值${peakPnlPercent.toFixed(2)}%，未达到${level1.trigger}%触发点`,
+  };
 }
 
 // 持仓盈利记录：symbol -> { peakPnlPercent, lastCheckTime, priceHistory }
@@ -144,8 +154,50 @@ let isRunning = false;
  * 检查当前策略是否启用代码级移动止盈
  */
 function isTrailingStopEnabled(): boolean {
-  const strategy = process.env.TRADING_STRATEGY || "balanced";
-  return strategy === "swing-trend";
+  const strategy = getTradingStrategy();
+  const params = getStrategyParams(strategy);
+  return params.enableCodeLevelProtection === true;
+}
+
+/**
+ * 获取移动止盈配置（用于日志输出）
+ */
+function getTrailingStopConfig() {
+  const strategy = getTradingStrategy();
+  const params = getStrategyParams(strategy);
+  
+  if (!params.trailingStop) {
+    return null;
+  }
+  
+  return {
+    stage1: {
+      description: `峰值达到 ${params.trailingStop.level1.trigger}% 时，回落至 ${params.trailingStop.level1.stopAt}% 平仓`,
+      trigger: params.trailingStop.level1.trigger,
+      stopAt: params.trailingStop.level1.stopAt,
+    },
+    stage2: {
+      description: `峰值达到 ${params.trailingStop.level2.trigger}% 时，回落至 ${params.trailingStop.level2.stopAt}% 平仓`,
+      trigger: params.trailingStop.level2.trigger,
+      stopAt: params.trailingStop.level2.stopAt,
+    },
+    stage3: {
+      description: `峰值达到 ${params.trailingStop.level3.trigger}% 时，回落至 ${params.trailingStop.level3.stopAt}% 平仓`,
+      trigger: params.trailingStop.level3.trigger,
+      stopAt: params.trailingStop.level3.stopAt,
+    },
+    // 为了兼容旧代码，添加 stage4 和 stage5（实际不使用）
+    stage4: {
+      description: `未使用（仅3级规则）`,
+      trigger: 0,
+      stopAt: 0,
+    },
+    stage5: {
+      description: `未使用（仅3级规则）`,
+      trigger: 0,
+      stopAt: 0,
+    },
+  };
 }
 
 /**
@@ -591,33 +643,27 @@ async function checkPeakPnlAndTrailingStop(autoCloseEnabled: boolean) {
         continue;
       }
       
-      // 5. 检查移动止盈条件（多级规则）- 仅波段策略
-      // 根据峰值盈利确定回退阈值和阶段信息
-      const thresholdInfo = getDrawdownThreshold(history.peakPnlPercent);
+      // 5. 检查移动止盈条件（3级规则）- 仅波段策略
+      // 使用 trailingStop 配置判断是否触发平仓
+      const trailingStopResult = checkTrailingStop(history.peakPnlPercent, pnlPercent);
       
-      // 如果峰值盈利未达到最低阈值（4%），不触发
-      if (thresholdInfo.threshold === 0) {
-        // 每10次检查输出一次调试日志，避免日志过多
-        if (history.checkCount % 10 === 0) {
-          logger.debug(`${symbol} 峰值盈利 ${history.peakPnlPercent.toFixed(2)}% 未达到最低阈值 4%，继续跟踪`);
-        }
-        continue;
+      // 调试日志：每10次检查输出一次
+      if (history.checkCount % 10 === 0) {
+        logger.debug(`${symbol} 移动止盈监控: ${trailingStopResult.description}`);
       }
       
       // 计算回退百分比（绝对值）
       const drawdownPercent = history.peakPnlPercent - pnlPercent;
       
-      // 检查是否达到回退阈值
-      if (drawdownPercent >= thresholdInfo.threshold) {
-        // 计算回退后的盈利
-        const profitAfterDrawdown = pnlPercent;
-        
-        logger.warn(`${symbol} 触发移动止盈条件:`);
-        logger.warn(`  触发阶段: ${thresholdInfo.stage} - ${thresholdInfo.description}`);
+      // 检查是否应该平仓
+      if (trailingStopResult.shouldClose) {
+        logger.warn(`${symbol} 触发移动止盈平仓:`);
+        logger.warn(`  触发级别: ${trailingStopResult.level}`);
+        logger.warn(`  ${trailingStopResult.description}`);
         logger.warn(`  峰值盈利: ${history.peakPnlPercent.toFixed(2)}%`);
         logger.warn(`  当前盈利: ${pnlPercent.toFixed(2)}%`);
-        logger.warn(`  回退幅度: ${drawdownPercent.toFixed(2)}% ≥ ${thresholdInfo.threshold.toFixed(2)}%`);
-        logger.warn(`  回退后盈利: ${profitAfterDrawdown.toFixed(2)}%`);
+        logger.warn(`  回退幅度: ${drawdownPercent.toFixed(2)}%`);
+        logger.warn(`  止损线: ${trailingStopResult.stopAt}%`);
         
         // 执行平仓
         const success = await executeTrailingStopClose(
@@ -630,17 +676,17 @@ async function checkPeakPnlAndTrailingStop(autoCloseEnabled: boolean) {
           pnlPercent,
           history.peakPnlPercent,
           drawdownPercent,
-          thresholdInfo.threshold,
-          `${thresholdInfo.stage} - ${thresholdInfo.description}`
+          trailingStopResult.stopAt || 0,
+          `${trailingStopResult.level} - ${trailingStopResult.description}`
         );
         
         if (success) {
           logger.info(`${symbol} 移动止盈平仓成功`);
         }
       } else {
-        // 每10次检查输出一次调试日志
+        // 每10次检查输出一次调试日志（修复：使用 trailingStopResult 而不是未定义的 thresholdInfo）
         if (history.checkCount % 10 === 0) {
-          logger.debug(`${symbol} ${thresholdInfo.stage} 监控中: 峰值${history.peakPnlPercent.toFixed(2)}%, 当前${pnlPercent.toFixed(2)}%, 回退${drawdownPercent.toFixed(2)}% < 阈值${thresholdInfo.threshold.toFixed(2)}%`);
+          logger.debug(`${symbol} ${trailingStopResult.level} 监控中: 峰值${history.peakPnlPercent.toFixed(2)}%, 当前${pnlPercent.toFixed(2)}%, 回退${drawdownPercent.toFixed(2)}%`);
         }
       }
     }

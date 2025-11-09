@@ -22,12 +22,12 @@
  * 适用范围：
  * - 策略配置 enableCodeLevelProtection = true 时启用
  * - 默认只有 swing-trend（波段趋势策略）启用，其他策略可根据需要启用
- * - 需要策略配置中定义 codeLevelStopLoss 配置
+ * - 直接使用策略的 stopLoss 配置，根据杠杆范围自动映射到 low/mid/high
  * 
  * 功能：
  * 1. 每10秒从Gate.io获取最新持仓价格（markPrice）
  * 2. 计算每个持仓的当前盈亏百分比
- * 3. 根据止损规则判断是否触发止损
+ * 3. 根据止损规则判断是否触发止损（基于杠杆倍数动态映射）
  * 4. 触发时立即平仓，记录到交易历史和决策数据
  * 
  * 止损规则（示例 - swing-trend 策略）：
@@ -58,52 +58,45 @@ const dbClient = createClient({
 });
 
 /**
- * 获取止损配置（从策略配置读取）
+ * 根据杠杆倍数确定止损阈值
+ * 直接使用策略的 stopLoss 配置，根据杠杆范围映射到 low/mid/high
  */
-function getStopLossConfig() {
+function getStopLossThreshold(leverage: number): { threshold: number; level: string; description: string } {
   const strategy = getTradingStrategy();
   const params = getStrategyParams(strategy);
   
-  // 只有波段策略有代码级止损配置
-  if (params.codeLevelStopLoss) {
-    return params.codeLevelStopLoss;
-  }
-  
-  // 其他策略返回 null，不启用代码级止损
-  return null;
-}
-
-/**
- * 根据杠杆倍数确定止损阈值
- */
-function getStopLossThreshold(leverage: number): { threshold: number; level: string; description: string } {
-  const config = getStopLossConfig();
-  if (!config) {
-    // 不应该到这里，因为只有波段策略会启动止损监控
+  if (!params.stopLoss) {
     throw new Error("止损配置不存在");
   }
   
-  if (leverage >= config.highRisk.minLeverage) {
+  // 根据杠杆范围自动映射到 low/mid/high
+  // 低杠杆：leverageMin ~ leverageMin + (leverageMax - leverageMin) * 0.33
+  // 中杠杆：低杠杆上限 + 1 ~ leverageMin + (leverageMax - leverageMin) * 0.67
+  // 高杠杆：中杠杆上限 + 1 ~ leverageMax
+  const levMin = params.leverageMin;
+  const levMax = params.leverageMax;
+  const lowThreshold = Math.ceil(levMin + (levMax - levMin) * 0.33);
+  const midThreshold = Math.ceil(levMin + (levMax - levMin) * 0.67);
+  
+  if (leverage > midThreshold) {
     return {
-      threshold: config.highRisk.stopLossPercent,
-      level: "高风险",
-      description: config.highRisk.description,
+      threshold: params.stopLoss.high,
+      level: "高杠杆",
+      description: `${midThreshold + 1}倍以上杠杆，亏损 ${params.stopLoss.high}% 时止损`,
+    };
+  } else if (leverage > lowThreshold) {
+    return {
+      threshold: params.stopLoss.mid,
+      level: "中杠杆",
+      description: `${lowThreshold + 1}-${midThreshold}倍杠杆，亏损 ${params.stopLoss.mid}% 时止损`,
+    };
+  } else {
+    return {
+      threshold: params.stopLoss.low,
+      level: "低杠杆",
+      description: `${levMin}-${lowThreshold}倍杠杆，亏损 ${params.stopLoss.low}% 时止损`,
     };
   }
-  
-  if (leverage >= config.mediumRisk.minLeverage) {
-    return {
-      threshold: config.mediumRisk.stopLossPercent,
-      level: "中风险",
-      description: config.mediumRisk.description,
-    };
-  }
-  
-  return {
-    threshold: config.lowRisk.stopLossPercent,
-    level: "低风险",
-    description: config.lowRisk.description,
-  };
 }
 
 // 持仓监控记录：symbol -> { checkCount, lastCheckTime }
@@ -122,6 +115,38 @@ function isStopLossEnabled(): boolean {
   const strategy = getTradingStrategy();
   const params = getStrategyParams(strategy);
   return params.enableCodeLevelProtection === true;
+}
+
+/**
+ * 获取止损配置（用于日志输出）
+ */
+function getStopLossConfig() {
+  const strategy = getTradingStrategy();
+  const params = getStrategyParams(strategy);
+  
+  if (!params.stopLoss) {
+    return null;
+  }
+  
+  const levMin = params.leverageMin;
+  const levMax = params.leverageMax;
+  const lowThreshold = Math.ceil(levMin + (levMax - levMin) * 0.33);
+  const midThreshold = Math.ceil(levMin + (levMax - levMin) * 0.67);
+  
+  return {
+    lowRisk: {
+      description: `${levMin}-${lowThreshold}倍杠杆，亏损 ${params.stopLoss.low}% 时止损`,
+      threshold: params.stopLoss.low,
+    },
+    mediumRisk: {
+      description: `${lowThreshold + 1}-${midThreshold}倍杠杆，亏损 ${params.stopLoss.mid}% 时止损`,
+      threshold: params.stopLoss.mid,
+    },
+    highRisk: {
+      description: `${midThreshold + 1}倍以上杠杆，亏损 ${params.stopLoss.high}% 时止损`,
+      threshold: params.stopLoss.high,
+    },
+  };
 }
 
 /**

@@ -57,6 +57,7 @@ export function getConservativeStrategy(maxLeverage: number): StrategyParams {
     riskTolerance: "单笔交易风险控制在15-22%之间，严格控制回撤",
     tradingStyle: "谨慎交易，宁可错过机会也不冒险，优先保护本金",
     enableCodeLevelProtection: false, // 稳健策略：AI 主动止损止盈
+    // 如需启用代码级保护，stopLossMonitor 会自动使用上面的 stopLoss 配置
   };
 }
 
