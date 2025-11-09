@@ -16,6 +16,24 @@
     --accent-green: #00ffaa;
     --accent-red: #ff0000;
     --accent-yellow: #ffff00;
+    
+    /* 涨跌颜色模式变量 - 默认红涨绿跌 */
+    --price-up: var(--accent-red);
+    --price-down: var(--accent-green);
+    --position-long: var(--accent-red);
+    --position-short: var(--accent-green);
+    --profit-color: var(--accent-red);
+    --loss-color: var(--accent-green);
+}
+
+/* 反转涨跌颜色模式 - 红跌绿涨 */
+body.color-mode-reversed {
+    --price-up: var(--accent-green);
+    --price-down: var(--accent-red);
+    --position-long: var(--accent-green);
+    --position-short: var(--accent-red);
+    --profit-color: var(--accent-green);
+    --loss-color: var(--accent-red);
 }
 
 body {
@@ -61,7 +79,7 @@ body {
     gap: 2rem;
 }
 
-.nav-link {
+.nav-link,.nav-menu-item {
     color: var(--text-secondary);
     text-decoration: none;
     font-size: 0.9rem;
@@ -69,7 +87,7 @@ body {
     position: relative;
 }
 
-.nav-link:hover,
+.nav-link:hover,.nav-menu-item:hover,
 .nav-link.active {
     color: var(--accent-green);
     text-shadow: 0 0 5px var(--accent-green);
@@ -94,13 +112,17 @@ body {
 .github-stars {
     display: inline-flex;
     align-items: center;
+    justify-content: center;
     background-color: var(--bg-tertiary);
-    padding: 2px 8px;
+    padding: 2px 8px 2px 1px;
     border-radius: 12px;
     font-size: 0.8rem;
     margin-left: 8px;
     border: 1px solid var(--border-color);
     transition: all 0.3s;
+    line-height: 1;
+    height: 20px;
+    box-sizing: border-box;
 }
 
 .github-link:hover .github-stars {
@@ -111,6 +133,14 @@ body {
 #stars-count {
     min-width: 20px;
     text-align: center;
+}
+
+.github-stars svg {
+    width: 14px;
+    height: 14px;
+    margin-left: 8px;
+    margin-right: 3px;
+    vertical-align: middle;
 }
 
 .btn-waitlist {
@@ -480,11 +510,32 @@ body {
 
 .account-header {
     margin-bottom: 1rem;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
 }
 
 .account-header h2 {
-    font-size: 0.9rem;
-    color: var(--text-dim);
+    font-size: 1rem;
+    color: var(--text-primary);
+    margin: 0;
+}
+
+.theme-toggle-btn {
+    color: var(--text-secondary);
+    font-size: 0.8rem;
+    transition: all 0.3s;
+    padding: 0.3rem 0.6rem;
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    background-color: var(--bg-tertiary);
+    white-space: nowrap;
+}
+
+.theme-toggle-btn:hover {
+    color: var(--accent-green);
+    border-color: var(--accent-green);
+    box-shadow: 0 0 5px var(--accent-green);
 }
 
 .account-value {
@@ -507,15 +558,23 @@ body {
 }
 
 .change-amount {
-    color: var(--accent-red);
+    color: var(--price-up);
 }
 
 .change-percent {
     color: var(--text-dim);
 }
 
+.change-percent.positive {
+    color: var(--price-up);
+}
+
+.change-percent.negative {
+    color: var(--price-down);
+}
+
 .change-amount.negative {
-    color: var(--accent-green);
+    color: var(--price-down);
 }
 
 .account-details {
@@ -545,11 +604,11 @@ body {
 }
 
 .detail-value.positive {
-    color: var(--accent-red);
+    color: var(--profit-color);
 }
 
 .detail-value.negative {
-    color: var(--accent-green);
+    color: var(--loss-color);
 }
 
 /* Positions Cards - Small cards under account section */
@@ -609,19 +668,19 @@ body {
     top: 0;
     bottom: 0;
     width: 3px;
-    background-color: var(--accent-red);
+    background-color: var(--position-long);
 }
 
 .position-card.negative::before {
-    background-color: var(--accent-green);
+    background-color: var(--position-short);
 }
 
 .position-card:hover {
-    border-color: var(--accent-red);
+    border-color: var(--position-long);
 }
 
 .position-card.negative:hover {
-    border-color: var(--accent-green);
+    border-color: var(--position-short);
 }
 
 .position-card-symbol {
@@ -638,11 +697,11 @@ body {
 }
 
 .position-card-pnl.positive {
-    color: var(--accent-red);
+    color: var(--profit-color);
 }
 
 .position-card-pnl.negative {
-    color: var(--accent-green);
+    color: var(--loss-color);
 }
 
 /* Scrollbar for positions cards */
@@ -721,12 +780,12 @@ body {
 }
 
 .positions-table td.positive {
-    color: var(--accent-red);
+    color: var(--profit-color);
     font-weight: bold;
 }
 
 .positions-table td.negative {
-    color: var(--accent-green);
+    color: var(--loss-color);
     font-weight: bold;
 }
 
@@ -835,20 +894,20 @@ body {
 }
 
 .trades-table .side.long {
-    color: var(--accent-red);
+    color: var(--position-long);
 }
 
 .trades-table .side.short {
-    color: var(--accent-green);
+    color: var(--position-short);
 }
 
 .trades-table .profit {
-    color: var(--accent-red);
+    color: var(--profit-color);
     font-weight: bold;
 }
 
 .trades-table .loss {
-    color: var(--accent-green);
+    color: var(--loss-color);
     font-weight: bold;
 }
 
@@ -1147,7 +1206,7 @@ body {
         align-items: center;
     }
 
-    .nav-link {
+    .nav-link,.nav-menu-item {
         font-size: 0.75rem;
         display: flex;
         align-items: center;
@@ -1159,9 +1218,9 @@ body {
     }
 
     .nav-link svg {
-        width: 16px;
-        height: 16px;
-        margin-right: 3px !important;
+        width: 14px;
+        height: 14px;
+        margin-right: 2px !important;
     }
 
     /* 移动端隐藏 GitHub 文字和图标，只保留星数 */
@@ -1175,8 +1234,15 @@ body {
 
     .github-stars {
         margin-left: 0;
-        padding: 2px 6px;
-        font-size: 0.75rem;
+        padding: 1px 5px;
+        font-size: 0.7rem;
+    }
+    
+    .github-stars svg {
+        width: 12px;
+        height: 12px;
+        margin-left: 4px;
+        margin-right: 2px;
     }
 
     .nav-link {
@@ -1261,6 +1327,16 @@ body {
         font-size: 0.75rem;
         word-break: break-word;
         overflow-wrap: break-word;
+    }
+
+    /* 移动端主题切换按钮 */
+    .theme-toggle-btn {
+        font-size: 0.7rem;
+        padding: 0.2rem 0.4rem;
+    }
+    
+    .account-header h2 {
+        font-size: 0.9rem;
     }
 
     /* 移动端 Markdown 样式 */
@@ -1462,8 +1538,15 @@ body {
     }
 
     .github-stars {
-        padding: 2px 4px;
-        font-size: 0.65rem;
+        padding: 1px 3px;
+        font-size: 0.6rem;
+    }
+    
+    .github-stars svg {
+        width: 10px;
+        height: 10px;
+        margin-left: 3px;
+        margin-right: 1px;
     }
     
     .main-content {
@@ -1538,6 +1621,23 @@ body {
         font-size: 0.8rem;
         margin-bottom: 0.6rem;
         padding-bottom: 0.4rem;
+    }
+
+    /* 移动端主题切换按钮 */
+    .theme-toggle-btn {
+        font-size: 0.65rem;
+        padding: 0.15rem 0.3rem;
+    }
+    
+    .theme-toggle-btn span {
+        display: inline-block;
+        max-width: 80px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+    
+    .account-header h2 {
+        font-size: 0.85rem;
     }
 
     /* 继承768px的列隐藏规则 */

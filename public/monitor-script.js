@@ -615,9 +615,66 @@ class TradingMonitor {
     initTimeframeSelector() {
         // 时间范围已固定为24小时，不再支持切换
     }
+
+    // 初始化涨跌颜色切换功能
+    initColorSchemeToggle() {
+        const toggleBtn = document.getElementById('trend-colors-btn');
+        if (toggleBtn) {
+            // 加载保存的颜色方案
+            this.loadColorScheme();
+            
+            toggleBtn.addEventListener('click', () => {
+                this.toggleColorScheme();
+            });
+        }
+    }
+
+    // 加载保存的颜色方案
+    loadColorScheme() {
+        const savedScheme = localStorage.getItem('colorScheme');
+        const body = document.body;
+        
+        if (savedScheme === 'reversed') {
+            // 应用红跌绿涨模式
+            body.classList.add('color-mode-reversed');
+            this.updateButtonText('红跌绿涨');
+        } else {
+            // 应用默认的红涨绿跌模式
+            body.classList.remove('color-mode-reversed');
+            this.updateButtonText('红涨绿跌');
+        }
+    }
+
+    // 切换涨跌颜色方案
+    toggleColorScheme() {
+        const body = document.body;
+        const isReversed = body.classList.contains('color-mode-reversed');
+        
+        if (isReversed) {
+            // 切换到红涨绿跌模式
+            body.classList.remove('color-mode-reversed');
+            this.updateButtonText('红涨绿跌');
+            localStorage.setItem('colorScheme', 'default');
+        } else {
+            // 切换到红跌绿涨模式
+            body.classList.add('color-mode-reversed');
+            this.updateButtonText('红跌绿涨');
+            localStorage.setItem('colorScheme', 'reversed');
+        }
+    }
+
+    // 更新按钮文本
+    updateButtonText(text) {
+        const toggleBtn = document.getElementById('trend-colors-btn');
+        if (toggleBtn) {
+            toggleBtn.textContent = `THEME: ${text}`;
+        }
+    }
 }
 
 // 初始化监控系统
 document.addEventListener('DOMContentLoaded', () => {
     const monitor = new TradingMonitor();
+    // 初始化涨跌颜色切换功能
+    monitor.initColorSchemeToggle();
 });
