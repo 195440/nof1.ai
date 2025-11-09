@@ -19,14 +19,15 @@
 /**
  * 交易策略类型定义
  * 
- * 支持5种交易策略：
+ * 支持6种交易策略：
  * - conservative: 稳健策略，低风险低杠杆
  * - balanced: 平衡策略，中等风险，适合大多数投资者
  * - aggressive: 激进策略，高风险高杠杆
  * - ultra-short: 超短线策略，5分钟执行周期
  * - swing-trend: 波段趋势策略，20分钟执行周期，中长线持仓
+ * - rebate-farming: 返佣套利策略，2-3分钟执行周期，高频微利交易
  */
-export type TradingStrategy = "conservative" | "balanced" | "aggressive" | "ultra-short" | "swing-trend";
+export type TradingStrategy = "conservative" | "balanced" | "aggressive" | "ultra-short" | "swing-trend" | "rebate-farming";
 
 /**
  * 策略提示词生成上下文
