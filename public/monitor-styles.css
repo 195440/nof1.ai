@@ -46,6 +46,33 @@ body {
     width: 100%;
 }
 
+/* Disclaimer Banner */
+.disclaimer-banner {
+    background-color: rgba(255, 165, 0, 0.15);
+    border-bottom: 1px solid rgba(255, 165, 0, 0.4);
+    color: #ffa500;
+    padding: 12px 2rem;
+    text-align: center;
+    font-size: 0.9rem;
+    line-height: 1.5;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    width: 100%;
+    backdrop-filter: blur(5px);
+}
+
+.disclaimer-banner strong {
+    color: #ffbb33;
+}
+
+@media (max-width: 768px) {
+    .disclaimer-banner {
+        padding: 10px 1rem;
+        font-size: 0.8rem;
+    }
+}
+
 /* Header */
 .header {
     background-color: var(--bg-secondary);
