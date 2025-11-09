@@ -99,8 +99,8 @@ export function generateTradingPrompt(data: {
   // 获取当前策略参数（用于每周期强调风控规则）
   const strategy = getTradingStrategy();
   const params = getStrategyParams(strategy);
-  // 判断是否启用自动监控止损和移动止盈（仅波段策略启用）
-  const isCodeLevelProtectionEnabled = strategy === "swing-trend";
+  // 判断是否启用自动监控止损和移动止盈（根据策略配置）
+  const isCodeLevelProtectionEnabled = params.enableCodeLevelProtection;
   
   let prompt = `【交易周期 #${iteration}】${currentTime}
 已运行 ${minutesElapsed} 分钟，执行周期 ${intervalMinutes} 分钟
