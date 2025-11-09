@@ -33,7 +33,7 @@ import type { StrategyParams, StrategyPromptContext } from "./types";
  * - 快进快出：5分钟执行周期，持仓30分钟-2小时
  * - 周期锁利：每个周期内盈利>2%且<4%时立即平仓
  * - 30分钟规则：持仓超过30分钟且盈利>手续费时执行保守平仓
- * - 风控方式：AI 主动止损止盈（enableCodeLevelProtection = false）
+ * - 风控方式：AI 主动止损止盈（enableCodeLevelProtection = false，由AI主动判断执行）
  * 
  * @param maxLeverage - 系统允许的最大杠杆倍数（从配置文件读取）
  * @returns 超短线策略的完整参数配置
@@ -69,16 +69,22 @@ export function getUltraShortStrategy(maxLeverage: number): StrategyParams {
       strong: "23-25%",   // 强信号：较大仓位，短期进攻
     },
     
-    // ==================== AI 主动止损配置 ====================
-    // 根据杠杆倍数分级止损（由AI主动执行）
+    // ==================== 止损配置 ====================
+    // 根据杠杆倍数分级止损
+    // 执行方式：
+    //   - enableCodeLevelProtection = true：代码自动执行（每10秒检查，stopLossMonitor.ts）
+    //   - enableCodeLevelProtection = false：AI根据此配置主动判断和执行
     stopLoss: {
       low: -2.5,   // 低杠杆时：亏损2.5%止损（如使用3-7倍杠杆）
       mid: -2,     // 中杠杆时：亏损2%止损（如使用8-13倍杠杆）
       high: -1.5,  // 高杠杆时：亏损1.5%止损（如使用14倍以上杠杆）
     },
     
-    // ==================== AI 主动移动止盈配置 ====================
-    // 盈利后移动止损线保护利润（由AI主动执行）
+    // ==================== 移动止盈配置 ====================
+    // 盈利后移动止损线保护利润
+    // 执行方式：
+    //   - enableCodeLevelProtection = true：代码自动执行（每10秒检查，trailingStopMonitor.ts）
+    //   - enableCodeLevelProtection = false：AI根据此配置主动判断和执行
     trailingStop: {
       // 超短线策略：快速锁利（5分钟周期，快进快出）
       level1: { trigger: 4, stopAt: 1.5 },    // 盈利达到 +4% 时，止损线移至 +1.5%（保护2.5%空间）
@@ -86,8 +92,11 @@ export function getUltraShortStrategy(maxLeverage: number): StrategyParams {
       level3: { trigger: 15, stopAt: 8 },     // 盈利达到 +15% 时，止损线移至 +8%（保护7%空间）
     },
     
-    // ==================== AI 主动分批止盈配置 ====================
-    // 逐步锁定利润（由AI主动执行）
+    // ==================== 分批止盈配置 ====================
+    // 逐步锁定利润
+    // 执行方式：
+    //   - enableCodeLevelProtection = true：代码自动执行（每10秒检查，partialProfitMonitor.ts）
+    //   - enableCodeLevelProtection = false：AI根据此配置主动判断和执行
     partialTakeProfit: {
       // 超短线策略：快速分批止盈，及时锁定短期利润
       stage1: { trigger: 15, closePercent: 50 },   // +15%时平仓50%（快速锁定）
@@ -122,11 +131,11 @@ export function getUltraShortStrategy(maxLeverage: number): StrategyParams {
     riskTolerance: "单笔交易风险控制在18-25%之间，快进快出",  // 风险容忍度
     tradingStyle: "超短线交易，5分钟执行周期，快速捕捉短期波动，严格执行2%周期锁利规则和30分钟盈利平仓规则",  // 交易风格
     
-    // ==================== 代码级保护配置 ====================
-    // 禁用代码级保护，由AI主动执行止损止盈
-    // AI会根据市场情况灵活判断，不受固定规则限制
+    // ==================== 代码级保护开关 ====================
+    // 控制上述 stopLoss、trailingStop、partialTakeProfit 的执行方式
+    // - true：代码自动执行（监控器每10秒检查，AI只需负责开仓）
+    // - false：AI主动执行（AI根据配置在交易周期中判断和执行）
     enableCodeLevelProtection: false,
-    // 如需启用代码级保护，stopLossMonitor 会自动使用上面的 stopLoss 配置
   };
 }
 

@@ -86,8 +86,11 @@ export function getRebateFarmingStrategy(maxLeverage: number): StrategyParams {
       strong: "20-22%",   // 强信号：较大仓位，短期进攻
     },
     
-    // ==================== 代码级止损配置 ====================
-    // 根据杠杆倍数分级止损（代码自动执行，AI不需要管）
+    // ==================== 止损配置 ====================
+    // 根据杠杆倍数分级止损
+    // 执行方式：
+    //   - enableCodeLevelProtection = true：代码自动执行（每10秒检查，stopLossMonitor.ts）
+    //   - enableCodeLevelProtection = false：AI根据此配置主动判断和执行
     // 返佣策略：快速止损，不恋战
     stopLoss: {
       low: -1.8,   // 低杠杆时：亏损1.8%止损（如使用5-8倍杠杆）
@@ -95,18 +98,24 @@ export function getRebateFarmingStrategy(maxLeverage: number): StrategyParams {
       high: -1.2,  // 高杠杆时：亏损1.2%止损（如使用13倍以上杠杆）
     },
     
-    // ==================== 代码级移动止盈配置 ====================
-    // 盈利后移动止损线保护利润（代码自动执行，AI不需要管）
+    // ==================== 移动止盈配置 ====================
+    // 盈利后移动止损线保护利润
+    // 执行方式：
+    //   - enableCodeLevelProtection = true：代码自动执行（每10秒检查，trailingStopMonitor.ts）
+    //   - enableCodeLevelProtection = false：AI根据此配置主动判断和执行
     trailingStop: {
       // 返佣套利策略：极快速锁利（微利即走，不贪心）
       // 第一档触发点极低，只要覆盖手续费+微利就走
-      level1: { trigger: 1, stopAt: 0.6 },   // 盈利达到 +0.8% 时，止损线移至 +0.3%（保护0.5%空间）
-      level2: { trigger: 2, stopAt: 1 },     // 盈利达到 +2% 时，止损线移至 +0.8%（保护1.2%空间）
-      level3: { trigger: 4, stopAt: 2 },       // 盈利达到 +4% 时，止损线移至 +2%（保护2%空间，极少触发）
+      level1: { trigger: 1.5, stopAt: 1 },   // 盈利达到 +0.8% 时，止损线移至 +0.3%（保护0.5%空间）
+      level2: { trigger: 2.5, stopAt: 1.5 },     // 盈利达到 +2% 时，止损线移至 +0.8%（保护1.2%空间）
+      level3: { trigger: 3.5, stopAt: 2.5 },       // 盈利达到 +4% 时，止损线移至 +2%（保护2%空间，极少触发）
     },
     
-    // ==================== 代码级分批止盈配置 ====================
-    // 逐步锁定利润（代码自动执行，AI不需要管）
+    // ==================== 分批止盈配置 ====================
+    // 逐步锁定利润
+    // 执行方式：
+    //   - enableCodeLevelProtection = true：代码自动执行（每10秒检查，partialProfitMonitor.ts）
+    //   - enableCodeLevelProtection = false：AI根据此配置主动判断和执行
     partialTakeProfit: {
       // 返佣套利策略：快速全部止盈，不分批（高频交易模式）
       // 第一档就大部分平仓，保留少量追求更高收益
@@ -142,9 +151,10 @@ export function getRebateFarmingStrategy(maxLeverage: number): StrategyParams {
     riskTolerance: "单笔交易风险控制在15-22%之间，快速止损，不恋战",
     tradingStyle: "超高频微利交易，5分钟执行周期，持仓10-60分钟，只要覆盖手续费即止盈，累积返佣收益",
     
-    // ==================== 代码级保护配置 ====================
-    // 启用代码级保护：系统每10秒自动检查止损和移动止盈
-    // AI只需要负责开仓，平仓由代码自动执行
+    // ==================== 代码级保护开关 ====================
+    // 控制上述 stopLoss、trailingStop、partialTakeProfit 的执行方式
+    // - true：代码自动执行（监控器每10秒检查，AI只需负责开仓）
+    // - false：AI主动执行（AI根据配置在交易周期中判断和执行）
     enableCodeLevelProtection: true,
   };
 }

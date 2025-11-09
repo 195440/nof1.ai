@@ -24,6 +24,7 @@ import { startTradingLoop, initTradingSystem } from "./scheduler/tradingLoop";
 import { startAccountRecorder } from "./scheduler/accountRecorder";
 import { startTrailingStopMonitor, stopTrailingStopMonitor } from "./scheduler/trailingStopMonitor";
 import { startStopLossMonitor, stopStopLossMonitor } from "./scheduler/stopLossMonitor";
+import { startPartialProfitMonitor, stopPartialProfitMonitor } from "./scheduler/partialProfitMonitor";
 import { initDatabase } from "./database/init";
 import { RISK_PARAMS } from "./config/riskParams";
 import { getStrategyParams, getTradingStrategy } from "./agents/tradingAgent";
@@ -87,9 +88,13 @@ async function main() {
   logger.info("启动止损监控器...");
   startStopLossMonitor();
   
+  // 8. 启动分批止盈监控器（每10秒检查一次）
+  logger.info("启动分批止盈监控器...");
+  startPartialProfitMonitor();
+  
   const strategy = getTradingStrategy();
   const params = getStrategyParams(strategy);
-  const isCodeLevelEnabled = strategy === "swing-trend";
+  const isCodeLevelEnabled = params.enableCodeLevelProtection;
   
   logger.info("\n" + "=".repeat(80));
   logger.info("系统启动完成！");
@@ -115,6 +120,11 @@ async function main() {
     logger.info(`  • ${levMin}-${lowThreshold}倍杠杆，亏损 ${params.stopLoss.low}% 时止损`);
     logger.info(`  • ${lowThreshold + 1}-${midThreshold}倍杠杆，亏损 ${params.stopLoss.mid}% 时止损`);
     logger.info(`  • ${midThreshold + 1}倍以上杠杆，亏损 ${params.stopLoss.high}% 时止损`);
+    
+    logger.info(`\n💰 代码级分批止盈监控（每10秒检查）:`);
+    logger.info(`  • Stage 1: 盈利达到 ${params.partialTakeProfit.stage1.trigger}% 时，平仓 ${params.partialTakeProfit.stage1.closePercent}%`);
+    logger.info(`  • Stage 2: 盈利达到 ${params.partialTakeProfit.stage2.trigger}% 时，平仓 ${params.partialTakeProfit.stage2.closePercent}%`);
+    logger.info(`  • Stage 3: 盈利达到 ${params.partialTakeProfit.stage3.trigger}% 时，平仓 ${params.partialTakeProfit.stage3.closePercent}%`);
   } else {
     logger.info(`\n⚠️  当前策略未启用代码级监控，止损止盈完全由AI控制`);
   }

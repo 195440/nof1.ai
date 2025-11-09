@@ -66,18 +66,22 @@ export function getSwingTrendStrategy(maxLeverage: number): StrategyParams {
       strong: "30-35%",   // 强信号：最大仓位，谨慎使用（需4个时间框架完美共振）
     },
     
-    // ==================== 自动监控止损配置 ====================
-    // 根据杠杆倍数分级止损（由自动监控系统执行，每10秒检查）
-    // AI不主动执行止损，完全由自动监控系统处理
+    // ==================== 止损配置 ====================
+    // 根据杠杆倍数分级止损
+    // 执行方式：
+    //   - enableCodeLevelProtection = true：代码自动执行（每10秒检查，stopLossMonitor.ts）
+    //   - enableCodeLevelProtection = false：AI根据此配置主动判断和执行
     stopLoss: {
       low: -9,      // 低杠杆(2-3倍)：-9%止损（给趋势足够空间）
       mid: -7.5,    // 中杠杆(3-4倍)：-7.5%止损（平衡空间和风险）
       high: -5.5,   // 高杠杆(4-5倍)：-5.5%止损（较严格控制）
     },
     
-    // ==================== 自动监控移动止盈配置 ====================
-    // 盈利后移动止损线保护利润（由自动监控系统执行，每10秒检查）
-    // AI不主动执行止盈，完全由自动监控系统处理
+    // ==================== 移动止盈配置 ====================
+    // 盈利后移动止损线保护利润
+    // 执行方式：
+    //   - enableCodeLevelProtection = true：代码自动执行（每10秒检查，trailingStopMonitor.ts）
+    //   - enableCodeLevelProtection = false：AI根据此配置主动判断和执行
     trailingStop: {
       // 波段策略：给趋势更多空间，较晚锁定利润
       level1: { trigger: 15, stopAt: 8 },    // 盈利达到 +15% 时，止损线移至 +8%（保护7%空间）
@@ -85,9 +89,11 @@ export function getSwingTrendStrategy(maxLeverage: number): StrategyParams {
       level3: { trigger: 50, stopAt: 35 },   // 盈利达到 +50% 时，止损线移至 +35%（保护15%空间）
     },
     
-    // ==================== 自动监控分批止盈配置 ====================
-    // 逐步锁定利润（由自动监控系统执行）
-    // 注意：当前自动监控未实现分批止盈，此配置仅供未来扩展
+    // ==================== 分批止盈配置 ====================
+    // 逐步锁定利润
+    // 执行方式：
+    //   - enableCodeLevelProtection = true：代码自动执行（每10秒检查，partialProfitMonitor.ts）
+    //   - enableCodeLevelProtection = false：AI根据此配置主动判断和执行
     partialTakeProfit: {
       // 波段策略：更晚分批止盈，追求趋势利润最大化
       stage1: { trigger: 50, closePercent: 40 },   // +50%时平仓40%（保留60%追求更大利润）
@@ -123,9 +129,10 @@ export function getSwingTrendStrategy(maxLeverage: number): StrategyParams {
     riskTolerance: "单笔交易风险控制在20-35%之间，注重趋势质量而非交易频率",  // 风险容忍度
     tradingStyle: "波段趋势交易，20分钟执行周期，耐心等待高质量趋势信号，持仓时间可达数天，让利润充分奔跑",  // 交易风格
     
-    // ==================== 代码级保护配置 ====================
-    // 启用自动监控止损和移动止盈（每10秒检查）
-    // AI只负责开仓，平仓完全由自动监控系统执行
+    // ==================== 代码级保护开关 ====================
+    // 控制上述 stopLoss、trailingStop、partialTakeProfit 的执行方式
+    // - true：代码自动执行（监控器每10秒检查，AI只需负责开仓）
+    // - false：AI主动执行（AI根据配置在交易周期中判断和执行）
     enableCodeLevelProtection: true,
     // 自动监控会使用上面的 stopLoss 和 trailingStop 配置
   };
