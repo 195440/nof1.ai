@@ -187,6 +187,9 @@ GATE_API_KEY=your_api_key_here
 GATE_API_SECRET=your_api_secret_here
 GATE_USE_TESTNET=true
 
+# 手动平仓密码（用于网页界面平仓功能）
+CLOSE_POSITION_PASSWORD=
+
 # AI 模型提供商（OpenAI 兼容 API）
 OPENAI_API_KEY=your_api_key_here
 OPENAI_BASE_URL=https://openrouter.ai/api/v1  # 可选，支持 OpenRouter、OpenAI、DeepSeek 等
@@ -315,6 +318,7 @@ open-nof1.ai/
 | `GATE_API_KEY` | Gate.io API 密钥 | - | 是 |
 | `GATE_API_SECRET` | Gate.io API 密钥 | - | 是 |
 | `GATE_USE_TESTNET` | 使用测试网环境 | true | 否 |
+| `CLOSE_POSITION_PASSWORD` | 网页界面手动平仓密码 | - | 是 |
 | `OPENAI_API_KEY` | OpenAI 兼容的 API 密钥 | - | 是 |
 | `OPENAI_BASE_URL` | API 基础地址 | https://openrouter.ai/api/v1 | 否 |
 | `AI_MODEL_NAME` | 模型名称 | deepseek/deepseek-v3.2-exp | 否 |

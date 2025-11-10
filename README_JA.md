@@ -187,6 +187,9 @@ GATE_API_KEY=your_api_key_here
 GATE_API_SECRET=your_api_secret_here
 GATE_USE_TESTNET=true
 
+# 手動ポジションクローズパスワード（Web インターフェース用）
+CLOSE_POSITION_PASSWORD=
+
 # AI モデルプロバイダー (OpenAI 互換 API)
 OPENAI_API_KEY=your_api_key_here
 OPENAI_BASE_URL=https://openrouter.ai/api/v1  # オプション、OpenRouter、OpenAI、DeepSeek などをサポート
@@ -316,6 +319,7 @@ open-nof1.ai/
 | `GATE_API_KEY` | Gate.io API キー | - | はい |
 | `GATE_API_SECRET` | Gate.io API シークレット | - | はい |
 | `GATE_USE_TESTNET` | テストネット環境を使用 | true | いいえ |
+| `CLOSE_POSITION_PASSWORD` | Web インターフェースの手動ポジションクローズパスワード | - | はい |
 | `OPENAI_API_KEY` | OpenAI 互換 API キー | - | はい |
 | `OPENAI_BASE_URL` | API ベース URL | https://openrouter.ai/api/v1 | いいえ |
 | `AI_MODEL_NAME` | モデル名 | deepseek/deepseek-v3.2-exp | いいえ |

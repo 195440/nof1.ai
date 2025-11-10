@@ -23,6 +23,8 @@ class TradingMonitor {
         this.accountData = null;
         this.equityChart = null;
         this.chartTimeframe = '24'; // 固定24小时
+        this.password = null; // 存储验证后的密码
+        this.isLoggedIn = false; // 登录状态
         this.init();
     }
 
@@ -35,6 +37,8 @@ class TradingMonitor {
         this.initChat();
         this.duplicateTicker();
         this.loadGitHubStars(); // 加载 GitHub 星标数
+        this.initLoginModal(); // 初始化登录弹窗
+        this.checkLoginStatus(); // 检查登录状态
     }
 
     // 加载初始数据
@@ -184,7 +188,7 @@ class TradingMonitor {
             if (!data.positions || data.positions.length === 0) {
                 // 更新表格
                 if (positionsBody) {
-                    positionsBody.innerHTML = '<tr><td colspan="8" class="empty-state">暂无持仓</td></tr>';
+                    positionsBody.innerHTML = '<tr><td colspan="9" class="empty-state">暂无持仓</td></tr>';
                 }
                 // 更新小卡片
                 if (positionsCardsContainer) {
@@ -206,6 +210,12 @@ class TradingMonitor {
                     const sideText = pos.side === 'long' ? '做多' : '做空';
                     const sideClass = pos.side === 'long' ? 'positive' : 'negative';
                     const leverage = pos.leverage || '-';
+                    
+                    // 平仓按钮 - 仅在已登录时显示
+                    const closeButtonHtml = this.isLoggedIn 
+                        ? `<button class="btn-close-position" onclick="monitor.closePosition('${pos.symbol}')">平仓</button>`
+                        : '<span style="color: var(--text-dim); font-size: 0.75rem;">未登录</span>';
+                    
                     return `
                         <tr>
                             <td>${pos.symbol}</td>
@@ -220,6 +230,7 @@ class TradingMonitor {
                             <td class="${pos.unrealizedPnl >= 0 ? 'positive' : 'negative'}">
                                 ${pos.unrealizedPnl >= 0 ? '+' : ''}${profitPercent}%
                             </td>
+                            <td class="td-actions">${closeButtonHtml}</td>
                         </tr>
                     `;
                 }).join('');
@@ -704,11 +715,239 @@ class TradingMonitor {
             toggleBtn.textContent = `THEME: ${text}`;
         }
     }
+
+    // 初始化登录弹窗
+    initLoginModal() {
+        const loginBtn = document.getElementById('login-btn');
+        const modal = document.getElementById('login-modal');
+        const modalClose = document.getElementById('modal-close');
+        const btnCancel = document.getElementById('btn-cancel');
+        const btnConfirm = document.getElementById('btn-confirm');
+        const passwordInput = document.getElementById('password-input');
+
+        // 登录按钮点击
+        if (loginBtn) {
+            loginBtn.addEventListener('click', () => {
+                if (this.isLoggedIn) {
+                    // 已登录则退出登录
+                    this.logout();
+                } else {
+                    // 未登录则显示登录弹窗
+                    modal.classList.add('show');
+                    passwordInput.value = '';
+                    passwordInput.focus();
+                }
+            });
+        }
+
+        // 关闭弹窗
+        const closeModal = () => {
+            modal.classList.remove('show');
+            passwordInput.value = '';
+        };
+
+        if (modalClose) {
+            modalClose.addEventListener('click', closeModal);
+        }
+
+        if (btnCancel) {
+            btnCancel.addEventListener('click', closeModal);
+        }
+
+        // 点击弹窗外部关闭
+        modal.addEventListener('click', (e) => {
+            if (e.target === modal) {
+                closeModal();
+            }
+        });
+
+        // 确认登录
+        if (btnConfirm) {
+            btnConfirm.addEventListener('click', () => {
+                const password = passwordInput.value.trim();
+                if (password) {
+                    this.login(password);
+                    closeModal();
+                } else {
+                    this.showToast('输入错误', '请输入密码', 'warning');
+                }
+            });
+        }
+
+        // 回车登录
+        if (passwordInput) {
+            passwordInput.addEventListener('keypress', (e) => {
+                if (e.key === 'Enter') {
+                    btnConfirm.click();
+                }
+            });
+        }
+    }
+
+    // 检查登录状态
+    checkLoginStatus() {
+        const savedPassword = sessionStorage.getItem('close_position_password');
+        if (savedPassword) {
+            this.password = savedPassword;
+            this.isLoggedIn = true;
+            this.updateLoginButton();
+        }
+    }
+
+    // 登录
+    login(password) {
+        this.password = password;
+        this.isLoggedIn = true;
+        sessionStorage.setItem('close_position_password', password);
+        this.updateLoginButton();
+        this.loadPositionsData(); // 重新加载持仓以显示平仓按钮
+        this.showToast('登录成功', '现在可以进行平仓操作了', 'success');
+        console.log('登录成功');
+    }
+
+    // 退出登录
+    logout() {
+        this.password = null;
+        this.isLoggedIn = false;
+        sessionStorage.removeItem('close_position_password');
+        this.updateLoginButton();
+        this.loadPositionsData(); // 重新加载持仓以隐藏平仓按钮
+        this.showToast('已退出', '已退出登录状态', 'info');
+        console.log('已退出登录');
+    }
+
+    // 更新登录按钮状态
+    updateLoginButton() {
+        const loginBtn = document.getElementById('login-btn');
+        if (loginBtn) {
+            if (this.isLoggedIn) {
+                loginBtn.textContent = '退出';
+                loginBtn.classList.add('logged-in');
+            } else {
+                loginBtn.textContent = '登录';
+                loginBtn.classList.remove('logged-in');
+            }
+        }
+    }
+
+    // 显示 Toast 通知
+    showToast(title, message, type = 'info') {
+        const container = document.getElementById('toast-container');
+        if (!container) return;
+
+        const toast = document.createElement('div');
+        toast.className = `toast toast-${type}`;
+        
+        // 图标映射
+        const icons = {
+            success: '✓',
+            error: '✕',
+            warning: '⚠',
+            info: 'ℹ'
+        };
+
+        toast.innerHTML = `
+            <div class="toast-icon">${icons[type] || icons.info}</div>
+            <div class="toast-content">
+                <div class="toast-title">${title}</div>
+                <div class="toast-message">${message}</div>
+            </div>
+            <button class="toast-close">×</button>
+        `;
+
+        container.appendChild(toast);
+
+        // 关闭按钮
+        const closeBtn = toast.querySelector('.toast-close');
+        closeBtn.addEventListener('click', () => {
+            this.removeToast(toast);
+        });
+
+        // 自动移除（成功消息 3 秒，其他消息 5 秒）
+        const timeout = type === 'success' ? 3000 : 5000;
+        setTimeout(() => {
+            this.removeToast(toast);
+        }, timeout);
+    }
+
+    // 移除 Toast
+    removeToast(toast) {
+        toast.classList.add('toast-removing');
+        setTimeout(() => {
+            toast.remove();
+        }, 300);
+    }
+
+    // 平仓功能
+    async closePosition(symbol) {
+        if (!this.isLoggedIn || !this.password) {
+            this.showToast('未登录', '请先登录后再进行平仓操作', 'warning');
+            return;
+        }
+
+        try {
+            // 禁用所有平仓按钮
+            const buttons = document.querySelectorAll('.btn-close-position');
+            buttons.forEach(btn => btn.disabled = true);
+
+            console.log(`开始平仓: ${symbol}`);
+
+            const response = await fetch('/api/close-position', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    symbol: symbol,
+                    password: this.password,
+                }),
+            });
+
+            const result = await response.json();
+
+            if (result.success) {
+                const pnl = result.data.pnl.toFixed(2);
+                const pnlText = result.data.pnl >= 0 ? `+${pnl}` : pnl;
+                this.showToast(
+                    '平仓成功', 
+                    `${symbol} 已平仓，盈亏: ${pnlText} USDT`, 
+                    'success'
+                );
+                console.log('平仓成功:', result);
+                
+                // 刷新数据
+                await Promise.all([
+                    this.loadAccountData(),
+                    this.loadPositionsData(),
+                    this.loadTradesData(),
+                ]);
+            } else {
+                // 如果是密码错误，自动退出登录
+                if (response.status === 403) {
+                    this.showToast('密码错误', '密码验证失败，已自动退出登录', 'error');
+                    this.logout();
+                } else {
+                    this.showToast('平仓失败', result.message, 'error');
+                }
+                console.error('平仓失败:', result);
+            }
+        } catch (error) {
+            console.error('平仓请求失败:', error);
+            this.showToast('平仓失败', error.message, 'error');
+        } finally {
+            // 重新启用平仓按钮
+            const buttons = document.querySelectorAll('.btn-close-position');
+            buttons.forEach(btn => btn.disabled = false);
+        }
+    }
 }
+
+// 全局变量存储 monitor 实例，以便在 HTML onclick 中调用
+let monitor;
 
 // 初始化监控系统
 document.addEventListener('DOMContentLoaded', () => {
-    const monitor = new TradingMonitor();
+    monitor = new TradingMonitor();
     // 初始化涨跌颜色切换功能
     monitor.initColorSchemeToggle();
 });

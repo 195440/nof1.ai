@@ -26,6 +26,8 @@ import { createGateClient } from "../services/gateClient";
 import { createLogger } from "../utils/loggerUtils";
 import { getTradingStrategy, getStrategyParams } from "../agents/tradingAgent";
 import { RISK_PARAMS } from "../config/riskParams";
+import { getChinaTimeISO } from "../utils/timeUtils";
+import { getQuantoMultiplier } from "../utils/contractUtils";
 
 const logger = createLogger({
   name: "api-routes",
@@ -191,19 +193,23 @@ export function createApiRoutes() {
       const limit = Number.parseInt(c.req.query("limit") || "10");
       const symbol = c.req.query("symbol"); // 可选，筛选特定币种
       
-      // 从数据库获取历史交易记录
-      let sql = `SELECT * FROM trades ORDER BY timestamp DESC LIMIT ?`;
+      // 从数据库获取历史交易记录（按 ID 降序，确保最新的在前）
+      let sql = `SELECT * FROM trades ORDER BY id DESC LIMIT ?`;
       let args: any[] = [limit];
       
       if (symbol) {
-        sql = `SELECT * FROM trades WHERE symbol = ? ORDER BY timestamp DESC LIMIT ?`;
+        sql = `SELECT * FROM trades WHERE symbol = ? ORDER BY id DESC LIMIT ?`;
         args = [symbol, limit];
       }
+      
+      logger.info(`查询交易记录: limit=${limit}, symbol=${symbol || 'all'}`);
       
       const result = await dbClient.execute({
         sql,
         args,
       });
+      
+      logger.info(`查询到 ${result.rows.length} 条交易记录`);
       
       if (!result.rows || result.rows.length === 0) {
         return c.json({ trades: [] });
@@ -380,6 +386,186 @@ export function createApiRoutes() {
       });
     } catch (error: any) {
       return c.json({ error: error.message }, 500);
+    }
+  });
+
+  /**
+   * 手动平仓接口 - 需要验证密码
+   */
+  app.post("/api/close-position", async (c) => {
+    try {
+      // 获取请求体
+      const body = await c.req.json();
+      const { symbol, password } = body;
+      
+      // 验证必填参数
+      if (!symbol) {
+        return c.json({ success: false, message: "缺少必填参数: symbol" }, 400);
+      }
+      
+      // 验证密码 - 仅使用 CLOSE_POSITION_PASSWORD
+      const correctPassword = process.env.CLOSE_POSITION_PASSWORD;
+      
+      // 如果未配置密码，拒绝平仓
+      if (!correctPassword) {
+        logger.error('平仓密码未配置 - 请在环境变量中设置 CLOSE_POSITION_PASSWORD');
+        return c.json({ 
+          success: false, 
+          message: "平仓功能未启用" 
+        }, 403);
+      }
+      
+      if (!password || password !== correctPassword) {
+        logger.warn(`平仓密码验证失败 - 币种: ${symbol}`);
+        return c.json({ success: false, message: "密码错误" }, 403);
+      }
+      
+      logger.info(`开始手动平仓: ${symbol}`);
+      
+      const gateClient = createGateClient();
+      const contract = `${symbol}_USDT`;
+      
+      // 获取当前持仓
+      const allPositions = await gateClient.getPositions();
+      const gatePosition = allPositions.find((p: any) => 
+        p.contract === contract && Number.parseInt(p.size || "0") !== 0
+      );
+      
+      if (!gatePosition) {
+        return c.json({ 
+          success: false, 
+          message: `没有找到 ${symbol} 的持仓` 
+        }, 404);
+      }
+      
+      // 获取持仓信息
+      const size = Number.parseInt(gatePosition.size || "0");
+      const side = size > 0 ? "long" : "short";
+      const entryPrice = Number.parseFloat(gatePosition.entryPrice || "0");
+      const currentPrice = Number.parseFloat(gatePosition.markPrice || "0");
+      const leverage = Number.parseInt(gatePosition.leverage || "1");
+      const quantity = Math.abs(size);
+      
+      // 获取合约乘数（不同币种的合约乘数不同）
+      const quantoMultiplier = await getQuantoMultiplier(contract);
+      logger.info(`${symbol} 合约乘数: ${quantoMultiplier}`);
+      
+      // 计算盈亏
+      let grossPnl = 0;
+      if (side === "long") {
+        grossPnl = (currentPrice - entryPrice) * quantity * quantoMultiplier;
+      } else {
+        grossPnl = (entryPrice - currentPrice) * quantity * quantoMultiplier;
+      }
+      
+      // 计算手续费
+      const takerFee = 0.0005;
+      const openFee = entryPrice * quantity * quantoMultiplier * takerFee;
+      const closeFee = currentPrice * quantity * quantoMultiplier * takerFee;
+      const totalFees = openFee + closeFee;
+      const pnl = grossPnl - totalFees;
+      
+      logger.info(`手动平仓 ${symbol} ${side === "long" ? "做多" : "做空"} ${quantity}张 (入场: ${entryPrice.toFixed(2)}, 当前: ${currentPrice.toFixed(2)}, 盈亏: ${pnl.toFixed(2)})`);
+      
+      // 执行平仓
+      const closeSize = side === "long" ? -quantity : quantity;
+      const order = await gateClient.placeOrder({
+        contract,
+        size: closeSize,
+        price: 0,  // 市价单
+        reduceOnly: true,
+      });
+      
+      logger.info(`已下达手动平仓订单 ${symbol}，订单ID: ${order.id}`);
+      
+      // 等待订单完成
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      
+      // 获取实际成交信息
+      let actualExitPrice = currentPrice;
+      let orderStatus = "filled";
+      
+      if (order.id) {
+        try {
+          const orderInfo = await gateClient.getOrder(order.id);
+          if (orderInfo.status === "finished") {
+            actualExitPrice = Number.parseFloat(orderInfo.fillPrice || orderInfo.price || currentPrice.toString());
+            orderStatus = "filled";
+          }
+        } catch (error: any) {
+          logger.warn(`获取订单信息失败: ${error.message}`);
+        }
+      }
+      
+      // 重新计算实际盈亏（使用实际成交价格）
+      if (side === "long") {
+        grossPnl = (actualExitPrice - entryPrice) * quantity * quantoMultiplier;
+      } else {
+        grossPnl = (entryPrice - actualExitPrice) * quantity * quantoMultiplier;
+      }
+      const actualCloseFee = actualExitPrice * quantity * quantoMultiplier * takerFee;
+      const actualPnl = grossPnl - openFee - actualCloseFee;
+      
+      // 记录到交易历史
+      try {
+        logger.info(`准备记录平仓交易到数据库: ${symbol}, 订单ID: ${order.id || `manual_${Date.now()}`}`);
+        
+        const insertResult = await dbClient.execute({
+          sql: `INSERT INTO trades (order_id, symbol, side, type, price, quantity, leverage, pnl, fee, timestamp, status)
+                VALUES (?, ?, ?, 'close', ?, ?, ?, ?, ?, ?, ?)`,
+          args: [
+            order.id || `manual_${Date.now()}`,
+            symbol,
+            side,
+            actualExitPrice,
+            quantity,
+            leverage,
+            actualPnl,
+            openFee + actualCloseFee,
+            getChinaTimeISO(),
+            orderStatus,
+          ],
+        });
+        
+        logger.info(`✓ 交易历史记录成功，记录ID: ${insertResult.lastInsertRowid}`);
+      } catch (dbError: any) {
+        logger.error(`✗ 记录交易历史失败: ${dbError.message}`, dbError);
+        throw dbError; // 抛出错误以便外层 catch 捕获
+      }
+      
+      // 从数据库删除持仓记录
+      try {
+        const deleteResult = await dbClient.execute({
+          sql: "DELETE FROM positions WHERE symbol = ?",
+          args: [symbol],
+        });
+        logger.info(`✓ 已删除持仓记录: ${symbol}, 影响行数: ${deleteResult.rowsAffected}`);
+      } catch (dbError: any) {
+        logger.error(`✗ 删除持仓记录失败: ${dbError.message}`, dbError);
+        // 这里不抛出错误，因为交易已经完成
+      }
+      
+      logger.info(`手动平仓完成 ${symbol}, 盈亏: ${actualPnl.toFixed(2)} USDT`);
+      
+      return c.json({
+        success: true,
+        message: `成功平仓 ${symbol}`,
+        data: {
+          symbol,
+          side,
+          quantity,
+          entryPrice,
+          exitPrice: actualExitPrice,
+          pnl: actualPnl,
+          fee: openFee + actualCloseFee,
+        },
+      });
+    } catch (error: any) {
+      logger.error("手动平仓失败:", error);
+      return c.json({ 
+        success: false, 
+        message: `平仓失败: ${error.message}` 
+      }, 500);
     }
   });
 

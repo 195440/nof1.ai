@@ -1253,6 +1253,72 @@ body {
         max-width: 100vw;
         overflow: hidden;
     }
+
+    /* 移动端登录按钮 */
+    .btn-login {
+        padding: 0.3rem 0.6rem;
+        font-size: 0.7rem;
+    }
+
+    /* 移动端弹窗 */
+    .modal-content {
+        width: 95%;
+        max-width: 350px;
+    }
+
+    .modal-header {
+        padding: 1rem;
+    }
+
+    .modal-header h3 {
+        font-size: 1rem;
+    }
+
+    .modal-body {
+        padding: 1.5rem 1rem;
+    }
+
+    .password-input {
+        padding: 0.6rem 0.8rem;
+        font-size: 0.9rem;
+    }
+
+    .modal-footer {
+        padding: 0.8rem 1rem;
+    }
+
+    .btn-cancel,
+    .btn-confirm {
+        padding: 0.5rem 1rem;
+        font-size: 0.8rem;
+    }
+
+    /* 移动端平仓按钮 */
+    .btn-close-position {
+        padding: 0.25rem 0.5rem;
+        font-size: 0.7rem;
+    }
+
+    /* 移动端 Toast */
+    .toast-container {
+        top: 60px;
+        right: 10px;
+        left: 10px;
+    }
+
+    .toast {
+        min-width: auto;
+        width: 100%;
+        padding: 0.8rem 1rem;
+    }
+
+    .toast-title {
+        font-size: 0.85rem;
+    }
+
+    .toast-message {
+        font-size: 0.75rem;
+    }
     
     .logo {
         font-size: 1.2rem;
@@ -1548,8 +1614,16 @@ body {
     .positions-table th:nth-child(4),
     .positions-table td:nth-child(4),
     .positions-table th:nth-child(5),
-    .positions-table td:nth-child(5) {
+    .positions-table td:nth-child(5),
+    .positions-table th:nth-child(6),
+    .positions-table td:nth-child(6) {
         display: none;
+    }
+
+    /* 移动端操作列保持显示 */
+    .th-actions,
+    .td-actions {
+        display: table-cell;
     }
 
     /* 移动端隐藏交易历史表格的一些列 - 隐藏价格，显示数量（开仓价值） */
@@ -1729,8 +1803,28 @@ body {
     .positions-table th:nth-child(4),
     .positions-table td:nth-child(4),
     .positions-table th:nth-child(5),
-    .positions-table td:nth-child(5) {
+    .positions-table td:nth-child(5),
+    .positions-table th:nth-child(6),
+    .positions-table td:nth-child(6) {
         display: none;
+    }
+
+    /* 移动端操作列保持显示 */
+    .th-actions,
+    .td-actions {
+        display: table-cell;
+    }
+
+    /* 移动端登录按钮 */
+    .btn-login {
+        padding: 0.35rem 0.7rem;
+        font-size: 0.7rem;
+    }
+
+    /* 移动端平仓按钮 */
+    .btn-close-position {
+        padding: 0.2rem 0.4rem;
+        font-size: 0.65rem;
     }
 
     .trades-table th:nth-child(5),
@@ -1775,6 +1869,398 @@ body {
     .trade-field .value {
         font-size: 0.8rem;
     }
+}
+
+/* Section Header with Action Button */
+.section-header-with-action {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1.5rem;
+    padding-bottom: 0.8rem;
+    border-bottom: 2px solid var(--border-color);
+}
+
+.section-header-with-action .section-header {
+    margin: 0;
+    padding: 0;
+    border: none;
+}
+
+/* Login Button */
+.btn-login {
+    background-color: transparent;
+    border: 1px solid var(--accent-green);
+    color: var(--accent-green);
+    padding: 0.35rem 0.8rem;
+    font-family: 'Courier New', monospace;
+    font-size: 0.75rem;
+    cursor: pointer;
+    transition: all 0.3s;
+    border-radius: 4px;
+}
+
+.btn-login:hover {
+    background-color: var(--accent-green);
+    color: var(--bg-primary);
+    box-shadow: 0 0 10px var(--accent-green);
+}
+
+.btn-login.logged-in {
+    border-color: var(--accent-yellow);
+    color: var(--accent-yellow);
+}
+
+.btn-login.logged-in:hover {
+    background-color: var(--accent-yellow);
+    color: var(--bg-primary);
+    box-shadow: 0 0 10px var(--accent-yellow);
+}
+
+/* Action Column */
+.th-actions {
+    text-align: center;
+    min-width: 80px;
+}
+
+.td-actions {
+    text-align: center;
+}
+
+/* Close Position Button */
+.btn-close-position {
+    background-color: transparent;
+    border: 1px solid var(--accent-red);
+    color: var(--accent-red);
+    padding: 0.3rem 0.8rem;
+    font-family: 'Courier New', monospace;
+    font-size: 0.75rem;
+    cursor: pointer;
+    transition: all 0.3s;
+    border-radius: 3px;
+    white-space: nowrap;
+}
+
+.btn-close-position:hover {
+    background-color: var(--accent-red);
+    color: var(--bg-primary);
+    box-shadow: 0 0 8px var(--accent-red);
+}
+
+.btn-close-position:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    border-color: var(--text-dim);
+    color: var(--text-dim);
+}
+
+.btn-close-position:disabled:hover {
+    background-color: transparent;
+    box-shadow: none;
+}
+
+/* Modal Styles */
+.modal {
+    display: none;
+    position: fixed;
+    z-index: 10000;
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 100%;
+    overflow: auto;
+    background-color: rgba(0, 0, 0, 0.8);
+    backdrop-filter: blur(5px);
+}
+
+.modal.show {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.modal-content {
+    background-color: var(--bg-secondary);
+    border: 2px solid var(--border-color);
+    border-radius: 8px;
+    padding: 0;
+    width: 90%;
+    max-width: 450px;
+    box-shadow: 0 0 30px rgba(0, 255, 170, 0.3);
+    animation: modalSlideIn 0.3s ease-out;
+}
+
+@keyframes modalSlideIn {
+    from {
+        transform: translateY(-50px);
+        opacity: 0;
+    }
+    to {
+        transform: translateY(0);
+        opacity: 1;
+    }
+}
+
+.modal-header {
+    background-color: var(--bg-tertiary);
+    padding: 1.2rem 1.5rem;
+    border-bottom: 1px solid var(--border-color);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-radius: 6px 6px 0 0;
+}
+
+.modal-header h3 {
+    color: var(--accent-green);
+    margin: 0;
+    font-size: 1.1rem;
+    text-shadow: 0 0 10px rgba(0, 255, 170, 0.3);
+}
+
+.modal-close {
+    color: var(--text-dim);
+    font-size: 2rem;
+    font-weight: bold;
+    line-height: 1;
+    cursor: pointer;
+    transition: all 0.3s;
+    padding: 0;
+    border: none;
+    background: none;
+}
+
+.modal-close:hover {
+    color: var(--accent-red);
+    text-shadow: 0 0 10px var(--accent-red);
+    transform: rotate(90deg);
+}
+
+.modal-body {
+    padding: 2rem 1.5rem;
+}
+
+.password-input {
+    width: 100%;
+    background-color: var(--bg-primary);
+    border: 1px solid var(--border-color);
+    color: var(--accent-green);
+    padding: 0.8rem 1rem;
+    font-family: 'Courier New', monospace;
+    font-size: 1rem;
+    border-radius: 4px;
+    transition: all 0.3s;
+    box-sizing: border-box;
+}
+
+.password-input:focus {
+    outline: none;
+    border-color: var(--accent-green);
+    box-shadow: 0 0 10px rgba(0, 255, 170, 0.2);
+}
+
+.modal-hint {
+    color: var(--text-dim);
+    font-size: 0.75rem;
+    margin-top: 0.8rem;
+    margin-bottom: 0;
+    line-height: 1.4;
+}
+
+.modal-footer {
+    padding: 1rem 1.5rem;
+    border-top: 1px solid var(--border-color);
+    display: flex;
+    gap: 1rem;
+    justify-content: flex-end;
+    border-radius: 0 0 6px 6px;
+}
+
+.btn-cancel,
+.btn-confirm {
+    padding: 0.6rem 1.5rem;
+    font-family: 'Courier New', monospace;
+    font-size: 0.9rem;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: all 0.3s;
+    border: 1px solid;
+}
+
+.btn-cancel {
+    background-color: transparent;
+    border-color: var(--border-color);
+    color: var(--text-secondary);
+}
+
+.btn-cancel:hover {
+    border-color: var(--text-primary);
+    color: var(--text-primary);
+    box-shadow: 0 0 5px var(--border-color);
+}
+
+.btn-confirm {
+    background-color: transparent;
+    border-color: var(--accent-green);
+    color: var(--accent-green);
+}
+
+.btn-confirm:hover {
+    background-color: var(--accent-green);
+    color: var(--bg-primary);
+    box-shadow: 0 0 10px var(--accent-green);
+}
+
+/* Toast Notification */
+.toast-container {
+    position: fixed;
+    top: 80px;
+    right: 20px;
+    z-index: 10001;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    pointer-events: none;
+}
+
+.toast {
+    background-color: var(--bg-secondary);
+    border: 2px solid var(--border-color);
+    border-radius: 8px;
+    padding: 1rem 1.5rem;
+    min-width: 300px;
+    max-width: 400px;
+    box-shadow: 0 4px 20px rgba(0, 255, 170, 0.3);
+    pointer-events: all;
+    animation: toastSlideIn 0.3s ease-out;
+    display: flex;
+    align-items: flex-start;
+    gap: 1rem;
+    position: relative;
+}
+
+.toast.toast-success {
+    border-color: var(--accent-green);
+    box-shadow: 0 4px 20px rgba(0, 255, 170, 0.4);
+}
+
+.toast.toast-error {
+    border-color: var(--accent-red);
+    box-shadow: 0 4px 20px rgba(255, 0, 0, 0.4);
+}
+
+.toast.toast-warning {
+    border-color: var(--accent-yellow);
+    box-shadow: 0 4px 20px rgba(255, 255, 0, 0.4);
+}
+
+.toast.toast-info {
+    border-color: var(--text-primary);
+    box-shadow: 0 4px 20px rgba(0, 204, 136, 0.4);
+}
+
+@keyframes toastSlideIn {
+    from {
+        transform: translateX(400px);
+        opacity: 0;
+    }
+    to {
+        transform: translateX(0);
+        opacity: 1;
+    }
+}
+
+.toast.toast-removing {
+    animation: toastSlideOut 0.3s ease-out forwards;
+}
+
+@keyframes toastSlideOut {
+    from {
+        transform: translateX(0);
+        opacity: 1;
+    }
+    to {
+        transform: translateX(400px);
+        opacity: 0;
+    }
+}
+
+.toast-icon {
+    font-size: 1.5rem;
+    flex-shrink: 0;
+    line-height: 1;
+}
+
+.toast-success .toast-icon {
+    color: var(--accent-green);
+}
+
+.toast-error .toast-icon {
+    color: var(--accent-red);
+}
+
+.toast-warning .toast-icon {
+    color: var(--accent-yellow);
+}
+
+.toast-info .toast-icon {
+    color: var(--text-primary);
+}
+
+.toast-content {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 0.3rem;
+}
+
+.toast-title {
+    color: var(--accent-green);
+    font-weight: bold;
+    font-size: 0.95rem;
+    margin: 0;
+}
+
+.toast-success .toast-title {
+    color: var(--accent-green);
+}
+
+.toast-error .toast-title {
+    color: var(--accent-red);
+}
+
+.toast-warning .toast-title {
+    color: var(--accent-yellow);
+}
+
+.toast-info .toast-title {
+    color: var(--text-primary);
+}
+
+.toast-message {
+    color: var(--text-secondary);
+    font-size: 0.85rem;
+    line-height: 1.4;
+    margin: 0;
+}
+
+.toast-close {
+    position: absolute;
+    top: 0.5rem;
+    right: 0.5rem;
+    background: none;
+    border: none;
+    color: var(--text-dim);
+    font-size: 1.2rem;
+    line-height: 1;
+    cursor: pointer;
+    padding: 0.2rem;
+    transition: all 0.2s;
+}
+
+.toast-close:hover {
+    color: var(--accent-red);
+    transform: scale(1.2);
 }
 
 /* Custom Scrollbar */

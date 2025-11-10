@@ -229,7 +229,10 @@
 
         <!-- Positions Section -->
         <section class="positions-section">
-            <h2 class="section-header">当前持仓</h2>
+            <div class="section-header-with-action">
+                <h2 class="section-header">当前持仓</h2>
+                <button class="btn-login" id="login-btn">登录</button>
+            </div>
             <div class="positions-container">
                 <table class="positions-table">
                     <thead>
@@ -242,11 +245,12 @@
                             <th>当前价格</th>
                             <th>未实现盈亏</th>
                             <th>收益率</th>
+                            <th class="th-actions">操作</th>
                         </tr>
                     </thead>
                     <tbody id="positions-body">
                         <tr>
-                            <td colspan="8" class="loading">加载中...</td>
+                            <td colspan="9" class="loading">加载中...</td>
                         </tr>
                     </tbody>
                 </table>
@@ -280,6 +284,27 @@
             </div>
         </section>
   </main>
+
+  <!-- Login Modal -->
+  <div class="modal" id="login-modal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3>输入平仓密码</h3>
+        <span class="modal-close" id="modal-close">&times;</span>
+      </div>
+      <div class="modal-body">
+        <input type="password" id="password-input" class="password-input" placeholder="请输入平仓密码">
+        <p class="modal-hint">请输入环境变量 CLOSE_POSITION_PASSWORD 配置的密码</p>
+      </div>
+      <div class="modal-footer">
+        <button class="btn-cancel" id="btn-cancel">取消</button>
+        <button class="btn-confirm" id="btn-confirm">确认</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast Notification Container -->
+  <div class="toast-container" id="toast-container"></div>
 
   <!-- Scripts -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>

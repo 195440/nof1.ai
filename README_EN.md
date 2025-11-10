@@ -188,6 +188,9 @@ GATE_API_KEY=your_api_key_here
 GATE_API_SECRET=your_api_secret_here
 GATE_USE_TESTNET=true
 
+# Manual Close Position Password (for web interface)
+CLOSE_POSITION_PASSWORD=
+
 # AI Model Provider (OpenAI Compatible API)
 OPENAI_API_KEY=your_api_key_here
 OPENAI_BASE_URL=https://openrouter.ai/api/v1  # Optional, supports OpenRouter, OpenAI, DeepSeek, etc.
@@ -316,6 +319,7 @@ open-nof1.ai/
 | `GATE_API_KEY` | Gate.io API key | - | Yes |
 | `GATE_API_SECRET` | Gate.io API secret | - | Yes |
 | `GATE_USE_TESTNET` | Use testnet environment | true | No |
+| `CLOSE_POSITION_PASSWORD` | Password for manual close position in web interface | - | Yes |
 | `OPENAI_API_KEY` | OpenAI compatible API key | - | Yes |
 | `OPENAI_BASE_URL` | API base URL | https://openrouter.ai/api/v1 | No |
 | `AI_MODEL_NAME` | Model name | deepseek/deepseek-v3.2-exp | No |

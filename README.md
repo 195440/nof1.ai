@@ -128,6 +128,9 @@ GATE_API_KEY=your_api_key_here
 GATE_API_SECRET=your_api_secret_here
 GATE_USE_TESTNET=true
 
+# 手动平仓密码（用于网页界面平仓功能）
+CLOSE_POSITION_PASSWORD=
+
 # AI 模型提供商（OpenAI 兼容 API）
 OPENAI_API_KEY=your_api_key_here
 OPENAI_BASE_URL=https://openrouter.ai/api/v1  # 可选
