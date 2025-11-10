@@ -375,6 +375,7 @@ export function createApiRoutes() {
         leverageRange: `${params.leverageMin}-${params.leverageMax}x`,
         positionSizeRange: `${params.positionSizeMin}-${params.positionSizeMax}%`,
         enableCodeLevelProtection: params.enableCodeLevelProtection,
+        allowAiOverrideProtection: params.allowAiOverrideProtection || false,
         description: params.description
       });
     } catch (error: any) {

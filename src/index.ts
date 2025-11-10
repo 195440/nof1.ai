@@ -100,7 +100,14 @@ async function main() {
   logger.info("系统启动完成！");
   logger.info("=".repeat(80));
   logger.info(`\n监控界面: http://localhost:${port}/`);
-  logger.info(`交易策略: ${params.name}${isCodeLevelEnabled ? ' (启用代码级保护)' : ' (AI主导控制)'}`);
+  
+  // 判断是否为双重防护模式
+  const isDualProtection = isCodeLevelEnabled && params.allowAiOverrideProtection === true;
+  const protectionMode = isDualProtection ? ' (🛡️ 双重防护: 代码自动 + AI主动)' : 
+                         isCodeLevelEnabled ? ' (启用代码级保护)' : 
+                         ' (AI主导控制)';
+  
+  logger.info(`交易策略: ${params.name}${protectionMode}`);
   logger.info(`交易间隔: ${process.env.TRADING_INTERVAL_MINUTES || 5} 分钟`);
   logger.info(`账户记录间隔: ${process.env.ACCOUNT_RECORD_INTERVAL_MINUTES || 10} 分钟`);
   
@@ -125,6 +132,14 @@ async function main() {
     logger.info(`  • Stage 1: 盈利达到 ${params.partialTakeProfit.stage1.trigger}% 时，平仓 ${params.partialTakeProfit.stage1.closePercent}%`);
     logger.info(`  • Stage 2: 盈利达到 ${params.partialTakeProfit.stage2.trigger}% 时，平仓 ${params.partialTakeProfit.stage2.closePercent}%`);
     logger.info(`  • Stage 3: 盈利达到 ${params.partialTakeProfit.stage3.trigger}% 时，平仓 ${params.partialTakeProfit.stage3.closePercent}%`);
+    
+    // 如果是双重防护模式，添加特别说明
+    if (isDualProtection) {
+      logger.info(`\n🛡️ 双重防护模式说明:`);
+      logger.info(`  • 代码级监控作为安全网，自动执行止损止盈`);
+      logger.info(`  • AI可以在自动触发之前主动止损止盈`);
+      logger.info(`  • 提供更强的风险保护和操作灵活性`);
+    }
   } else {
     logger.info(`\n⚠️  当前策略未启用代码级监控，止损止盈完全由AI控制`);
   }

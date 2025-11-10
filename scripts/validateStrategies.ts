@@ -19,6 +19,8 @@ const ALL_STRATEGIES: TradingStrategy[] = [
   "aggressive",
   "ultra-short",
   "swing-trend",
+  "rebate-farming",
+  "ai-autonomous",
 ];
 
 interface ValidationResult {

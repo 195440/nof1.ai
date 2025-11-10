@@ -175,5 +175,19 @@ export interface StrategyParams {
    * - 其他策略：false（禁用，由AI主动执行）
    */
   enableCodeLevelProtection: boolean;
+  
+  /**
+   * 是否允许AI在代码级保护之外继续主动操作止盈止损（双重防护模式）
+   * 
+   * true: 即使启用了代码级保护，AI仍然可以主动执行止盈止损（双重防护）
+   * false: 启用代码级保护后，AI不再主动执行止盈止损（单一防护）
+   * 
+   * 使用场景：
+   * - ai-autonomous（AI自主策略）：true（双重防护，代码自动监控 + AI主动决策）
+   * - 其他策略：false（单一防护，要么代码监控，要么AI决策）
+   * 
+   * 注意：此字段仅在 enableCodeLevelProtection = true 时有意义
+   */
+  allowAiOverrideProtection?: boolean;
 }
 

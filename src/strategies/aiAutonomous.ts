@@ -34,7 +34,9 @@ import type { StrategyParams, StrategyPromptContext } from "./types";
  * - 只提供市场数据和交易工具
  * - AI完全自主分析和决策
  * - 仅保留系统级硬性风控底线
- * - 风控方式：AI 完全自主（enableCodeLevelProtection = false）
+ * - 风控方式：双重防护（enableCodeLevelProtection = true + allowAiOverrideProtection = true）
+ *   - 代码级自动止损：每10秒监控，触发阈值自动平仓（安全网）
+ *   - AI主动决策：AI可以在代码级保护之前主动止盈止损（灵活性）
  * 
  * @param maxLeverage - 系统允许的最大杠杆倍数（从配置文件读取）
  * @returns AI自主策略的完整参数配置
@@ -66,32 +68,35 @@ export function getAiAutonomousStrategy(maxLeverage: number): StrategyParams {
     },
     
     // ==================== 止损配置 ====================
-    // 提供一个极宽松的止损范围，实际由AI自主决定
+    // 代码级自动止损配置（作为安全网）
+    // AI可以在此之前主动止损，这些是最后的防线
     stopLoss: {
-      low: -50,   // 极宽松止损线（仅作为参考）
-      mid: -50,   // 极宽松止损线（仅作为参考）
-      high: -50,  // 极宽松止损线（仅作为参考）
+      low: -8,    // 低杠杆（1-5倍）：亏损8%时代码自动止损
+      mid: -6,    // 中杠杆（6-10倍）：亏损6%时代码自动止损
+      high: -5,   // 高杠杆（11倍以上）：亏损5%时代码自动止损
     },
     
     // ==================== 移动止盈配置 ====================
-    // 提供一个极宽松的移动止盈范围，实际由AI自主决定
+    // 代码级自动移动止盈配置（作为利润保护网）
+    // AI可以在此之前主动止盈，这些是自动保护机制
     trailingStop: {
-      level1: { trigger: 100, stopAt: 50 },   // 极宽松配置（仅作为参考）
-      level2: { trigger: 200, stopAt: 100 },  // 极宽松配置（仅作为参考）
-      level3: { trigger: 300, stopAt: 150 },  // 极宽松配置（仅作为参考）
+      level1: { trigger: 5, stopAt: 2 },    // 盈利5%时，止损线移至+2%
+      level2: { trigger: 10, stopAt: 5 },   // 盈利10%时，止损线移至+5%
+      level3: { trigger: 15, stopAt: 8 },   // 盈利15%时，止损线移至+8%
     },
     
     // ==================== 分批止盈配置 ====================
-    // 提供一个极宽松的分批止盈范围，实际由AI自主决定
+    // 代码级自动分批止盈配置（作为利润锁定机制）
+    // AI可以在此之前主动止盈，这些是自动锁利机制
     partialTakeProfit: {
-      stage1: { trigger: 100, closePercent: 30 },  // 极宽松配置（仅作为参考）
-      stage2: { trigger: 200, closePercent: 30 },  // 极宽松配置（仅作为参考）
-      stage3: { trigger: 300, closePercent: 40 },  // 极宽松配置（仅作为参考）
+      stage1: { trigger: 8, closePercent: 30 },   // 盈利8%时，自动平仓30%
+      stage2: { trigger: 12, closePercent: 30 },  // 盈利12%时，自动平仓30%
+      stage3: { trigger: 18, closePercent: 40 },  // 盈利18%时，自动平仓40%
     },
     
     // ==================== 峰值回撤保护 ====================
-    // 极宽松的回撤保护，实际由AI自主决定
-    peakDrawdownProtection: 100,
+    // 代码级峰值回撤保护（防止利润大幅回吐）
+    peakDrawdownProtection: 50,  // 从峰值回撤50%时提醒AI注意
     
     // ==================== 波动率调整 ====================
     // 不进行波动率调整，由AI自主判断
@@ -116,8 +121,12 @@ export function getAiAutonomousStrategy(maxLeverage: number): StrategyParams {
     tradingStyle: "由AI根据市场机会自主决定交易风格和频率",  // 交易风格
     
     // ==================== 代码级保护开关 ====================
-    // 关闭代码级保护，由AI完全自主控制
-    enableCodeLevelProtection: false,
+    // 启用代码级保护（每10秒自动监控止损止盈）
+    enableCodeLevelProtection: true,
+    
+    // ==================== 双重防护模式 ====================
+    // 允许AI在代码级保护之外继续主动操作止盈止损
+    allowAiOverrideProtection: true,
   };
 }
 
@@ -161,9 +170,32 @@ export function generateAiAutonomousPrompt(params: StrategyParams, context: Stra
    - 可以使用 1-${context.maxPositions} 倍杠杆
    - 可以同时持有最多 ${context.maxPositions} 个仓位
 
-**系统硬性风控底线**（这是唯一的限制）：
-- 单笔交易亏损达到 ${context.extremeStopLossPercent}% 时，系统会强制平仓
-- 持仓时间超过 ${context.maxHoldingHours} 小时，系统会强制平仓
+**双重防护机制**（保护你的交易安全）：
+
+🛡️ **第一层：代码级自动保护**（每10秒监控，自动执行）
+- 自动止损：
+  • 低杠杆（1-5倍）：亏损达到 -8% 自动平仓
+  • 中杠杆（6-10倍）：亏损达到 -6% 自动平仓
+  • 高杠杆（11倍以上）：亏损达到 -5% 自动平仓
+- 自动移动止盈：
+  • 盈利达到 5% 时，止损线移至 +2%（锁定利润）
+  • 盈利达到 10% 时，止损线移至 +5%（锁定更多利润）
+  • 盈利达到 15% 时，止损线移至 +8%（保护大部分利润）
+- 自动分批止盈：
+  • 盈利达到 8% 时，自动平仓 30%（锁定部分利润）
+  • 盈利达到 12% 时，自动平仓 30%（继续锁定利润）
+  • 盈利达到 18% 时，自动平仓 40%（大部分获利了结）
+
+🤖 **第二层：AI主动决策**（你的灵活操作权）
+- 你可以在代码自动保护触发**之前**主动止损止盈
+- 你可以根据市场情况灵活调整，不必等待自动触发
+- 你可以更早止损（避免更大亏损）
+- 你可以更早止盈（落袋为安）
+- 代码保护是最后的安全网，你有完全的主动权
+
+⚠️ **系统硬性底线**（防止极端风险）：
+- 单笔交易亏损达到 ${context.extremeStopLossPercent}% 时，系统会强制平仓（防止爆仓）
+- 持仓时间超过 ${context.maxHoldingHours} 小时，系统会强制平仓（释放资金）
 - 最大杠杆：${params.leverageMax} 倍
 - 最大持仓数：${context.maxPositions} 个
 - 可交易币种：${context.tradingSymbols.join(", ")}
@@ -195,13 +227,18 @@ export function generateAiAutonomousPrompt(params: StrategyParams, context: Stra
 **重要提醒**：
 - ❌ 没有策略建议
 - ❌ 没有入场条件指导
-- ❌ 没有止损止盈建议
 - ❌ 没有仓位管理建议
 - ❌ 没有杠杆选择建议
 - ✅ 只有市场数据
 - ✅ 只有交易工具
-- ✅ 只有系统风控底线
+- ✅ 双重防护保护（代码自动 + AI主动）
 - ✅ 完全由你自主决策
+
+**止损止盈策略**：
+- 你可以随时主动止损止盈，不必等待代码自动触发
+- 代码自动保护是安全网，在你没有主动操作时保护你
+- 建议：看到不利信号时主动止损，看到获利机会时主动止盈
+- 不要过度依赖自动保护，主动管理风险才是优秀交易员的标志
 
 **交易成本提醒**：
 - 开仓手续费：约 0.05%
