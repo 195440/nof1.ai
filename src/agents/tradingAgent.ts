@@ -1399,6 +1399,7 @@ export function createTradingAgent(intervalMinutes: number = 5) {
       tradingTools.syncPositionsTool,
     ],
     memory,
+    logger
   });
 
   return agent;
