@@ -89,7 +89,7 @@ export function getStrategyParams(strategy: TradingStrategy, maxLeverage: number
     case "ai-autonomous":
       return getAiAutonomousStrategy(maxLeverage);
     default:
-      return getBalancedStrategy(maxLeverage);
+      return getAiAutonomousStrategy(maxLeverage);
   }
 }
 
@@ -139,7 +139,7 @@ export function generateStrategySpecificPrompt(
     case "ai-autonomous":
       return generateAiAutonomousPrompt(params, context);
     default:
-      return generateBalancedPrompt(params, context);
+      return generateAiAutonomousPrompt(params, context);
   }
 }
 
