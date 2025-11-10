@@ -71,27 +71,27 @@ export function getAiAutonomousStrategy(maxLeverage: number): StrategyParams {
     // 代码级自动止损配置（作为安全网）
     // AI可以在此之前主动止损，这些是最后的防线
     stopLoss: {
-      low: -8,    // 低杠杆（1-5倍）：亏损8%时代码自动止损
-      mid: -6,    // 中杠杆（6-10倍）：亏损6%时代码自动止损
-      high: -5,   // 高杠杆（11倍以上）：亏损5%时代码自动止损
+      low: -20,    // 低杠杆（1-5倍）：亏损8%时代码自动止损
+      mid: -20,    // 中杠杆（6-10倍）：亏损6%时代码自动止损
+      high: -20,   // 高杠杆（11倍以上）：亏损5%时代码自动止损
     },
     
     // ==================== 移动止盈配置 ====================
     // 代码级自动移动止盈配置（作为利润保护网）
     // AI可以在此之前主动止盈，这些是自动保护机制
     trailingStop: {
-      level1: { trigger: 5, stopAt: 2 },    // 盈利5%时，止损线移至+2%
+      level1: { trigger: 5, stopAt: 3 },    // 盈利5%时，止损线移至+2%
       level2: { trigger: 10, stopAt: 5 },   // 盈利10%时，止损线移至+5%
-      level3: { trigger: 15, stopAt: 8 },   // 盈利15%时，止损线移至+8%
+      level3: { trigger: 15, stopAt: 10 },   // 盈利15%时，止损线移至+8%
     },
     
     // ==================== 分批止盈配置 ====================
     // 代码级自动分批止盈配置（作为利润锁定机制）
     // AI可以在此之前主动止盈，这些是自动锁利机制
     partialTakeProfit: {
-      stage1: { trigger: 8, closePercent: 30 },   // 盈利8%时，自动平仓30%
-      stage2: { trigger: 12, closePercent: 30 },  // 盈利12%时，自动平仓30%
-      stage3: { trigger: 18, closePercent: 40 },  // 盈利18%时，自动平仓40%
+      stage1: { trigger: 20, closePercent: 30 },   // 盈利8%时，自动平仓30%
+      stage2: { trigger: 30, closePercent: 30 },  // 盈利12%时，自动平仓30%
+      stage3: { trigger: 40, closePercent: 100 },  // 盈利18%时，自动平仓40%
     },
     
     // ==================== 峰值回撤保护 ====================
