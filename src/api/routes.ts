@@ -369,7 +369,8 @@ export function createApiRoutes() {
         "balanced": "平衡",
         "aggressive": "激进",
         "rebate-farming": "返佣套利",
-        "ai-autonomous": "AI自主"
+        "ai-autonomous": "AI自主",
+        "multi-agent-consensus": "陪审团策略"
       };
       
       return c.json({

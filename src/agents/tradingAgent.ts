@@ -65,7 +65,7 @@ export function getStrategyParams(strategy: TradingStrategy): StrategyParams {
 
 const logger = createLogger({
   name: "trading-agent",
-  level: "info",
+  level: "debug",
 });
 
 /**
@@ -73,7 +73,7 @@ const logger = createLogger({
  */
 export function getTradingStrategy(): TradingStrategy {
   const strategy = process.env.TRADING_STRATEGY || "balanced";
-  if (strategy === "conservative" || strategy === "balanced" || strategy === "aggressive" || strategy === "ultra-short" || strategy === "swing-trend" || strategy === "rebate-farming" || strategy === "ai-autonomous") {
+  if (strategy === "conservative" || strategy === "balanced" || strategy === "aggressive" || strategy === "ultra-short" || strategy === "swing-trend" || strategy === "rebate-farming" || strategy === "ai-autonomous" || strategy === "multi-agent-consensus") {
     return strategy;
   }
   logger.warn(`未知的交易策略: ${strategy}，使用默认策略: balanced`);
@@ -150,6 +150,7 @@ function generateAiAutonomousPromptForCycle(data: {
       }
       
       prompt += `${pos.contract} ${pos.side === 'long' ? '做多' : '做空'}:\n`;
+      
       prompt += `  持仓量: ${pos.quantity ?? 0} 张\n`;
       prompt += `  杠杆: ${pos.leverage ?? 1}x\n`;
       prompt += `  入场价: ${entryPrice.toFixed(2)}\n`;
@@ -428,7 +429,7 @@ export function generateTradingPrompt(data: {
 │   • 盈利≥+${params.partialTakeProfit.stage3.trigger}% → 平仓${params.partialTakeProfit.stage3.closePercent}% │
 │ 峰值回撤：≥${params.peakDrawdownProtection}% → 危险信号，立即平仓 │
 ${isCodeLevelProtectionEnabled ? (allowAiOverride ? `│                                         │
-│ 🛡️ 双重防护模式：                      │
+│ 双重防护模式：                          │
 │   • 代码自动监控（每10秒）作为安全网   │
 │   • Level1: 峰值${params.trailingStop.level1.trigger}%→止损线${params.trailingStop.level1.stopAt}% │
 │   • Level2: 峰值${params.trailingStop.level2.trigger}%→止损线${params.trailingStop.level2.stopAt}% │
@@ -756,7 +757,7 @@ function generateInstructions(strategy: TradingStrategy, intervalMinutes: number
 - 自主决定交易策略、风险管理、仓位大小、杠杆倍数
 - **自我复盘和持续改进**：从历史交易中学习，识别成功模式和失败原因
 
-🛡️ 双重防护机制（保护你的交易安全）：
+双重防护机制（保护你的交易安全）：
 
 **第一层：代码级自动保护**（每10秒监控，自动执行）
 - 自动止损：低杠杆-8%、中杠杆-6%、高杠杆-5%
@@ -1360,8 +1361,10 @@ ${strategySpecificContent}
 
 /**
  * 创建交易 Agent
+ * @param intervalMinutes 交易间隔（分钟）
+ * @param marketDataContext 市场数据上下文（可选，用于子Agent）
  */
-export function createTradingAgent(intervalMinutes: number = 5) {
+export async function createTradingAgent(intervalMinutes: number = 5, marketDataContext?: any) {
   // 使用 OpenAI SDK，通过配置 baseURL 兼容 OpenRouter 或其他供应商
   const openai = createOpenAI({
     apiKey: process.env.OPENAI_API_KEY || "",
@@ -1378,6 +1381,21 @@ export function createTradingAgent(intervalMinutes: number = 5) {
   // 获取当前策略
   const strategy = getTradingStrategy();
   logger.info(`使用交易策略: ${strategy}`);
+
+  // 如果是多Agent共识策略，创建子Agent
+  let subAgents: Agent[] | undefined;
+  if (strategy === "multi-agent-consensus") {
+    logger.info("创建陪审团策略的子Agent（陪审团成员）...");
+    const { createTechnicalAnalystAgent, createTrendAnalystAgent, createRiskAssessorAgent } = await import("./analysisAgents");
+    
+    // 传递市场数据上下文给子Agent
+    subAgents = [
+      createTechnicalAnalystAgent(marketDataContext),
+      createTrendAnalystAgent(marketDataContext),
+      createRiskAssessorAgent(marketDataContext),
+    ];
+    logger.info("陪审团成员创建完成：技术分析Agent、趋势分析Agent、风险评估Agent");
+  }
 
   const agent = new Agent({
     name: "trading-agent",
@@ -1398,6 +1416,7 @@ export function createTradingAgent(intervalMinutes: number = 5) {
       tradingTools.calculateRiskTool,
       tradingTools.syncPositionsTool,
     ],
+    subAgents,
     memory,
     logger
   });

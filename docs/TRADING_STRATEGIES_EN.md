@@ -38,10 +38,11 @@ All strategy implementation files are located in the `src/strategies/` directory
 - `src/strategies/aggressive.ts` - Aggressive strategy implementation
 - `src/strategies/rebateFarming.ts` - Rebate farming strategy implementation
 - `src/strategies/aiAutonomous.ts` - AI autonomous strategy implementation
+- `src/strategies/multiAgentConsensus.ts` - Multi-agent consensus strategy implementation
 
 ## Strategy Overview
 
-The system currently supports **7 trading strategies**, suitable for different market environments and risk preferences:
+The system currently supports **8 trading strategies**, suitable for different market environments and risk preferences:
 
 | Strategy Code | Strategy Name | Execution Cycle | Holding Duration | Risk Level | Suitable For |
 |--------------|---------------|----------------|-----------------|------------|--------------|
@@ -52,6 +53,7 @@ The system currently supports **7 trading strategies**, suitable for different m
 | `aggressive` | Aggressive | 5-15 minutes | Hours - 24 hours | High | Aggressive investors |
 | `rebate-farming` | Rebate Farming | 2-3 minutes | Minutes - 1 hour | Medium | Users with fee rebates, high-frequency micro-profit trading |
 | `ai-autonomous` | AI Autonomous | Flexible | AI decides | AI decides | Users who trust AI's ability to make fully autonomous decisions |
+| `multi-agent-consensus` | **Multi-Agent Jury** | **5-10 minutes** | **Hours - Days** | **Medium** | **Investors seeking robust decision-making and risk control** |
 
 ## Detailed Strategy Descriptions
 
@@ -281,6 +283,159 @@ INITIAL_BALANCE=2000
 
 ---
 
+### Multi-Agent Jury Strategy (`multi-agent-consensus`)
+
+**Core Philosophy**: Judge and jury deliberation model, main agent independent analysis + three professional agents assistance, pursuing high-quality decisions
+
+> **⚠️ Important Notice: Token Consumption Warning**
+> 
+> The jury strategy uses a multi-agent collaboration mode (1 main agent + 3 professional agents), requiring multiple AI model calls for each decision.
+> 
+> **Cost Impact**:
+> - Token consumption is approximately **3-4 times** that of single-agent strategies
+> - Each decision cycle requires 4 AI model calls (Judge 1 time + Jury 3 times)
+> - With 5-minute execution cycle, approximately 288 × 4 = **1152 AI calls per day**
+> 
+> **Recommendations**:
+> - Only use when you have sufficient budget and pursue extremely high decision quality
+> - Consider extending execution cycle (e.g., 10 or 15 minutes) to reduce costs
+> - Monitor API fees to ensure they remain within acceptable range
+> - Users with limited budget should use single-agent strategies (e.g., swing-trend, ai-autonomous)
+
+#### Strategy Parameters
+
+> **Configuration File Location**: `src/strategies/multiAgentConsensus.ts`
+
+- **Execution Cycle**: 5-10 minutes (Configuration location: `.env` file `TRADING_INTERVAL_MINUTES=5`)
+- **Recommended Holding Duration**: Hours - Days
+- **Leverage Range**: 14-20x (55%-80% of MAX_LEVERAGE)
+  - Code: `leverageMin: Math.max(2, Math.ceil(maxLeverage * 0.55))`
+  - Code: `leverageMax: Math.max(3, Math.ceil(maxLeverage * 0.80))`
+  - Note: When MAX_LEVERAGE=25, actual leverage is 14-20x
+- **Position Size**: 18-25%
+  - Code: `positionSizeMin: 18, positionSizeMax: 25`
+- **Stop-Loss Range**: -6% ~ -8%
+  - Code: `stopLoss: { low: -6, mid: -7, high: -8 }`
+
+#### Core Advantages
+
+1. **Multi-Agent Collaborative Decision**: Judge (main agent) + three professional agents (technical analysis, trend analysis, risk assessment)
+2. **Deliberation Decision-Making**: Judge analyzes independently first, listens to jury opinions, then makes final judgment
+3. **Not Simple Voting**: Weighs persuasiveness of opinions, not simple majority rule
+4. **Dual Protection Mechanism**: Code auto-monitoring + AI proactive decision
+5. **Reduce Decision Bias**: Multi-perspective analysis reduces single-agent cognitive blind spots
+
+#### Dual Protection Mechanism
+
+The jury strategy adopts the same dual protection mode as the AI autonomous strategy:
+
+**Layer 1: Code-Level Auto Protection** (Every 10 seconds monitoring, safety net)
+- **Auto Stop-Loss**:
+  - Low leverage (2-10x): Auto close at -6% loss
+  - Medium leverage (11-15x): Auto close at -7% loss
+  - High leverage (16x+): Auto close at -8% loss
+- **Auto Trailing Stop**:
+  - At +10% profit, move stop to +4% (lock profit)
+  - At +18% profit, move stop to +10% (lock more profit)
+  - At +28% profit, move stop to +18% (protect most profit)
+- **Auto Partial Take-Profit**:
+  - At +25% profit, auto close 40% (lock partial profit)
+  - At +35% profit, auto close 40% (continue locking profit)
+  - At +45% profit, auto close 100% (take all profit)
+
+**Layer 2: AI Proactive Decision** (Flexible operation rights)
+- Judge can proactively stop-loss/take-profit **before** code auto protection triggers
+- Judge can flexibly adjust according to market conditions, no need to wait for auto trigger
+- Judge can stop-loss earlier (avoid bigger losses)
+- Judge can take-profit earlier (secure profit)
+- Code protection is the last safety net, judge has full proactive control
+
+#### Jury Members
+
+1. **Technical Analysis Agent**: Analyzes technical indicators (MACD, RSI, Bollinger Bands, etc.)
+2. **Trend Analysis Agent**: Analyzes multi-timeframe trends (1m/3m/5m/15m/1h/4h)
+3. **Risk Assessment Agent**: Assesses market risks and position risks
+
+#### Workflow
+
+1. **Judge Independent Analysis**: Judge analyzes market independently first, forms preliminary judgment
+2. **Consult Jury**: Use `delegate_task` tool to call three professional agents
+3. **Collect Opinions**: Gather analysis opinions and suggestions from three agents
+4. **Deliberation Decision**: Judge synthesizes all opinions (including own judgment) to make final decision
+5. **Execute Decision**: Judge executes open/close/observe operations (only judge can execute trades)
+
+#### Entry Conditions (Judge Executes)
+
+- **Must Obtain Jury Opinions**: At least consult technical analysis, trend analysis, and risk assessment agents
+- **Comprehensive Judgment**: Not simple majority vote, but weighing persuasiveness of opinions
+- **Signal Strength Grading**:
+  - Normal signal: 18-20% position, 14x leverage
+  - Good signal: 20-23% position, 17x leverage
+  - Strong signal: 23-25% position, 20x leverage
+- **Emergency Situations**: When position loss approaches stop-loss line, judge can skip jury and decide directly
+
+#### Applicable Scenarios
+
+**Most Suitable**:
+- Pursuing robust decision-making, emphasizing risk control
+- Hoping to reduce decision bias through multi-perspective analysis
+- Can accept holding periods of hours to days
+- Not in a hurry for frequent trading, pursuing high-quality signals
+- Hoping for dual protection (code + AI)
+- **Sufficient budget to afford 3-4x token costs** (Important)
+- No strict limitations on API calls
+
+**Not Suitable**:
+- Pursuing extremely high-frequency trading (jury decision takes time)
+- Market fluctuates extremely fast, requiring second-level decisions
+- Don't like complex decision processes
+- **Limited budget, cannot afford 3-4x token costs**
+- Users with API call limitations or cost-sensitive
+
+#### Configuration Example
+
+> **Configuration File Location**: `.env` file (refer to `.env.example`)
+
+```bash
+# Environment Variable Configuration
+TRADING_STRATEGY=multi-agent-consensus
+TRADING_INTERVAL_MINUTES=5      # Recommended 5-10 minutes
+MAX_LEVERAGE=25                  # Strategy uses 14-20x (55%-80%)
+MAX_POSITIONS=3                  # Maximum 3 positions (cautious entry)
+INITIAL_BALANCE=2000
+```
+
+#### Expected Returns
+
+- **Monthly Target Return**: 20-35%
+- **Win Rate Target**: 40-50% (improved through multi-agent decision)
+- **Profit-Loss Ratio Target**: ≥2.5:1
+- **Sharpe Ratio**: ≥1.8
+
+#### Comparison with Other Strategies
+
+| Comparison Item | Jury Strategy | AI Autonomous | Swing Trend |
+|----------------|---------------|---------------|-------------|
+| Decision Mode | Judge+Jury Deliberation | AI Fully Autonomous | AI Open+Auto Monitor |
+| Leverage Range | 14-20x | 1-Max Leverage | 2-5x |
+| Position Size | 18-25% | 1-100% | 20-35% |
+| Stop-Loss Method | Dual Protection | Dual Protection | Auto Monitor |
+| Decision Time | Longer (needs consultation) | Flexible | Medium |
+| Token Consumption | Higher (3-4x) | Medium | Medium |
+| Win Rate Target | 40-50% | AI Decides | 35-45% |
+| Suitable for Beginners | Yes | No | Yes |
+
+#### Strategy Code Location
+
+- Parameter Configuration: `src/strategies/multiAgentConsensus.ts` → `getMultiAgentConsensusStrategy()`
+- Prompt Generation: `src/strategies/multiAgentConsensus.ts` → `generateMultiAgentConsensusPrompt()`
+- Dual Protection Config: `enableCodeLevelProtection: true` + `allowAiOverrideProtection: true`
+- Code Stop-Loss: `src/scheduler/stopLossMonitor.ts`
+- Code Take-Profit: `src/scheduler/trailingStopMonitor.ts`
+- Partial Take-Profit: `src/scheduler/partialProfitMonitor.ts`
+
+---
+
 ## Strategy Switching Guide
 
 ### When to Use Swing Trend Strategy?
@@ -318,6 +473,10 @@ INITIAL_BALANCE=2000
    
    # Or switch to Ultra-Short Strategy
    TRADING_STRATEGY=ultra-short
+   TRADING_INTERVAL_MINUTES=5
+   
+   # Or switch to Multi-Agent Jury Strategy
+   TRADING_STRATEGY=multi-agent-consensus
    TRADING_INTERVAL_MINUTES=5
    ```
 3. **Restart System**:
@@ -517,6 +676,9 @@ All strategy implementations follow a unified architectural pattern:
    - Conservative: `src/strategies/conservative.ts` → `getConservativeStrategy()`
    - Balanced: `src/strategies/balanced.ts` → `getBalancedStrategy()`
    - Aggressive: `src/strategies/aggressive.ts` → `getAggressiveStrategy()`
+   - Rebate Farming: `src/strategies/rebateFarming.ts` → `getRebateFarmingStrategy()`
+   - AI Autonomous: `src/strategies/aiAutonomous.ts` → `getAiAutonomousStrategy()`
+   - Multi-Agent Jury: `src/strategies/multiAgentConsensus.ts` → `getMultiAgentConsensusStrategy()`
 
 2. **Prompt Generation**: Each strategy file contains a `generateXxxPrompt()` function that generates strategy-specific decision prompts for the AI
    - Ultra-Short: `generateUltraShortPrompt()`
@@ -524,6 +686,9 @@ All strategy implementations follow a unified architectural pattern:
    - Conservative: `generateConservativePrompt()`
    - Balanced: `generateBalancedPrompt()`
    - Aggressive: `generateAggressivePrompt()`
+   - Rebate Farming: `generateRebateFarmingPrompt()`
+   - AI Autonomous: `generateAiAutonomousPrompt()`
+   - Multi-Agent Jury: `generateMultiAgentConsensusPrompt()`
 
 3. **Unified Exports**: All strategies are exported through `src/strategies/index.ts` for easy system calls
 
@@ -569,6 +734,13 @@ export function getStrategyParams(strategy: TradingStrategy, maxLeverage: number
 | Account Drawdown Force Close | `ACCOUNT_DRAWDOWN_FORCE_CLOSE_PERCENT` | `src/config/riskParams.ts` | Risk control parameter |
 
 ## Version History
+
+### v2.3 - November 11, 2025
+- Added Multi-Agent Jury Strategy (`multi-agent-consensus`)
+- Judge and jury deliberation decision-making model: main agent + three professional agents collaboration
+- Dual protection mechanism: code auto-monitoring + judge proactive decision
+- Total number of strategies increased from 7 to 8
+- Improved strategy switching guide and best practices
 
 ### v2.2 - November 9, 2025
 - Annotated configuration file locations and code locations for all strategy parameters
