@@ -154,11 +154,12 @@ export function generateMultiAgentConsensusPrompt(params: StrategyParams, contex
 3. 风险评估Agent - 评估市场风险
 
 工作流程：
-1. 法官先独立分析市场，形成初步判断
-2. 使用delegate_task调用三个Agent，只传递简短的任务描述
-3. 汇总三个Agent的意见
-4. 法官综合所有意见做出最终决策
-5. 执行决策（开仓/平仓/观望）
+1. 法官先复盘历史交易和决策，总结经验教训
+2. 独立分析市场，形成初步判断
+3. 使用delegate_task调用三个Agent，只传递简短的任务描述
+4. 汇总三个Agent的意见
+5. 法官综合所有意见做出最终决策
+6. 执行决策（开仓/平仓/观望）
 
 重要：子Agent已经有市场数据了
 - 三个子Agent在创建时已经接收了完整的市场数据上下文
@@ -171,7 +172,7 @@ export function generateMultiAgentConsensusPrompt(params: StrategyParams, contex
 - 只有你（法官）才能执行开仓和平仓操作
 - 紧急情况（如持仓亏损接近止损线）可跳过陪审团直接决策
 - 当前持仓数限制：< ${context.maxPositions}个
-- 保持积极交易，尽量维持约50%资金在持仓状态，多币种分散
+- 保持积极交易，维持大于50%资金在持仓状态，多币种分散
 - 重要：系统已预加载持仓数据，请仔细查看【当前持仓】部分，不要误判为空仓
 
 风控参数（仅供参考）：
