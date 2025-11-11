@@ -153,7 +153,7 @@ The system follows a **minimal human intervention** design philosophy, abandonin
 ```bash
 # Clone repository
 git clone <repository-url>
-cd open-nof1.ai
+cd nof1.ai
 
 # Install dependencies
 npm install
@@ -237,7 +237,7 @@ Navigate to `http://localhost:3100` in your browser.
 ## Project Structure
 
 ```
-open-nof1.ai/
+nof1.ai/
 ├── src/
 │   ├── index.ts                      # Application entry point
 │   ├── agents/
