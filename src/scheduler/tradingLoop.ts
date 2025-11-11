@@ -1175,8 +1175,29 @@ async function executeTradingDecision() {
       const gateClient = createGateClient();
       const rawGatePositions = await gateClient.getPositions();
       
+      // 添加详细日志：显示原始持仓数据
+      logger.info(`Gate.io 原始持仓数据: ${JSON.stringify(rawGatePositions.map((p: any) => ({
+        contract: p.contract,
+        size: p.size,
+        entryPrice: p.entryPrice,
+        unrealisedPnl: p.unrealisedPnl
+      })))}`);
+      
       // 使用同一份数据进行处理和同步，避免重复调用API
       positions = await getPositions(rawGatePositions);
+      
+      // 添加详细日志：显示处理后的持仓数据
+      logger.info(`处理后的持仓数量: ${positions.length}`);
+      if (positions.length > 0) {
+        logger.info(`持仓详情: ${JSON.stringify(positions.map(p => ({
+          symbol: p.symbol,
+          side: p.side,
+          quantity: p.quantity,
+          entry_price: p.entry_price,
+          unrealized_pnl: p.unrealized_pnl
+        })))}`);
+      }
+      
       await syncPositionsFromGate(rawGatePositions);
       
       const dbPositions = await dbClient.execute("SELECT COUNT(*) as count FROM positions");
@@ -1502,7 +1523,8 @@ async function executeTradingDecision() {
     logger.info(prompt);
     logger.info("=".repeat(80) + "\n");
     
-    const agent = createTradingAgent(intervalMinutes);
+    // 传递市场数据给Agent（用于子Agent）
+    const agent = await createTradingAgent(intervalMinutes, marketData);
     
     try {
       // 设置足够大的 maxOutputTokens 以避免输出被截断

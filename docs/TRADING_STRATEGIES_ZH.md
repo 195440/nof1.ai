@@ -38,10 +38,11 @@
 - `src/strategies/aggressive.ts` - 激进策略实现
 - `src/strategies/rebateFarming.ts` - 返佣套利策略实现
 - `src/strategies/aiAutonomous.ts` - AI自主策略实现
+- `src/strategies/multiAgentConsensus.ts` - 陪审团策略实现
 
 ## 策略概览
 
-系统目前支持 **7 种交易策略**，适应不同的市场环境和风险偏好：
+系统目前支持 **8 种交易策略**，适应不同的市场环境和风险偏好：
 
 | 策略代码 | 策略名称 | 执行周期 | 持仓时长 | 风险等级 | 适合人群 |
 |---------|---------|---------|---------|---------|---------|
@@ -52,6 +53,7 @@
 | `aggressive` | 激进 | 5-15分钟 | 数小时-24小时 | 高 | 激进投资者 |
 | `rebate-farming` | **返佣套利** | **5分钟** | **10-60分钟** | **中** | **拥有高额手续费返佣的用户** |
 | `ai-autonomous` | **AI自主** | **灵活** | **AI决定** | **AI决定** | **完全信任AI能力，追求最大灵活性的交易者** |
+| `multi-agent-consensus` | **陪审团** | **5-10分钟** | **数小时-数天** | **中** | **追求稳健决策、重视风险控制的投资者** |
 
 ## 策略详细说明
 
@@ -428,7 +430,7 @@ MAX_POSITIONS=5                  # 最多5个持仓
 
 **核心理念**：完全由AI主导，不提供任何策略建议，AI自主分析市场并做出所有决策
 
-#### 🛡️ 双重防护机制
+#### 双重防护机制
 
 AI自主策略是**唯一**采用双重防护模式的策略：
 
@@ -494,17 +496,17 @@ AI自主策略是**唯一**采用双重防护模式的策略：
 #### 适用人群
 
 **最适合**：
-- ✅ 完全信任AI能力的交易者
-- ✅ 追求最大灵活性和自主性
-- ✅ 希望有双重保护（代码 + AI）
-- ✅ 能接受AI完全自主决策
-- ✅ 不想被策略框架限制
+- 完全信任AI能力的交易者
+- 追求最大灵活性和自主性
+- 希望有双重保护（代码 + AI）
+- 能接受AI完全自主决策
+- 不想被策略框架限制
 
 **不适合**：
-- ❌ 需要明确策略指导的新手
-- ❌ 希望严格控制风险参数
-- ❌ 不信任AI自主决策能力
-- ❌ 需要可预测的交易模式
+- 需要明确策略指导的新手
+- 希望严格控制风险参数
+- 不信任AI自主决策能力
+- 需要可预测的交易模式
 
 #### 配置示例
 
@@ -523,18 +525,169 @@ INITIAL_BALANCE=2000
 
 | 对比项 | AI自主策略 | 其他策略 |
 |-------|-----------|---------|
-| 策略建议 | ❌ 无 | ✅ 有明确建议 |
+| 策略建议 | 无 | 有明确建议 |
 | 杠杆范围 | 1-最大杠杆（AI决定） | 固定范围（如3-5倍） |
 | 仓位大小 | 1-100%（AI决定） | 固定范围（如18-25%） |
-| 止损方式 | 🛡️ 双重防护 | 代码自动 或 AI主动 |
-| 灵活性 | ⭐⭐⭐⭐⭐ | ⭐⭐⭐ |
-| 风险保护 | ⭐⭐⭐⭐⭐ | ⭐⭐⭐⭐ |
-| 适合新手 | ❌ | ✅ |
+| 止损方式 | 双重防护 | 代码自动 或 AI主动 |
+| 灵活性 | 最高 | 较高 |
+| 风险保护 | 最强 | 强 |
+| 适合新手 | 否 | 是 |
 
 #### 策略代码位置
 
 - 参数配置：`src/strategies/aiAutonomous.ts` → `getAiAutonomousStrategy()`
 - 提示词生成：`src/strategies/aiAutonomous.ts` → `generateAiAutonomousPrompt()`
+- 双重防护配置：`enableCodeLevelProtection: true` + `allowAiOverrideProtection: true`
+- 代码止损：`src/scheduler/stopLossMonitor.ts`
+- 代码止盈：`src/scheduler/trailingStopMonitor.ts`
+- 分批止盈：`src/scheduler/partialProfitMonitor.ts`
+
+---
+
+### 陪审团策略 (`multi-agent-consensus`)
+
+**核心理念**：法官与陪审团合议决策，主Agent独立分析+三个专业Agent辅助，追求高质量决策
+
+> **⚠️ 重要提示：Token消耗警告**
+> 
+> 陪审团策略采用多Agent协作模式（1个主Agent + 3个专业Agent），每次决策都需要调用多个AI模型。
+> 
+> **成本影响**：
+> - Token消耗约为单Agent策略的 **3-4倍**
+> - 每个决策周期需要调用4次AI模型（法官1次 + 陪审团3次）
+> - 5分钟执行周期，一天约消耗288次 × 4 = **1152次AI调用**
+> 
+> **建议**：
+> - 仅在充足预算和追求极高决策质量时使用
+> - 可考虑延长执行周期（如10分钟或15分钟）以降低成本
+> - 监控API费用，确保在可接受范围内
+> - 预算有限的用户建议使用单Agent策略（如swing-trend、ai-autonomous）
+
+#### 策略参数
+
+> **配置文件位置**：`src/strategies/multiAgentConsensus.ts`
+
+- **执行周期**：5-10分钟（配置位置：`.env` 文件 `TRADING_INTERVAL_MINUTES=5`）
+- **建议持仓时长**：数小时 - 数天
+- **杠杆范围**：14-20倍（根据MAX_LEVERAGE的55%-80%）
+  - 代码：`leverageMin: Math.max(2, Math.ceil(maxLeverage * 0.55))`
+  - 代码：`leverageMax: Math.max(3, Math.ceil(maxLeverage * 0.80))`
+  - 注：当MAX_LEVERAGE=25时，实际为14-20倍
+- **仓位大小**：18-25%
+  - 代码：`positionSizeMin: 18, positionSizeMax: 25`
+- **止损范围**：-6% ~ -8%
+  - 代码：`stopLoss: { low: -6, mid: -7, high: -8 }`
+
+#### 核心优势
+
+1. **多Agent协作决策**：法官（主Agent）+ 三个专业Agent（技术分析、趋势分析、风险评估）
+2. **合议制决策**：法官先独立分析，倾听陪审团意见，综合权衡后做出判决
+3. **不是简单投票**：权衡各方意见的说服力，而非简单多数表决
+4. **双重防护机制**：代码自动监控 + AI主动决策
+5. **降低决策偏差**：多视角分析，减少单一Agent的认知盲区
+
+#### 双重防护机制
+
+陪审团策略采用与AI自主策略相同的双重防护模式：
+
+**第一层：代码级自动保护**（每10秒监控，作为安全网）
+- **自动止损**：
+  - 低杠杆（2-10倍）：亏损达到 -6% 自动平仓
+  - 中杠杆（11-15倍）：亏损达到 -7% 自动平仓
+  - 高杠杆（16倍以上）：亏损达到 -8% 自动平仓
+- **自动移动止盈**：
+  - 盈利达到 +10% 时，止损线移至 +4%（锁定利润）
+  - 盈利达到 +18% 时，止损线移至 +10%（锁定更多利润）
+  - 盈利达到 +28% 时，止损线移至 +18%（保护大部分利润）
+- **自动分批止盈**：
+  - 盈利达到 +25% 时，自动平仓 40%（锁定部分利润）
+  - 盈利达到 +35% 时，自动平仓 40%（继续锁定利润）
+  - 盈利达到 +45% 时，自动平仓 100%（全部获利了结）
+
+**第二层：AI主动决策**（灵活操作权）
+- 法官可以在代码自动保护触发**之前**主动止损止盈
+- 法官可以根据市场情况灵活调整，不必等待自动触发
+- 法官可以更早止损（避免更大亏损）
+- 法官可以更早止盈（落袋为安）
+- 代码保护是最后的安全网，法官有完全的主动权
+
+#### 陪审团成员
+
+1. **技术分析Agent**：分析技术指标（MACD、RSI、布林带等）
+2. **趋势分析Agent**：分析多时间框架趋势（1m/3m/5m/15m/1h/4h）
+3. **风险评估Agent**：评估市场风险和持仓风险
+
+#### 工作流程
+
+1. **法官独立分析**：法官先独立分析市场，形成初步判断
+2. **咨询陪审团**：使用`delegate_task`工具调用三个专业Agent
+3. **收集意见**：汇总三个Agent的分析意见和建议
+4. **合议决策**：法官综合所有意见（包括自己的判断）做出最终决策
+5. **执行决策**：法官执行开仓/平仓/观望操作（只有法官能执行交易）
+
+#### 入场条件（法官执行）
+
+- **必须获得陪审团意见**：至少咨询技术分析、趋势分析、风险评估三个Agent
+- **综合判断**：不是简单的多数表决，而是权衡各方意见的说服力
+- **信号强度分级**：
+  - 普通信号：18-20%仓位，14倍杠杆
+  - 良好信号：20-23%仓位，17倍杠杆
+  - 强信号：23-25%仓位，20倍杠杆
+- **紧急情况**：持仓亏损接近止损线时，法官可跳过陪审团直接决策
+
+#### 适用场景
+
+**最适合**：
+- 追求稳健决策，重视风险控制
+- 希望通过多视角分析降低决策偏差
+- 能接受数小时到数天的持仓周期
+- 不急于频繁交易，追求高质量信号
+- 希望有双重保护（代码 + AI）
+
+**不适合**：
+- 追求极高频交易（陪审团决策需要时间）
+- 市场波动极快，需要秒级决策
+- 不喜欢复杂的决策流程
+- **预算有限，无法承担3-4倍token成本**
+- API调用次数受限或成本敏感的用户
+
+#### 配置示例
+
+> **配置文件位置**：`.env` 文件（参考 `.env.example`）
+
+```bash
+# 环境变量配置
+TRADING_STRATEGY=multi-agent-consensus
+TRADING_INTERVAL_MINUTES=5      # 建议5-10分钟
+MAX_LEVERAGE=25                  # 策略使用14-20倍（55%-80%）
+MAX_POSITIONS=3                  # 最多3个持仓（谨慎入场）
+INITIAL_BALANCE=2000
+```
+
+#### 预期收益
+
+- **月目标收益**：20-35%
+- **胜率目标**：40-50%（通过多Agent决策提高胜率）
+- **盈亏比目标**：≥2.5:1
+- **夏普比率**：≥1.8
+
+#### 与其他策略的对比
+
+| 对比项 | 陪审团策略 | AI自主策略 | 波段趋势策略 |
+|-------|-----------|-----------|-------------|
+| 决策模式 | 法官+陪审团合议 | AI完全自主 | AI开仓+自动监控 |
+| 杠杆范围 | 14-20倍 | 1-最大杠杆 | 2-5倍 |
+| 仓位大小 | 18-25% | 1-100% | 20-35% |
+| 止损方式 | 双重防护 | 双重防护 | 自动监控 |
+| 决策时间 | 较长（需咨询） | 灵活 | 中等 |
+| Token消耗 | 较高（多Agent） | 中等 | 中等 |
+| 胜率目标 | 40-50% | AI决定 | 35-45% |
+| 适合新手 | 是 | 否 | 是 |
+
+#### 策略代码位置
+
+- 参数配置：`src/strategies/multiAgentConsensus.ts` → `getMultiAgentConsensusStrategy()`
+- 提示词生成：`src/strategies/multiAgentConsensus.ts` → `generateMultiAgentConsensusPrompt()`
 - 双重防护配置：`enableCodeLevelProtection: true` + `allowAiOverrideProtection: true`
 - 代码止损：`src/scheduler/stopLossMonitor.ts`
 - 代码止盈：`src/scheduler/trailingStopMonitor.ts`
@@ -569,23 +722,46 @@ INITIAL_BALANCE=2000
 ### 返佣套利策略使用场景
 
 **适合场景**：
-- ✅ 你拥有高额手续费返佣（50-80%）
-- ✅ 追求高频交易，通过频次累积收益
-- ✅ 能接受短期持仓（10-60分钟）
-- ✅ 希望系统自动化止损止盈（代码级控制）
-- ✅ 市场有明确趋势（涨或跌都可以）
-- ✅ 不贪心，满足微利即走（0.5-1.5%）
+- 你拥有高额手续费返佣（50-80%）
+- 追求高频交易，通过频次累积收益
+- 能接受短期持仓（10-60分钟）
+- 希望系统自动化止损止盈（代码级控制）
+- 市场有明确趋势（涨或跌都可以）
+- 不贪心，满足微利即走（0.5-1.5%）
 
 **不适合场景**：
-- ❌ 没有手续费返佣或返佣比例很低
-- ❌ 市场处于横盘震荡，无明确趋势
-- ❌ 追求单笔大盈利，不满足小利
-- ❌ 无法接受高频交易（日均10-30笔）
-- ❌ 市场流动性差，滑点大
+- 没有手续费返佣或返佣比例很低
+- 市场处于横盘震荡，无明确趋势
+- 追求单笔大盈利，不满足小利
+- 无法接受高频交易（日均10-30笔）
+- 市场流动性差，滑点大
 
 **与超短线策略的选择**：
 - 有高额返佣 → 选择返佣套利策略（更高频，更小目标）
 - 无返佣或低返佣 → 选择超短线策略（频率稍低，盈利目标更高）
+
+### 陪审团策略使用场景
+
+**适合场景**：
+- 追求稳健决策，重视风险控制
+- 希望通过多Agent协作降低决策偏差
+- 能接受数小时到数天的持仓周期
+- 不急于频繁交易，追求高质量信号
+- 希望有双重保护（代码自动 + AI主动）
+- **预算充足，可承担3-4倍token成本**（重要）
+- API调用无严格限制
+
+**不适合场景**：
+- 追求极高频交易（陪审团决策需要时间）
+- 市场波动极快，需要秒级决策
+- 不喜欢复杂的决策流程
+- 系统资源有限，无法承担多Agent的成本
+- 需要极简决策流程
+
+**与其他策略的选择**：
+- 追求稳健决策 + 多视角分析 → 选择陪审团策略
+- 追求AI完全自主 + 最大灵活性 → 选择AI自主策略
+- 追求自动化保护 + 趋势持仓 → 选择波段趋势策略
 
 ### 策略切换步骤
 
@@ -608,6 +784,10 @@ INITIAL_BALANCE=2000
    
    # 或切换到AI自主策略
    TRADING_STRATEGY=ai-autonomous
+   TRADING_INTERVAL_MINUTES=5
+   
+   # 或切换到陪审团策略
+   TRADING_STRATEGY=multi-agent-consensus
    TRADING_INTERVAL_MINUTES=5
    ```
 3. **重启系统**：
@@ -645,7 +825,8 @@ INITIAL_BALANCE=2000
 | swing-trend | 自动监控止损（每10秒）、自动监控移动止盈（每10秒，5级规则） | 系统**自动执行**，AI不干预 |
 | rebate-farming | 自动监控止损（每10秒）、自动监控移动止盈（每10秒） | 系统**自动执行**，AI不干预 |
 | aggressive | 自动监控止损（每10秒）、自动监控移动止盈（每10秒） | 系统**自动执行**，AI不干预 |
-| **ai-autonomous** | **🛡️ 双重防护：代码自动监控 + AI主动决策** | **唯一的双重防护策略** |
+| **ai-autonomous** | **双重防护：代码自动监控 + AI主动决策** | **双重防护策略** |
+| **multi-agent-consensus** | **双重防护：代码自动监控 + 法官主动决策** | **双重防护策略** |
 | conservative/balanced | 无专属规则 | AI全权决策 |
 
 ---
@@ -696,6 +877,42 @@ INITIAL_BALANCE=2000
 3. **高频监控**
    - 5分钟周期需要更频繁的监控
    - 确保系统稳定运行
+
+### 陪审团策略最佳实践
+
+1. **遵循合议流程**
+   - 法官先独立分析，形成初步判断
+   - 必须咨询三个专业Agent的意见
+   - 综合权衡后做出最终决策
+   - 不要跳过陪审团直接决策（除非紧急情况）
+
+2. **合理使用仓位和杠杆**
+   - 普通信号：18-20%仓位，14倍杠杆（最保守）
+   - 良好信号：20-23%仓位，17倍杠杆（平衡）
+   - 强信号：23-25%仓位，20倍杠杆（最大值，谨慎使用）
+
+3. **重视决策质量**
+   - 不是简单的多数表决，要权衡各方意见的说服力
+   - 如果三个Agent意见分歧很大，说明市场信号不明确，建议观望
+   - 只在高质量信号时交易，追求高胜率而非高频率
+
+4. **控制持仓数量**
+   - 建议：1-3个持仓（`MAX_POSITIONS=3`）
+   - 多Agent决策需要时间，持仓过多会增加决策负担
+   - 保持资金集中度，提高决策效率
+
+5. **信任双重防护**
+   - 代码自动监控是安全网，会在关键时刻自动保护
+   - 法官有主动权，可以在代码触发之前主动止损止盈
+   - 紧急情况下可跳过陪审团直接决策
+
+6. **管理token消耗（重要）**
+   - 多Agent协作会消耗约3-4倍的token成本
+   - 在delegate_task中只传递简短的任务描述，避免冗长内容
+   - 不要在task中重复传递市场数据（子Agent已有市场数据上下文）
+   - 定期监控API费用，确保在预算范围内
+   - 考虑使用成本更低的AI模型（如DeepSeek替代GPT-4）
+   - 可适当延长执行周期（5分钟→10分钟）以降低调用频率
 
 ---
 
@@ -852,6 +1069,8 @@ GATE_USE_TESTNET=true                  # 使用测试网（推荐）
    - 平衡策略：`src/strategies/balanced.ts` → `getBalancedStrategy()`
    - 激进策略：`src/strategies/aggressive.ts` → `getAggressiveStrategy()`
    - 返佣套利：`src/strategies/rebateFarming.ts` → `getRebateFarmingStrategy()`
+   - AI自主：`src/strategies/aiAutonomous.ts` → `getAiAutonomousStrategy()`
+   - 陪审团：`src/strategies/multiAgentConsensus.ts` → `getMultiAgentConsensusStrategy()`
 
 2. **提示词生成**：每个策略文件包含 `generateXxxPrompt()` 函数，为 AI 生成特定于该策略的决策提示词
    - 超短线：`generateUltraShortPrompt()`
@@ -860,6 +1079,8 @@ GATE_USE_TESTNET=true                  # 使用测试网（推荐）
    - 平衡策略：`generateBalancedPrompt()`
    - 激进策略：`generateAggressivePrompt()`
    - 返佣套利：`generateRebateFarmingPrompt()`
+   - AI自主：`generateAiAutonomousPrompt()`
+   - 陪审团：`generateMultiAgentConsensusPrompt()`
 
 3. **统一导出**：通过 `src/strategies/index.ts` 统一导出所有策略，方便系统调用
 
@@ -885,8 +1106,12 @@ export function getStrategyParams(strategy: TradingStrategy, maxLeverage: number
       return getAggressiveStrategy(maxLeverage);
     case "rebate-farming":
       return getRebateFarmingStrategy(maxLeverage);
+    case "ai-autonomous":
+      return getAiAutonomousStrategy(maxLeverage);
+    case "multi-agent-consensus":
+      return getMultiAgentConsensusStrategy(maxLeverage);
     default:
-      return getBalancedStrategy(maxLeverage);
+      return getAiAutonomousStrategy(maxLeverage);
   }
 }
 ```
@@ -907,6 +1132,13 @@ export function getStrategyParams(strategy: TradingStrategy, maxLeverage: number
 | 账户回撤强制平仓 | `ACCOUNT_DRAWDOWN_FORCE_CLOSE_PERCENT` | `src/config/riskParams.ts` | 风控参数 |
 
 ## 版本历史
+
+### v2.3 - 2025年11月11日
+- 新增陪审团策略（`multi-agent-consensus`）
+- 法官与陪审团合议决策模式：主Agent + 三个专业Agent协作
+- 双重防护机制：代码自动监控 + 法官主动决策
+- 策略总数从7种增加到8种
+- 完善策略切换指南和最佳实践建议
 
 ### v2.2 - 2025年11月9日
 - 为所有策略参数标注配置文件位置和代码位置

@@ -44,6 +44,7 @@ export { getBalancedStrategy, generateBalancedPrompt } from "./balanced";       
 export { getAggressiveStrategy, generateAggressivePrompt } from "./aggressive";        // 激进策略
 export { getRebateFarmingStrategy, generateRebateFarmingPrompt } from "./rebateFarming";  // 返佣套利策略
 export { getAiAutonomousStrategy, generateAiAutonomousPrompt } from "./aiAutonomous";  // AI自主策略
+export { getMultiAgentConsensusStrategy, generateMultiAgentConsensusPrompt } from "./multiAgentConsensus";  // 多Agent共识策略
 
 import type { TradingStrategy, StrategyParams, StrategyPromptContext } from "./types";
 import { getUltraShortStrategy, generateUltraShortPrompt } from "./ultraShort";
@@ -53,6 +54,7 @@ import { getBalancedStrategy, generateBalancedPrompt } from "./balanced";
 import { getAggressiveStrategy, generateAggressivePrompt } from "./aggressive";
 import { getRebateFarmingStrategy, generateRebateFarmingPrompt } from "./rebateFarming";
 import { getAiAutonomousStrategy, generateAiAutonomousPrompt } from "./aiAutonomous";
+import { getMultiAgentConsensusStrategy, generateMultiAgentConsensusPrompt } from "./multiAgentConsensus";
 
 /**
  * 获取策略参数（基于 MAX_LEVERAGE 动态计算）
@@ -88,6 +90,8 @@ export function getStrategyParams(strategy: TradingStrategy, maxLeverage: number
       return getRebateFarmingStrategy(maxLeverage);
     case "ai-autonomous":
       return getAiAutonomousStrategy(maxLeverage);
+    case "multi-agent-consensus":
+      return getMultiAgentConsensusStrategy(maxLeverage);
     default:
       return getAiAutonomousStrategy(maxLeverage);
   }
@@ -138,6 +142,8 @@ export function generateStrategySpecificPrompt(
       return generateRebateFarmingPrompt(params, context);
     case "ai-autonomous":
       return generateAiAutonomousPrompt(params, context);
+    case "multi-agent-consensus":
+      return generateMultiAgentConsensusPrompt(params, context);
     default:
       return generateAiAutonomousPrompt(params, context);
   }

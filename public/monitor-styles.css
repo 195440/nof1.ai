@@ -677,6 +677,14 @@ body {
     background-color: #af52de;
 }
 
+.strategy-badge-inline.ai-autonomous {
+    background-color: #34c759;
+}
+
+.strategy-badge-inline.multi-agent-consensus {
+    background-color: #007aff;
+}
+
 .strategy-info-inline {
     color: var(--text-dim);
     font-size: 0.75rem;
