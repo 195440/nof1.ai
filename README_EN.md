@@ -209,7 +209,7 @@ ACCOUNT_RECORD_INTERVAL_MINUTES=1             # Account record interval
 - OpenRouter: https://openrouter.ai/keys
 - OpenAI: https://platform.openai.com/api-keys
 - DeepSeek: https://platform.deepseek.com/api_keys
-- Gate.io Testnet: https://www.gate.io/testnet
+- Gate.io Testnet: https://testnet.gate.com
 - Gate.io Mainnet: https://www.gatesite.org/signup/NOFIAIOO?ref_type=103
 
 > **Tip**: Register a Gate.io account using the above referral link or invitation code `NOFIAIOO` to receive commission rebates on your trades.
@@ -816,7 +816,7 @@ If you don't have a Gate.io account yet, we recommend registering through this r
 - [OpenAI API Reference](https://platform.openai.com/docs/api-reference)
 - [DeepSeek API Documentation](https://platform.deepseek.com/api-docs/)
 - [Gate.io API Reference](https://www.gate.io/docs/developers/apiv4/)
-- [Gate.io Testnet](https://www.gate.io/testnet)
+- [Gate.io Testnet](https://testnet.gate.com)
 
 ## Risk Disclaimer
 

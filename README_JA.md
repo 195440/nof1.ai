@@ -209,7 +209,7 @@ ACCOUNT_RECORD_INTERVAL_MINUTES=1            # 口座記録間隔
 - OpenRouter: https://openrouter.ai/keys
 - OpenAI: https://platform.openai.com/api-keys
 - DeepSeek: https://platform.deepseek.com/api_keys
-- Gate.io テストネット: https://www.gate.io/testnet
+- Gate.io テストネット: https://testnet.gate.com
 - Gate.io 本番ネット: https://www.gatesite.org/signup/NOFIAIOO?ref_type=103
 
 > **ヒント**: 上記の招待リンクまたは招待コード `NOFIAIOO` を使用して Gate.io アカウントを登録すると、取引手数料のリベートを受けられます。
@@ -817,7 +817,7 @@ Gate.io アカウントをお持ちでない場合、以下の招待方式での
 - [OpenAI API リファレンス](https://platform.openai.com/docs/api-reference)
 - [DeepSeek API ドキュメント](https://platform.deepseek.com/api-docs/)
 - [Gate.io API リファレンス](https://www.gate.io/docs/developers/apiv4/)
-- [Gate.io テストネット](https://www.gate.io/testnet)
+- [Gate.io テストネット](https://testnet.gate.com)
 
 ## リスク免責事項
 

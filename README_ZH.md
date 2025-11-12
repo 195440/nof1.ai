@@ -208,7 +208,7 @@ ACCOUNT_RECORD_INTERVAL_MINUTES=1             # 账户记录间隔
 - OpenRouter: https://openrouter.ai/keys
 - OpenAI: https://platform.openai.com/api-keys
 - DeepSeek: https://platform.deepseek.com/api_keys
-- Gate.io 测试网: https://www.gate.io/testnet
+- Gate.io 测试网: https://testnet.gate.com
 - Gate.io 正式网: https://www.gatesite.org/signup/NOFIAIOO?ref_type=103
 
 > **提示**: 通过上方邀请链接或使用邀请码 `NOFIAIOO` 注册 Gate.io 账户，您将获得交易佣金返还优惠。
@@ -820,7 +820,7 @@ npm run trading:start
 - [OpenAI API 参考](https://platform.openai.com/docs/api-reference)
 - [DeepSeek API 文档](https://platform.deepseek.com/api-docs/)
 - [Gate.io API 参考](https://www.gate.io/docs/developers/apiv4/)
-- [Gate.io 测试网](https://www.gate.io/testnet)
+- [Gate.io 测试网](https://testnet.gate.com)
 
 ## 风险声明
 
