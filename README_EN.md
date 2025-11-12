@@ -230,6 +230,8 @@ npm run dev
 npm run trading:start
 ```
 
+> **Startup Failed?** Futures account with zero balance cannot trade. Please transfer funds from Spot account (testnet included).
+
 ### Access Web Dashboard
 
 Navigate to `http://localhost:3100` in your browser.

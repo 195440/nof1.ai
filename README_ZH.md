@@ -229,6 +229,8 @@ npm run dev
 npm run trading:start
 ```
 
+> **启动失败？** 合约账户为0无法交易，请从现货账户划转交易金额（测试网同样需要）。
+
 ### 访问 Web 仪表板
 
 在浏览器中访问 `http://localhost:3100`
