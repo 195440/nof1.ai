@@ -807,16 +807,14 @@ npm run trading:start
 
 ### 🎁 Trading Rebate & Community Benefits
 
-**Gate.io Exchange (Recommended) - 60% Fee Rebate**
+**Gate.io Exchange (Recommended)**
 
-If you don't have a Gate.io account yet, register through our referral to get **60% fee rebate**:
+If you don't have a Gate.io account yet, you can register through our referral:
 
 - **Referral Link**: [https://www.gatesite.org/signup/NOFIAIOO?ref_type=103](https://www.gatesite.org/signup/NOFIAIOO?ref_type=103)
 - **Invitation Code**: `NOFIAIOO`
-- **Rebate Rate**: **60%**
-- **Join Community**: [Telegram Group](https://t.me/+E7av1nVEk5E1ZjY9) for more benefits and real-time communication
 
-> 💡 By using the referral code, you'll receive up to 60% fee rebate, which can save significant costs for long-term trading. Your support also helps maintain the continuous development of this open-source project.
+Join our [Telegram Group](https://t.me/+E7av1nVEk5E1ZjY9) to get **60% fee rebate** and other community benefits.
 
 > **Tip**: Gate.io testnet and mainnet can use the same account. We recommend thorough testing on testnet before real trading.
 

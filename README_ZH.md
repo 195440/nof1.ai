@@ -811,16 +811,14 @@ npm run trading:start
 
 ### 🎁 交易返佣 & 社群福利
 
-**Gate.io 交易所（推荐）- 60% 手续费返佣**
+**Gate.io 交易所（推荐）**
 
-如果您还没有 Gate.io 账户，通过我们的邀请注册可获得 **60% 手续费返佣**：
+如果您还没有 Gate.io 账户，可以通过我们的邀请注册：
 
 - **邀请链接**: [https://www.gatesite.org/signup/NOFIAIOO?ref_type=103](https://www.gatesite.org/signup/NOFIAIOO?ref_type=103)
 - **邀请码**: `NOFIAIOO`
-- **返佣比例**: **60%**
-- **加入社群**: [Telegram 交流群](https://t.me/+E7av1nVEk5E1ZjY9) 获取更多福利和实时交流
 
-> 💡 使用邀请码注册，您将获得高达 60% 的手续费返佣，长期交易可节省大量成本。同时您的支持也将帮助维护这个开源项目的持续开发。
+加入 [Telegram 交流群](https://t.me/+E7av1nVEk5E1ZjY9) 获取 **60% 手续费返佣**等社群福利。
 
 > **提示**：Gate.io 的测试网和正式网可以用同一个账户，建议您先在测试网充分测试后再进行真实交易。
 
