@@ -21,7 +21,7 @@
  */
 import { createTool } from "@voltagent/core";
 import { z } from "zod";
-import { createGateClient } from "../../services/gateClient";
+import { createExchangeClient } from "../../services/exchangeClient";
 import { createClient } from "@libsql/client";
 import { createLogger } from "../../utils/loggerUtils";
 import { getChinaTimeISO } from "../../utils/timeUtils";
@@ -53,7 +53,7 @@ export const openPositionTool = createTool({
     // 开仓时不设置止盈止损，由 AI 在每个周期主动决策
     const stopLoss = undefined;
     const takeProfit = undefined;
-    const client = createGateClient();
+    const client = createExchangeClient();
     const contract = `${symbol}_USDT`;
     
     try {
@@ -595,7 +595,7 @@ export const closePositionTool = createTool({
     percentage: z.number().min(1).max(100).default(100).describe("平仓百分比（1-100）"),
   }),
   execute: async ({ symbol, percentage }) => {
-    const client = createGateClient();
+    const client = createExchangeClient();
     const contract = `${symbol}_USDT`;
     
     try {
@@ -953,7 +953,7 @@ export const cancelOrderTool = createTool({
     orderId: z.string().describe("订单ID"),
   }),
   execute: async ({ orderId }) => {
-    const client = createGateClient();
+    const client = createExchangeClient();
     
     try {
       await client.cancelOrder(orderId);

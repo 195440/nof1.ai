@@ -23,7 +23,7 @@
 import "dotenv/config";
 import { createClient } from "@libsql/client";
 import { createLogger } from "../utils/loggerUtils";
-import { createGateClient } from "../services/gateClient";
+import { createExchangeClient } from "../services/exchangeClient";
 
 const logger = createLogger({
   name: "sync-positions",
@@ -75,7 +75,7 @@ async function syncPositionsOnly() {
     }
     
     // 3. 从 Gate.io 获取持仓
-    const gateClient = createGateClient();
+    const gateClient = createExchangeClient();
     const positions = await gateClient.getPositions();
     const activePositions = positions.filter(p => Number.parseInt(p.size || "0") !== 0);
     

@@ -23,7 +23,7 @@ import cron from "node-cron";
 import { createLogger } from "../utils/loggerUtils";
 import { createClient } from "@libsql/client";
 import { createTradingAgent, generateTradingPrompt, getAccountRiskConfig, getTradingStrategy, getStrategyParams } from "../agents/tradingAgent";
-import { createGateClient } from "../services/gateClient";
+import { createExchangeClient } from "../services/exchangeClient";
 import { getChinaTimeISO } from "../utils/timeUtils";
 import { RISK_PARAMS } from "../config/riskParams";
 import { getQuantoMultiplier } from "../utils/contractUtils";
@@ -74,7 +74,7 @@ function ensureRange(value: number, min: number, max: number, defaultValue?: num
  * 优化：增加数据验证和错误处理，返回时序数据用于提示词
  */
 async function collectMarketData() {
-  const gateClient = createGateClient();
+  const gateClient = createExchangeClient();
   const marketData: Record<string, any> = {};
 
   for (const symbol of SYMBOLS) {
@@ -579,7 +579,7 @@ async function calculateSharpeRatio(): Promise<number> {
  * - 前端显示时需加上 unrealisedPnl
  */
 async function getAccountInfo() {
-  const gateClient = createGateClient();
+  const gateClient = createExchangeClient();
   
   try {
     const account = await gateClient.getFuturesAccount();
@@ -648,7 +648,7 @@ async function getAccountInfo() {
  * 实时持仓数据应该直接从 Gate.io 获取
  */
 async function syncPositionsFromGate(cachedPositions?: any[]) {
-  const gateClient = createGateClient();
+  const gateClient = createExchangeClient();
   
   try {
     // 如果提供了缓存数据，使用缓存；否则重新获取
@@ -753,7 +753,7 @@ async function syncPositionsFromGate(cachedPositions?: any[]) {
  * @returns 格式化后的持仓数据
  */
 async function getPositions(cachedGatePositions?: any[]) {
-  const gateClient = createGateClient();
+  const gateClient = createExchangeClient();
   
   try {
     // 如果提供了缓存数据，使用缓存；否则重新获取
@@ -1033,7 +1033,7 @@ async function fixHistoricalPnlRecords() {
  * 清仓所有持仓
  */
 async function closeAllPositions(reason: string): Promise<void> {
-  const gateClient = createGateClient();
+  const gateClient = createExchangeClient();
   
   try {
     logger.warn(`清仓所有持仓，原因: ${reason}`);
@@ -1159,7 +1159,7 @@ async function executeTradingDecision() {
     
     // 3. 同步持仓信息（优化：只调用一次API，避免重复）
     try {
-      const gateClient = createGateClient();
+      const gateClient = createExchangeClient();
       const rawGatePositions = await gateClient.getPositions();
       
       // 使用同一份数据进行处理和同步，避免重复调用API
@@ -1179,7 +1179,7 @@ async function executeTradingDecision() {
     }
     
     // 4. ====== 强制风控检查（在AI执行前） ======
-    const gateClient = createGateClient();
+    const gateClient = createExchangeClient();
     
     for (const pos of positions) {
       const symbol = pos.symbol;

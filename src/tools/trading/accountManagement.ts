@@ -21,7 +21,7 @@
  */
 import { createTool } from "@voltagent/core";
 import { z } from "zod";
-import { createGateClient } from "../../services/gateClient";
+import { createExchangeClient } from "../../services/exchangeClient";
 import { createClient } from "@libsql/client";
 import { RISK_PARAMS } from "../../config/riskParams";
 import { getQuantoMultiplier } from "../../utils/contractUtils";
@@ -38,7 +38,7 @@ export const getAccountBalanceTool = createTool({
   description: "获取账户余额和资金信息",
   parameters: z.object({}),
   execute: async () => {
-    const client = createGateClient();
+    const client = createExchangeClient();
     
     try {
       const account = await client.getFuturesAccount();
@@ -69,7 +69,7 @@ export const getPositionsTool = createTool({
   description: "获取当前所有持仓信息",
   parameters: z.object({}),
   execute: async () => {
-    const client = createGateClient();
+    const client = createExchangeClient();
     
     try {
       const positions = await client.getPositions();
@@ -113,7 +113,7 @@ export const getOpenOrdersTool = createTool({
     symbol: z.enum(RISK_PARAMS.TRADING_SYMBOLS).optional().describe("可选：仅获取指定币种的订单"),
   }),
   execute: async ({ symbol }) => {
-    const client = createGateClient();
+    const client = createExchangeClient();
     
     try {
       const contract = symbol ? `${symbol}_USDT` : undefined;
@@ -155,7 +155,7 @@ export const checkOrderStatusTool = createTool({
     orderId: z.string().describe("订单ID"),
   }),
   execute: async ({ orderId }) => {
-    const client = createGateClient();
+    const client = createExchangeClient();
     
     try {
       const orderDetail = await client.getOrder(orderId);
@@ -199,7 +199,7 @@ export const calculateRiskTool = createTool({
   description: "计算当前账户的风险敞口和仓位情况",
   parameters: z.object({}),
   execute: async () => {
-    const client = createGateClient();
+    const client = createExchangeClient();
     
     try {
       const [account, positions] = await Promise.all([
@@ -301,7 +301,7 @@ export const syncPositionsTool = createTool({
   description: "同步交易所持仓数据到本地数据库",
   parameters: z.object({}),
   execute: async () => {
-    const client = createGateClient();
+    const client = createExchangeClient();
     
     try {
       const positions = await client.getPositions();

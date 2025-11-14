@@ -19,7 +19,7 @@
 /**
  * 合约工具函数
  */
-import { createGateClient } from "../services/gateClient";
+import { createExchangeClient } from "../services/exchangeClient";
 import { createLogger } from "./loggerUtils";
 
 const logger = createLogger({
@@ -69,7 +69,7 @@ export async function getQuantoMultiplier(
   }
   
   try {
-    const client = createGateClient();
+    const client = createExchangeClient();
     const contractInfo = await client.getContractInfo(contract);
     const multiplier = Number.parseFloat(contractInfo.quantoMultiplier || "0");
     
