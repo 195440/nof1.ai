@@ -23,7 +23,7 @@
 import cron from "node-cron";
 import { createLogger } from "../utils/loggerUtils";
 import { createClient } from "@libsql/client";
-import { createGateClient } from "../services/gateClient";
+import { createExchangeClient } from "../services/exchangeClient";
 import { getChinaTimeISO } from "../utils/timeUtils";
 
 const logger = createLogger({
@@ -42,7 +42,7 @@ const dbClient = createClient({
  */
 export async function recordAccountAssets(skipLog: boolean = false) {
   try {
-    const gateClient = createGateClient();
+    const gateClient = createExchangeClient();
     
     // Get account information from Gate.io
     const account = await gateClient.getFuturesAccount();

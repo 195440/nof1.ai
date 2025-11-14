@@ -45,6 +45,7 @@
     "db:migrate:partial-close": "tsx --env-file=.env ./src/database/migrate-add-partial-close.ts",
     "analyze:trades": "tsx --env-file=.env ./scripts/analyze-trades-by-symbol.ts",
     "demo:calculate-pnl": "tsx ./scripts/calculate-pnl-demo.ts",
+    "test:websocket": "tsx --env-file=.env ./scripts/test-okx-websocket.ts",
     "pm2:start": "pm2 start ecosystem.config.cjs --only open-nof1.ai",
     "pm2:start:dev": "pm2 start ecosystem.config.cjs --only open-nof1.ai-dev",
     "pm2:stop": "pm2 stop open-nof1.ai",
@@ -72,6 +73,7 @@
   "dependencies": {
     "@ai-sdk/openai": "^2.0.53",
     "@anthropic-ai/sdk": "^0.67.0",
+    "@types/ws": "^8.18.1",
     "@voltagent/cli": "^0.1.10",
     "@voltagent/core": "^1.0.0",
     "@voltagent/libsql": "^1.0.0",
@@ -86,6 +88,7 @@
     "pino": "^10.1.0",
     "pino-pretty": "^13.1.2",
     "pm2": "^6.0.13",
+    "ws": "^8.18.3",
     "zod": "^3.25.76"
   },
   "devDependencies": {

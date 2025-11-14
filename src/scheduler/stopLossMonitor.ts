@@ -43,7 +43,7 @@
 
 import { createLogger } from "../utils/loggerUtils";
 import { createClient } from "@libsql/client";
-import { createGateClient } from "../services/gateClient";
+import { createExchangeClient } from "../services/exchangeClient";
 import { getChinaTimeISO } from "../utils/timeUtils";
 import { getQuantoMultiplier } from "../utils/contractUtils";
 import { getTradingStrategy, getStrategyParams } from "../agents/tradingAgent";
@@ -164,7 +164,7 @@ function calculatePnlPercent(entryPrice: number, currentPrice: number, side: str
  * 如果价格为0或盈亏不正确，从开仓记录重新计算
  */
 async function fixStopLossTradeRecord(symbol: string): Promise<void> {
-  const gateClient = createGateClient();
+  const gateClient = createExchangeClient();
   
   try {
     // 查找最近的平仓记录
@@ -278,7 +278,7 @@ async function executeStopLossClose(
   stopLossThreshold: number,
   riskLevel: string
 ): Promise<boolean> {
-  const gateClient = createGateClient();
+  const gateClient = createExchangeClient();
   const contract = `${symbol}_USDT`;
   
   try {
@@ -461,7 +461,7 @@ async function checkStopLoss() {
   }
   
   try {
-    const gateClient = createGateClient();
+    const gateClient = createExchangeClient();
     
     // 1. 获取所有持仓
     const gatePositions = await gateClient.getPositions();

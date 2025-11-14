@@ -22,7 +22,7 @@
  */
 import { createClient } from "@libsql/client";
 import { createLogger } from "../utils/loggerUtils";
-import { createGateClient } from "../services/gateClient";
+import { createExchangeClient } from "../services/exchangeClient";
 import "dotenv/config";
 
 const logger = createLogger({
@@ -109,7 +109,7 @@ CREATE TABLE IF NOT EXISTS trade_logs (
  * 平仓所有持仓
  */
 async function closeAllPositions(): Promise<void> {
-  const gateClient = createGateClient();
+  const gateClient = createExchangeClient();
   
   try {
     logger.info("📊 获取当前持仓...");
@@ -232,7 +232,7 @@ async function resetDatabase(): Promise<void> {
  * 同步持仓数据
  */
 async function syncPositions(): Promise<void> {
-  const gateClient = createGateClient();
+  const gateClient = createExchangeClient();
   const dbUrl = process.env.DATABASE_URL || "file:./.voltagent/trading.db";
   
   try {
