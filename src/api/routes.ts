@@ -368,6 +368,7 @@ export function createApiRoutes() {
         "conservative": "稳健",
         "balanced": "平衡",
         "aggressive": "激进",
+        "aggressive-team": "激进团",
         "rebate-farming": "返佣套利",
         "ai-autonomous": "AI自主",
         "multi-agent-consensus": "陪审团策略"

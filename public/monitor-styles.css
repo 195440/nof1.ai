@@ -673,6 +673,11 @@ body {
     background-color: #ff3b30;
 }
 
+.strategy-badge-inline.aggressive-team {
+    background-color: #ff2d55;
+    font-weight: 600;
+}
+
 .strategy-badge-inline.rebate-farming {
     background-color: #af52de;
 }

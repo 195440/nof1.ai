@@ -22,8 +22,8 @@ import * as tradingTools from "../tools/trading";
 import { createLogger } from "../utils/loggerUtils";
 
 const logger = createLogger({
-  service: "analysis-agents",
-  level: process.env.LOG_LEVEL || "info",
+  name: "analysis-agents",
+  level: "info",
 });
 
 /**
@@ -163,4 +163,3 @@ export function createRiskAssessorAgent(marketDataContext?: any) {
 
   return agent;
 }
-

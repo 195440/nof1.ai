@@ -24,10 +24,10 @@ import type { StrategyParams, StrategyPromptContext } from "./types";
  * 策略特点：
  * - 风险等级：中等风险
  * - 杠杆范围：55%-80% 最大杠杆（如最大25倍，则使用14-20倍）
- * - 仓位大小：18-25%
+ * - 仓位大小：20-30%
  * - 适用人群：追求稳健决策的投资者
- * - 目标月回报：20-35%
- * - 交易频率：谨慎入场，只在法官综合判断后认为合适时交易
+ * - 目标月回报：35-50%
+ * - 交易频率：积极寻找机会，陪审团达成共识后立即执行
  * 
  * 核心策略：
  * - 法官（主Agent）：有独立分析和判断能力，做出最终决策
@@ -66,33 +66,33 @@ export function getMultiAgentConsensusStrategy(maxLeverage: number): StrategyPar
     },
     
     // ==================== 仓位配置 ====================
-    positionSizeMin: 18,
-    positionSizeMax: 25,
+    positionSizeMin: 20,
+    positionSizeMax: 30,
     positionSizeRecommend: {
-      normal: "18-20%",
-      good: "20-23%",
-      strong: "23-25%",
+      normal: "20-23%",
+      good: "23-27%",
+      strong: "27-30%",
     },
     
     // ==================== 止损配置 ====================
     stopLoss: {
-      low: -6,    // 低杠杆时：亏损3.5%止损
-      mid: -7,    // 中杠杆时：亏损2.8%止损
-      high: -8,   // 高杠杆时：亏损2.2%止损
+      low: -8,    // 低杠杆时：亏损8%止损（给予更大波动空间）
+      mid: -10,   // 中杠杆时：亏损10%止损
+      high: -12,  // 高杠杆时：亏损12%止损
     },
     
     // ==================== 移动止盈配置 ====================
     trailingStop: {
-      level1: { trigger: 10, stopAt: 4 },   // 盈利达到 +10% 时，止损线移至 +4%
-      level2: { trigger: 18, stopAt: 10 },  // 盈利达到 +18% 时，止损线移至 +10%
-      level3: { trigger: 28, stopAt: 18 },  // 盈利达到 +28% 时，止损线移至 +18%
+      level1: { trigger: 4, stopAt: 2 },   // 盈利达到 +10% 时，止损线移至 +4%
+      level2: { trigger: 6, stopAt: 4 },  // 盈利达到 +18% 时，止损线移至 +10%
+      level3: { trigger: 8, stopAt: 6 },  // 盈利达到 +28% 时，止损线移至 +18%
     },
     
     // ==================== 分批止盈配置 ====================
     partialTakeProfit: {
-      stage1: { trigger: 25, closePercent: 40 },   // +25%时平仓40%
-      stage2: { trigger: 35, closePercent: 40 },   // +35%时平仓剩余40%
-      stage3: { trigger: 45, closePercent: 100 },  // +45%时全部清仓
+      stage1: { trigger: 8, closePercent: 50 },   // +8%时平仓30%（让利润充分发挥）
+      stage2: { trigger: 12, closePercent: 100 },  // +15%时平仓至60%（累计）
+      stage3: { trigger: 25, closePercent: 100 }, // +25%时全部清仓
     },
     
     // ==================== 峰值回撤保护 ====================
@@ -116,8 +116,8 @@ export function getMultiAgentConsensusStrategy(maxLeverage: number): StrategyPar
     
     // ==================== 策略规则描述 ====================
     entryCondition: "三个分析Agent达成一致意见，且信号强度足够",
-    riskTolerance: "单笔交易风险控制在18-25%之间，通过多Agent共识降低错误决策",
-    tradingStyle: "谨慎入场，只在高质量信号时交易，追求高胜率",
+    riskTolerance: "单笔交易风险控制在20-30%之间，通过多Agent共识降低错误决策",
+    tradingStyle: "积极寻找机会，及时入场出场，追求高频率与合理胜率的平衡",
     
     // ==================== 代码级保护开关 ====================
     enableCodeLevelProtection: true,
@@ -159,7 +159,7 @@ export function generateMultiAgentConsensusPrompt(params: StrategyParams, contex
 3. 使用delegate_task调用三个Agent，只传递简短的任务描述
 4. 汇总三个Agent的意见
 5. 法官综合所有意见做出最终决策
-6. 执行决策（开仓/平仓/观望）
+6. ⚠️ 【必须执行】调用交易工具执行开仓/平仓，不能只是观望和分析
 
 重要：子Agent已经有市场数据了
 - 三个子Agent在创建时已经接收了完整的市场数据上下文
@@ -167,12 +167,21 @@ export function generateMultiAgentConsensusPrompt(params: StrategyParams, contex
 - 示例："分析BTC技术指标" 或 "分析BTC趋势" 或 "评估BTC风险"
 - 不需要在task中重复传递市场数据，这样可以节省大量输出token
 
+⚠️ 【关键执行要求】：
+- 每个周期必须做出实际操作，不能只是"分析"和"观望"
+- 咨询完陪审团后，必须立即调用 open_position 或 close_position 工具
+- 如果当前无持仓且市场有机会，必须开仓
+- 如果持仓盈利或亏损达到条件，必须平仓或部分平仓
+- 不要犹豫不决，相信陪审团的分析并果断执行
+- 不要因为小幅亏损就快速止损，给持仓一定的波动空间
+
 其他提示：
 - 三个Agent只能使用分析工具，不能执行交易
 - 只有你（法官）才能执行开仓和平仓操作
 - 紧急情况（如持仓亏损接近止损线）可跳过陪审团直接决策
 - 当前持仓数限制：< ${context.maxPositions}个
-- 保持积极交易，维持大于50%资金在持仓状态，多币种分散
+- 保持积极交易，维持60-80%资金在持仓状态，多币种分散
+- 每个周期尽量开1-2个新仓（如果有合适机会）
 - 重要：系统已预加载持仓数据，请仔细查看【当前持仓】部分，不要误判为空仓
 
 风控参数（仅供参考）：

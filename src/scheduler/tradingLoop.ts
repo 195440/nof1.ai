@@ -905,6 +905,7 @@ async function getRecentDecisions(limit: number = 3) {
   }
 }
 
+
 /**
  * 同步风险配置到数据库
  */
@@ -1515,6 +1516,7 @@ async function executeTradingDecision() {
       positions,
       tradeHistory,
       recentDecisions,
+      positionCount: positions.length,
     });
     
     // 输出完整提示词到日志

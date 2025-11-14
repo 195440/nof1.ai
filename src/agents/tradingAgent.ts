@@ -73,7 +73,7 @@ const logger = createLogger({
  */
 export function getTradingStrategy(): TradingStrategy {
   const strategy = process.env.TRADING_STRATEGY || "balanced";
-  if (strategy === "conservative" || strategy === "balanced" || strategy === "aggressive" || strategy === "ultra-short" || strategy === "swing-trend" || strategy === "rebate-farming" || strategy === "ai-autonomous" || strategy === "multi-agent-consensus") {
+  if (strategy === "conservative" || strategy === "balanced" || strategy === "aggressive" || strategy === "aggressive-team" || strategy === "ultra-short" || strategy === "swing-trend" || strategy === "rebate-farming" || strategy === "ai-autonomous" || strategy === "multi-agent-consensus") {
     return strategy;
   }
   logger.warn(`未知的交易策略: ${strategy}，使用默认策略: balanced`);
@@ -375,8 +375,9 @@ export function generateTradingPrompt(data: {
   positions: any[];
   tradeHistory?: any[];
   recentDecisions?: any[];
+  positionCount?: number;
 }): string {
-  const { minutesElapsed, iteration, intervalMinutes, marketData, accountInfo, positions, tradeHistory, recentDecisions } = data;
+  const { minutesElapsed, iteration, intervalMinutes, marketData, accountInfo, positions, tradeHistory, recentDecisions, positionCount } = data;
   const currentTime = formatChinaTime();
   
   // 获取当前策略参数（用于每周期强调风控规则）
@@ -406,12 +407,33 @@ export function generateTradingPrompt(data: {
   };
   const stopLossDescriptions = generateStopLossDescriptions();
   
-  let prompt = `【交易周期 #${iteration}】${currentTime}
+  // 生成紧急警告（仅激进团策略）
+  let urgentWarnings = '';
+  if (strategy === 'aggressive-team') {
+    // 检查持仓数是否不足2个
+    const currentPositionCount = positionCount ?? positions.length;
+    if (currentPositionCount < 2) {
+      urgentWarnings += `
+⚠️⚠️⚠️ 【紧急警告】当前持仓数不足2个！激进团铁律被违反！
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+当前持仓：${currentPositionCount}个
+铁律要求：≥ 2个
+状态：❌ 违规
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+本次交易周期必须至少开1个新仓，确保持仓数达到2个！
+这是激进团的核心要求，不容违反！
+
+`;
+    }
+  }
+  
+  let prompt = urgentWarnings + `【交易周期 #${iteration}】${currentTime}
 已运行 ${minutesElapsed} 分钟，执行周期 ${intervalMinutes} 分钟
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 当前策略：${params.name}（${params.description}）
-目标月回报：${params.name === '稳健' ? '10-20%' : params.name === '平衡' ? '20-40%' : params.name === '激进' ? '30-50%（频繁小盈利累积）' : '20-30%'}
+目标月回报：${params.name === '稳健' ? '10-20%' : params.name === '平衡' ? '20-40%' : params.name === '激进' ? '30-50%（频繁小盈利累积）' : params.name === '激进团' ? '50-80%' : '20-30%'}
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 【硬性风控底线 - 系统强制执行】
@@ -1395,6 +1417,26 @@ export async function createTradingAgent(intervalMinutes: number = 5, marketData
       createRiskAssessorAgent(marketDataContext),
     ];
     logger.info("陪审团成员创建完成：技术分析Agent、趋势分析Agent、风险评估Agent");
+  }
+  
+  // 如果是激进团策略，创建子Agent
+  if (strategy === "aggressive-team") {
+    logger.info("创建激进团策略的子Agent（团员）...");
+    const { 
+      createAggressiveTeamTrendExpertAgent, 
+      createAggressiveTeamPredictionExpertAgent,
+      createAggressiveTeamMoneyFlowExpertAgent,
+      createAggressiveTeamRiskControlExpertAgent 
+    } = await import("./aggressiveTeamAgents");
+    
+    // 传递市场数据上下文给子Agent
+    subAgents = [
+      createAggressiveTeamTrendExpertAgent(marketDataContext),
+      createAggressiveTeamPredictionExpertAgent(marketDataContext),
+      createAggressiveTeamMoneyFlowExpertAgent(marketDataContext),
+      createAggressiveTeamRiskControlExpertAgent(marketDataContext),
+    ];
+    logger.info("激进团团员创建完成：趋势分析专家、预测分析专家、资金流向分析专家、风险控制专家");
   }
 
   const agent = new Agent({
