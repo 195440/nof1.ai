@@ -7,6 +7,7 @@
 [![VoltAgent](https://img.shields.io/badge/Framework-VoltAgent-purple.svg)](https://voltagent.dev)
 [![OpenAI Compatible](https://img.shields.io/badge/AI-OpenAI_Compatible-orange.svg)](https://openrouter.ai)
 [![Gate.io](https://img.shields.io/badge/Exchange-Gate.io-00D4AA.svg)](https://www.gatesite.org/signup/NOFIAIOO?ref_type=103)
+[![OKX](https://img.shields.io/badge/Exchange-OKX-000000.svg)](https://www.okx.com/zh-hans/join/nofiaioo)
 [![TypeScript](https://img.shields.io/badge/Language-TypeScript-3178C6.svg?logo=typescript&logoColor=white)](https://www.typescriptlang.org)
 [![Node.js](https://img.shields.io/badge/Runtime-Node.js%2020+-339933.svg?logo=node.js&logoColor=white)](https://nodejs.org)
 [![License](https://img.shields.io/badge/License-AGPL--3.0-blue.svg)](./LICENSE)
@@ -80,7 +81,7 @@ The system follows a **minimal human intervention** design philosophy, abandonin
 |-----------|-----------|---------|
 | Framework | [VoltAgent](https://voltagent.dev) | AI Agent orchestration and management |
 | AI Provider | OpenAI Compatible API | Supports OpenRouter, OpenAI, DeepSeek and other compatible providers |
-| Exchange | [Gate.io](https://www.gatesite.org/signup/NOFIAIOO?ref_type=103) | Cryptocurrency trading (testnet & mainnet) |
+| Exchange | [Gate.io](https://www.gatesite.org/signup/NOFIAIOO?ref_type=103) / [OKX](https://www.okx.com/zh-hans/join/nofiaioo) | Cryptocurrency trading (testnet & mainnet) |
 | Database | LibSQL (SQLite) | Local data persistence |
 | Web Server | Hono | High-performance HTTP framework |
 | Language | TypeScript | Type-safe development |
@@ -211,8 +212,7 @@ ACCOUNT_RECORD_INTERVAL_MINUTES=1             # Account record interval
 - DeepSeek: https://platform.deepseek.com/api_keys
 - Gate.io Testnet: https://testnet.gate.com
 - Gate.io Mainnet: https://www.gatesite.org/signup/NOFIAIOO?ref_type=103
-
-> **Tip**: Register a Gate.io account using the above referral link or invitation code `NOFIAIOO` to receive commission rebates on your trades.
+- OKX Exchange: https://www.okx.com/zh-hans/join/nofiaioo
 
 ### Database Initialization
 
@@ -798,16 +798,27 @@ npm run trading:start
 
 ## Resources
 
-### Support Continuous Project Development
+### Community
 
-If you don't have a Gate.io account yet, we recommend registering through this referral:
+- **Telegram Group**: [Join AI Agent Learning Community](https://t.me/+E7av1nVEk5E1ZjY9)
+  - Discuss AI quantitative trading strategies
+  - Share project experience
+  - Get technical support and advice
+
+### 🎁 Trading Rebate & Community Benefits
+
+**Gate.io Exchange (Recommended) - 60% Fee Rebate**
+
+If you don't have a Gate.io account yet, register through our referral to get **60% fee rebate**:
 
 - **Referral Link**: [https://www.gatesite.org/signup/NOFIAIOO?ref_type=103](https://www.gatesite.org/signup/NOFIAIOO?ref_type=103)
 - **Invitation Code**: `NOFIAIOO`
+- **Rebate Rate**: **60%**
+- **Join Community**: [Telegram Group](https://t.me/+E7av1nVEk5E1ZjY9) for more benefits and real-time communication
 
-> By registering with the referral code, you'll receive trading commission rebates while helping maintain this open-source project's long-term operation. It benefits both you and the project, completely free with no extra costs.
+> 💡 By using the referral code, you'll receive up to 60% fee rebate, which can save significant costs for long-term trading. Your support also helps maintain the continuous development of this open-source project.
 
-> **Tip**: Testnet and mainnet can use the same account. We recommend thorough testing on testnet before real trading.
+> **Tip**: Gate.io testnet and mainnet can use the same account. We recommend thorough testing on testnet before real trading.
 
 ### External Links
 
@@ -817,6 +828,8 @@ If you don't have a Gate.io account yet, we recommend registering through this r
 - [DeepSeek API Documentation](https://platform.deepseek.com/api-docs/)
 - [Gate.io API Reference](https://www.gate.io/docs/developers/apiv4/)
 - [Gate.io Testnet](https://testnet.gate.com)
+- [OKX API Reference](https://www.okx.com/docs-v5/en/)
+- [OKX Exchange](https://www.okx.com/zh-hans/join/nofiaioo)
 
 ## Risk Disclaimer
 

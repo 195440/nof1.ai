@@ -5,6 +5,7 @@
 [![VoltAgent](https://img.shields.io/badge/Framework-VoltAgent-purple.svg)](https://voltagent.dev)
 [![OpenAI Compatible](https://img.shields.io/badge/AI-OpenAI_Compatible-orange.svg)](https://openrouter.ai)
 [![Gate.io](https://img.shields.io/badge/Exchange-Gate.io-00D4AA.svg)](https://www.gatesite.org/signup/NOFIAIOO?ref_type=103)
+[![OKX](https://img.shields.io/badge/Exchange-OKX-000000.svg)](https://www.okx.com/zh-hans/join/nofiaioo)
 [![TypeScript](https://img.shields.io/badge/Language-TypeScript-3178C6.svg?logo=typescript&logoColor=white)](https://www.typescriptlang.org)
 [![Node.js](https://img.shields.io/badge/Runtime-Node.js%2020+-339933.svg?logo=node.js&logoColor=white)](https://nodejs.org)
 [![License](https://img.shields.io/badge/License-AGPL--3.0-blue.svg)](./LICENSE)
@@ -62,7 +63,7 @@ open-nof1.ai 是一个 AI 驱动的加密货币自动交易系统，将大语言
 |------|------|------|
 | 框架 | [VoltAgent](https://voltagent.dev) | AI Agent 编排与管理 |
 | AI 提供商 | OpenAI 兼容 API | 支持 OpenRouter、OpenAI、DeepSeek 等兼容供应商 |
-| 交易所 | [Gate.io](https://www.gatesite.org/signup/NOFIAIOO?ref_type=103) | 加密货币交易(测试网 & 正式网) |
+| 交易所 | [Gate.io](https://www.gatesite.org/signup/NOFIAIOO?ref_type=103) / [OKX](https://www.okx.com/zh-hans/join/nofiaioo) | 加密货币交易(测试网 & 正式网) |
 | 数据库 | LibSQL (SQLite) | 本地数据持久化 |
 | Web 服务器 | Hono | 高性能 HTTP 框架 |
 | 开发语言 | TypeScript | 类型安全开发 |
@@ -72,16 +73,19 @@ open-nof1.ai 是一个 AI 驱动的加密货币自动交易系统，将大语言
 
 ### 第一步：注册交易所账户
 
-本项目依赖 Gate.io 交易所 API。**如果您还没有账户，请先完成注册：**
+本项目依赖交易所 API。**如果您还没有账户，请先完成注册：**
 
 **推荐注册方式：**
 
+**🔥 Gate.io 交易所（推荐）**
 - [立即注册 Gate.io](https://www.gatesite.org/signup/NOFIAIOO?ref_type=103)
 - 邀请码：`NOFIAIOO`
 
-> 通过上方邀请码注册，您可享受交易返佣优惠，同时为开源项目的持续发展提供支持。
+**OKX 交易所**
+- [立即注册 OKX](https://www.okx.com/zh-hans/join/nofiaioo)
+- 邀请码：`NOFIAIOO`
 
-> **新手建议**：先注册并使用[测试网](https://testnet.gate.com/)环境学习，零风险体验完整功能。
+> **新手建议**：先注册并使用 [Gate.io 测试网](https://testnet.gate.com/)环境学习，零风险体验完整功能。
 
 ### 第二步：环境准备
 
@@ -152,8 +156,36 @@ ACCOUNT_RECORD_INTERVAL_MINUTES=1            # 账户记录间隔
 - DeepSeek: https://platform.deepseek.com/api_keys
 - Gate.io 测试网: https://testnet.gate.com
 - Gate.io 正式网: https://www.gatesite.org/signup/NOFIAIOO?ref_type=103
+- OKX 交易所: https://www.okx.com/zh-hans/join/nofiaioo
 
-> **提示**: 通过上方邀请链接或使用邀请码 `NOFIAIOO` 注册 Gate.io 账户，您将获得交易佣金返还优惠。
+### 环境变量说明
+
+配置文件 `.env` 中的关键参数说明：
+
+**交易参数配置：**
+- `TRADING_STRATEGY`: 交易策略选择，影响开仓频率和风险控制
+- `TRADING_INTERVAL_MINUTES`: 每次交易循环的间隔时间，越短越频繁
+- `MAX_LEVERAGE`: 最大杠杆倍数，建议新手使用 3-5 倍
+- `MAX_POSITIONS`: 同时持有的最大仓位数量，用于分散风险
+- `MAX_HOLDING_HOURS`: 单个仓位的最长持有时间，超时自动平仓
+- `EXTREME_STOP_LOSS_PERCENT`: 极端止损线，防止爆仓的最后防线
+- `INITIAL_BALANCE`: 初始资金设置，用于计算仓位大小
+- `ACCOUNT_STOP_LOSS_USDT`: 账户总资产止损线，触及后停止交易
+- `ACCOUNT_TAKE_PROFIT_USDT`: 账户总资产止盈线，达到后可选择停止
+
+**风险控制参数：**
+- `ACCOUNT_DRAWDOWN_WARNING_PERCENT`: 回撤 20% 时发出警告
+- `ACCOUNT_DRAWDOWN_NO_NEW_POSITION_PERCENT`: 回撤 30% 时禁止开新仓
+- `ACCOUNT_DRAWDOWN_FORCE_CLOSE_PERCENT`: 回撤 50% 时强制平仓保护资金
+
+**数据库配置：**
+- `DATABASE_URL`: 数据库文件路径，存储交易记录和决策日志
+
+**API 配置：**
+- `GATE_USE_TESTNET`: 设置为 `true` 使用测试网，`false` 使用正式网
+- `CLOSE_POSITION_PASSWORD`: 网页界面手动平仓的安全密码
+
+> ⚠️ **重要**：首次使用请务必设置 `GATE_USE_TESTNET=true` 在测试网环境测试！
 
 ### 第五步：数据库初始化
 
@@ -243,21 +275,6 @@ npm run trading:start
 
 ## 资源
 
-### 节省交易成本 & 支持项目
-
-如果您还没有 Gate.io 账户，强烈建议通过以下方式注册：
-
-**注册方式：**
-- **邀请链接**: [https://www.gatesite.org/signup/NOFIAIOO?ref_type=103](https://www.gatesite.org/signup/NOFIAIOO?ref_type=103)
-- **邀请码**: `NOFIAIOO`
-
-**双赢方案：**
-- **您的优势**：获得交易手续费返佣，长期使用可节省可观成本
-- **项目支持**：您的使用将帮助维护这个开源项目的持续开发
-- **无额外费用**：完全免费，不影响您的任何交易体验
-
-> **提示**：测试网和正式网可以用同一个账户，建议您先在测试网充分测试后再进行真实交易。
-
 ### 交流社区
 
 - **Telegram 交流群**: [加入 AI Agent 学习交流群](https://t.me/+E7av1nVEk5E1ZjY9)
@@ -265,12 +282,27 @@ npm run trading:start
   - 分享项目使用经验
   - 获取技术支持和建议
 
+### 🎁 交易返佣 & 社群福利
+
+**Gate.io 交易所（推荐）- 60% 手续费返佣**
+
+如果您还没有 Gate.io 账户，通过我们的邀请注册可获得 **60% 手续费返佣**：
+
+- **邀请链接**: [https://www.gatesite.org/signup/NOFIAIOO?ref_type=103](https://www.gatesite.org/signup/NOFIAIOO?ref_type=103)
+- **邀请码**: `NOFIAIOO`
+- **返佣比例**: **60%**
+- **加入社群**: [Telegram 交流群](https://t.me/+E7av1nVEk5E1ZjY9) 获取更多福利和实时交流
+
+> 💡 使用邀请码注册，您将获得高达 60% 的手续费返佣，长期交易可节省大量成本。同时您的支持也将帮助维护这个开源项目的持续开发。
+
 ### 外部链接
 
 - [VoltAgent 文档](https://voltagent.dev/docs/)
 - [OpenRouter 模型目录](https://openrouter.ai/models)
 - [Gate.io API 参考](https://www.gate.io/docs/developers/apiv4/)
 - [Gate.io 测试网](https://testnet.gate.com)
+- [OKX API 参考](https://www.okx.com/docs-v5/zh/)
+- [OKX 交易所](https://www.okx.com/zh-hans/join/nofiaioo)
 
 ## 参与贡献
 

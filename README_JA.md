@@ -7,6 +7,7 @@
 [![VoltAgent](https://img.shields.io/badge/Framework-VoltAgent-purple.svg)](https://voltagent.dev)
 [![OpenAI Compatible](https://img.shields.io/badge/AI-OpenAI_Compatible-orange.svg)](https://openrouter.ai)
 [![Gate.io](https://img.shields.io/badge/Exchange-Gate.io-00D4AA.svg)](https://www.gatesite.org/signup/NOFIAIOO?ref_type=103)
+[![OKX](https://img.shields.io/badge/Exchange-OKX-000000.svg)](https://www.okx.com/zh-hans/join/nofiaioo)
 [![TypeScript](https://img.shields.io/badge/Language-TypeScript-3178C6.svg?logo=typescript&logoColor=white)](https://www.typescriptlang.org)
 [![Node.js](https://img.shields.io/badge/Runtime-Node.js%2020+-339933.svg?logo=node.js&logoColor=white)](https://nodejs.org)
 [![License](https://img.shields.io/badge/License-AGPL--3.0-blue.svg)](./LICENSE)
@@ -80,7 +81,7 @@ open-nof1.ai は、大規模言語モデルの知能と量的取引実践を深�
 |---------------|------|------|
 | フレームワーク | [VoltAgent](https://voltagent.dev) | AI Agent オーケストレーションと管理 |
 | AI プロバイダー | OpenAI 互換 API | OpenRouter、OpenAI、DeepSeek などの互換プロバイダーをサポート |
-| 取引所 | [Gate.io](https://www.gatesite.org/signup/NOFIAIOO?ref_type=103) | 暗号通貨取引(テストネット & 本番ネット) |
+| 取引所 | [Gate.io](https://www.gatesite.org/signup/NOFIAIOO?ref_type=103) / [OKX](https://www.okx.com/zh-hans/join/nofiaioo) | 暗号通貨取引(テストネット & 本番ネット) |
 | データベース | LibSQL (SQLite) | ローカルデータ永続化 |
 | Web サーバー | Hono | 高性能 HTTP フレームワーク |
 | 開発言語 | TypeScript | 型安全な開発 |
@@ -211,8 +212,7 @@ ACCOUNT_RECORD_INTERVAL_MINUTES=1            # 口座記録間隔
 - DeepSeek: https://platform.deepseek.com/api_keys
 - Gate.io テストネット: https://testnet.gate.com
 - Gate.io 本番ネット: https://www.gatesite.org/signup/NOFIAIOO?ref_type=103
-
-> **ヒント**: 上記の招待リンクまたは招待コード `NOFIAIOO` を使用して Gate.io アカウントを登録すると、取引手数料のリベートを受けられます。
+- OKX 取引所: https://www.okx.com/zh-hans/join/nofiaioo
 
 ### データベース初期化
 
@@ -799,16 +799,27 @@ npm run trading:start
 
 ## リソース
 
-### プロジェクトの継続的発展を支援
+### コミュニティ
 
-Gate.io アカウントをお持ちでない場合、以下の招待方式での登録をお勧めします：
+- **Telegram グループ**: [AI Agent 学習コミュニティに参加](https://t.me/+E7av1nVEk5E1ZjY9)
+  - AI 量的取引戦略を議論
+  - プロジェクト使用経験を共有
+  - 技術サポートとアドバイスを取得
+
+### 🎁 取引リベート & コミュニティ特典
+
+**Gate.io 取引所（推奨）- 60% 手数料リベート**
+
+Gate.io アカウントをお持ちでない場合、招待登録で **60% 手数料リベート**を獲得できます：
 
 - **招待リンク**: [https://www.gatesite.org/signup/NOFIAIOO?ref_type=103](https://www.gatesite.org/signup/NOFIAIOO?ref_type=103)
 - **招待コード**: `NOFIAIOO`
+- **リベート率**: **60%**
+- **コミュニティ参加**: [Telegram グループ](https://t.me/+E7av1nVEk5E1ZjY9) でより多くの特典とリアルタイム交流
 
-> 招待コードで登録すると、取引手数料のリベートを受けられ、同時にこのオープンソースプロジェクトの長期運営を支援できます。あなたとプロジェクトの両方にメリットがあり、完全無料で追加費用は一切ありません。
+> 💡 招待コードを使用すると、最大 60% の手数料リベートを受けられ、長期取引で大幅なコスト削減が可能です。また、あなたのサポートはこのオープンソースプロジェクトの継続的な開発を支援します。
 
-> **ヒント**：テストネットと本番ネットは同じアカウントが使用可能です。実際の取引前にテストネットで十分にテストすることをお勧めします。
+> **ヒント**：Gate.io のテストネットと本番ネットは同じアカウントが使用可能です。実際の取引前にテストネットで十分にテストすることをお勧めします。
 
 ### 外部リンク
 
@@ -818,6 +829,8 @@ Gate.io アカウントをお持ちでない場合、以下の招待方式での
 - [DeepSeek API ドキュメント](https://platform.deepseek.com/api-docs/)
 - [Gate.io API リファレンス](https://www.gate.io/docs/developers/apiv4/)
 - [Gate.io テストネット](https://testnet.gate.com)
+- [OKX API リファレンス](https://www.okx.com/docs-v5/ja/)
+- [OKX 取引所](https://www.okx.com/zh-hans/join/nofiaioo)
 
 ## リスク免責事項
 
