@@ -369,6 +369,7 @@ export function createApiRoutes() {
       const strategyNames: Record<string, string> = {
         "ultra-short": "超短线",
         "swing-trend": "波段趋势",
+        "medium-long": "中长线",
         "conservative": "稳健",
         "balanced": "平衡",
         "aggressive": "激进",

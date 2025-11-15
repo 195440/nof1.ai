@@ -661,6 +661,10 @@ body {
     background-color: #00ffaa;
 }
 
+.strategy-badge-inline.medium-long {
+    background-color: #30d5c8;
+}
+
 .strategy-badge-inline.conservative {
     background-color: #5ac8fa;
 }

@@ -39,6 +39,7 @@ export type { TradingStrategy, StrategyParams, StrategyPromptContext } from "./t
 // ==================== 各策略实现导出 ====================
 export { getUltraShortStrategy, generateUltraShortPrompt } from "./ultraShort";          // 超短线策略
 export { getSwingTrendStrategy, generateSwingTrendPrompt } from "./swingTrend";        // 波段趋势策略
+export { getMediumLongStrategy, generateMediumLongPrompt } from "./mediumLong";        // 中长线策略
 export { getConservativeStrategy, generateConservativePrompt } from "./conservative";  // 稳健策略
 export { getBalancedStrategy, generateBalancedPrompt } from "./balanced";              // 平衡策略
 export { getAggressiveStrategy, generateAggressivePrompt } from "./aggressive";        // 激进策略
@@ -50,6 +51,7 @@ export { getMultiAgentConsensusStrategy, generateMultiAgentConsensusPrompt } fro
 import type { TradingStrategy, StrategyParams, StrategyPromptContext } from "./types";
 import { getUltraShortStrategy, generateUltraShortPrompt } from "./ultraShort";
 import { getSwingTrendStrategy, generateSwingTrendPrompt } from "./swingTrend";
+import { getMediumLongStrategy, generateMediumLongPrompt } from "./mediumLong";
 import { getConservativeStrategy, generateConservativePrompt } from "./conservative";
 import { getBalancedStrategy, generateBalancedPrompt } from "./balanced";
 import { getAggressiveStrategy, generateAggressivePrompt } from "./aggressive";
@@ -82,6 +84,8 @@ export function getStrategyParams(strategy: TradingStrategy, maxLeverage: number
       return getUltraShortStrategy(maxLeverage);
     case "swing-trend":
       return getSwingTrendStrategy(maxLeverage);
+    case "medium-long":
+      return getMediumLongStrategy(maxLeverage);
     case "conservative":
       return getConservativeStrategy(maxLeverage);
     case "balanced":
@@ -144,6 +148,8 @@ export function generateStrategySpecificPrompt(
       return generateUltraShortPrompt(params, context);
     case "swing-trend":
       return generateSwingTrendPrompt(params, context);
+    case "medium-long":
+      return generateMediumLongPrompt(params, context);
     case "rebate-farming":
       return generateRebateFarmingPrompt(params, context);
     case "ai-autonomous":
