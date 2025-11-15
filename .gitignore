@@ -69,3 +69,19 @@ Thumbs.db
 *.temp
 .cache/
 .specstory
+
+# ===========================================
+# 临时 API Key 轮询文件（不要提交）
+# ===========================================
+scripts/temp-*.ts
+scripts/temp-*.js
+scripts/temp-*.json
+scripts/temp-*.sh
+scripts/temp-*.cjs
+scripts/TEMP-*.md
+logs/pm2-temp-*.log
+
+# ===========================================
+# IP 黑名单配置（不要提交）
+# ===========================================
+ip-blacklist.txt

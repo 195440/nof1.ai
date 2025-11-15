@@ -28,6 +28,7 @@ import { getTradingStrategy, getStrategyParams } from "../agents/tradingAgent";
 import { RISK_PARAMS } from "../config/riskParams";
 import { getChinaTimeISO } from "../utils/timeUtils";
 import { getQuantoMultiplier } from "../utils/contractUtils";
+import { ipBlacklistMiddleware } from "../middleware/ipBlacklist";
 
 const logger = createLogger({
   name: "api-routes",
@@ -40,6 +41,9 @@ const dbClient = createClient({
 
 export function createApiRoutes() {
   const app = new Hono();
+
+  // IP 黑名单中间件 - 拦截黑名单 IP
+  app.use("*", ipBlacklistMiddleware);
 
   // 静态文件服务 - 需要使用绝对路径
   app.use("/*", serveStatic({ root: "./public" }));
@@ -424,7 +428,7 @@ export function createApiRoutes() {
       
       logger.info(`开始手动平仓: ${symbol}`);
       
-      const gateClient = createGateClient();
+      const gateClient = createExchangeClient();
       const contract = `${symbol}_USDT`;
       
       // 获取当前持仓
