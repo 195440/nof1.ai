@@ -80,6 +80,7 @@ scripts/temp-*.sh
 scripts/temp-*.cjs
 scripts/TEMP-*.md
 logs/pm2-temp-*.log
+notepad
 
 # ===========================================
 # IP 黑名单配置（不要提交）

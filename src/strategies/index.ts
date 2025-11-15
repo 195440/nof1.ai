@@ -48,6 +48,7 @@ export { getRebateFarmingStrategy, generateRebateFarmingPrompt } from "./rebateF
 export { getAiAutonomousStrategy, generateAiAutonomousPrompt } from "./aiAutonomous";  // AI自主策略
 export { getMultiAgentConsensusStrategy, generateMultiAgentConsensusPrompt } from "./multiAgentConsensus";  // 多Agent共识策略
 export { getDeepSeekAlphaArenaStrategy, generateDeepSeekAlphaArenaPrompt } from "./deepseekAlphaArena";  // DeepSeek Alpha Arena策略
+export { getAlphaBetaStrategy, generateAlphaBetaPrompt } from "./alphaBeta";  // Alpha Beta策略
 
 import type { TradingStrategy, StrategyParams, StrategyPromptContext } from "./types";
 import { getUltraShortStrategy, generateUltraShortPrompt } from "./ultraShort";
@@ -60,7 +61,7 @@ import { getAggressiveTeamStrategy, generateAggressiveTeamPrompt } from "./aggre
 import { getRebateFarmingStrategy, generateRebateFarmingPrompt } from "./rebateFarming";
 import { getAiAutonomousStrategy, generateAiAutonomousPrompt } from "./aiAutonomous";
 import { getMultiAgentConsensusStrategy, generateMultiAgentConsensusPrompt } from "./multiAgentConsensus";
-import { getDeepSeekAlphaArenaStrategy, generateDeepSeekAlphaArenaPrompt } from "./deepseekAlphaArena";
+import { getAlphaBetaStrategy, generateAlphaBetaPrompt } from "./alphaBeta";
 
 /**
  * 获取策略参数（基于 MAX_LEVERAGE 动态计算）
@@ -104,6 +105,8 @@ export function getStrategyParams(strategy: TradingStrategy, maxLeverage: number
       return getMultiAgentConsensusStrategy(maxLeverage);
     case "deepseek-alpha":
       return getDeepSeekAlphaArenaStrategy(maxLeverage);
+    case "alpha-beta":
+      return getAlphaBetaStrategy(maxLeverage);
     default:
       return getAiAutonomousStrategy(maxLeverage);
   }
@@ -160,8 +163,8 @@ export function generateStrategySpecificPrompt(
       return generateAiAutonomousPrompt(params, context);
     case "multi-agent-consensus":
       return generateMultiAgentConsensusPrompt(params, context);
-    case "deepseek-alpha":
-      return generateDeepSeekAlphaArenaPrompt(params, context);
+    case "alpha-beta":
+      return generateAlphaBetaPrompt(params, context);
     default:
       return generateAiAutonomousPrompt(params, context);
   }

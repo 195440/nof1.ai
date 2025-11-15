@@ -30,9 +30,9 @@
  * - rebate-farming: 返佣套利策略，2-3分钟执行周期，高频微利交易
  * - ai-autonomous: AI自主策略，完全由AI主导，不提供任何策略建议
  * - multi-agent-consensus: 陪审团策略
- * - deepseek-alpha: DeepSeek Alpha Arena策略，完全复刻Alpha Arena设计理念
+ * - alpha-beta: Alpha Beta策略，零策略指导的AI完全自主决策
  */
-export type TradingStrategy = "conservative" | "balanced" | "aggressive" | "aggressive-team" | "ultra-short" | "swing-trend" | "medium-long" | "rebate-farming" | "ai-autonomous" | "multi-agent-consensus" | "deepseek-alpha";
+export type TradingStrategy = "conservative" | "balanced" | "aggressive" | "aggressive-team" | "ultra-short" | "swing-trend" | "medium-long" | "rebate-farming" | "ai-autonomous" | "multi-agent-consensus" | "alpha-beta";
 
 /**
  * 策略提示词生成上下文
