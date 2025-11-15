@@ -33,27 +33,34 @@ All strategy implementation files are located in the `src/strategies/` directory
 - `src/strategies/types.ts` - Strategy type definitions
 - `src/strategies/ultraShort.ts` - Ultra-short strategy implementation
 - `src/strategies/swingTrend.ts` - Swing trend strategy implementation
+- `src/strategies/mediumLong.ts` - **Medium-long strategy implementation**
 - `src/strategies/conservative.ts` - Conservative strategy implementation
 - `src/strategies/balanced.ts` - Balanced strategy implementation
 - `src/strategies/aggressive.ts` - Aggressive strategy implementation
+- `src/strategies/aggressiveTeam.ts` - Aggressive team strategy implementation
 - `src/strategies/rebateFarming.ts` - Rebate farming strategy implementation
 - `src/strategies/aiAutonomous.ts` - AI autonomous strategy implementation
 - `src/strategies/multiAgentConsensus.ts` - Multi-agent consensus strategy implementation
+- `src/strategies/alphaBeta.ts` - **Alpha Beta strategy implementation**
+- `src/agents/aggressiveTeamAgents.ts` - Aggressive team members implementation
 
 ## Strategy Overview
 
-The system currently supports **8 trading strategies**, suitable for different market environments and risk preferences:
+The system currently supports **11 trading strategies**, suitable for different market environments and risk preferences:
 
 | Strategy Code | Strategy Name | Execution Cycle | Holding Duration | Risk Level | Suitable For |
 |--------------|---------------|----------------|-----------------|------------|--------------|
 | `ultra-short` | Ultra-Short | 5 minutes | 30 mins - 2 hours | Medium-High | Traders who prefer high-frequency trading and quick in-and-out |
 | `swing-trend` | **Swing Trend** | **20 minutes** | **Hours - 3 days** | **Medium-Low** | **Investors seeking medium-term trends and stable growth** |
+| `medium-long` | **Medium-Long** | **30 minutes** | **Hours - 24 hours** | **Medium** | **Investors seeking medium-long term stable returns with AI-led decisions** |
 | `conservative` | Conservative | 5-15 minutes | Hours - 24 hours | Low | Conservative investors |
 | `balanced` | Balanced | 5-15 minutes | Hours - 24 hours | Medium | General investors |
 | `aggressive` | Aggressive | 5-15 minutes | Hours - 24 hours | High | Aggressive investors |
-| `rebate-farming` | Rebate Farming | 2-3 minutes | Minutes - 1 hour | Medium | Users with fee rebates, high-frequency micro-profit trading |
-| `ai-autonomous` | AI Autonomous | Flexible | AI decides | AI decides | Users who trust AI's ability to make fully autonomous decisions |
+| `aggressive-team` | **Aggressive Team** | **15 minutes** | **Hours - 2 days** | **High** | **Team collaboration with oscillation detection, targeting 40-60% monthly returns** |
+| `rebate-farming` | Rebate Farming | 5 minutes | 10-60 minutes | Medium | Users with high fee rebates |
+| `ai-autonomous` | AI Autonomous | Flexible | AI decides | AI decides | Users who fully trust AI's autonomous decision-making |
 | `multi-agent-consensus` | **Multi-Agent Jury** | **5-10 minutes** | **Hours - Days** | **Medium** | **Investors seeking robust decision-making and risk control** |
+| `alpha-beta` | **Alpha Beta** | **Flexible** | **AI decides** | **AI decides** | **Zero strategy guidance, AI fully autonomous with forced self-review** |
 
 ## Detailed Strategy Descriptions
 
@@ -734,6 +741,21 @@ export function getStrategyParams(strategy: TradingStrategy, maxLeverage: number
 | Account Drawdown Force Close | `ACCOUNT_DRAWDOWN_FORCE_CLOSE_PERCENT` | `src/config/riskParams.ts` | Risk control parameter |
 
 ## Version History
+
+### v3.0 - November 15, 2025
+- **Added Medium-Long Strategy** (`medium-long`)
+  - 30-minute execution cycle, 3-10x leverage
+  - AI-led decision-making with minimal constraints and maximum freedom
+  - Targets medium-long term stable returns (monthly goal 25-50%)
+  - Focus on quality over frequency
+- **Added Alpha Beta Strategy** (`alpha-beta`)
+  - Zero strategy guidance, AI fully autonomous decision-making
+  - Forced self-review mechanism (core feature)
+  - Dual protection mode (code auto + AI proactive)
+  - Learn from history, continuous optimization
+- **Total strategies increased from 9 to 11**
+- Enhanced strategy documentation with complete descriptions of two new strategies
+- Updated strategy switching guide and usage scenarios
 
 ### v2.3 - November 11, 2025
 - Added Multi-Agent Jury Strategy (`multi-agent-consensus`)

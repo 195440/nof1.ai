@@ -33,27 +33,34 @@
 - `src/strategies/types.ts` - 戦略タイプ定義
 - `src/strategies/ultraShort.ts` - 超短期戦略実装
 - `src/strategies/swingTrend.ts` - スイングトレンド戦略実装
+- `src/strategies/mediumLong.ts` - **中長期戦略実装**
 - `src/strategies/conservative.ts` - 保守的戦略実装
 - `src/strategies/balanced.ts` - バランス戦略実装
 - `src/strategies/aggressive.ts` - 積極的戦略実装
+- `src/strategies/aggressiveTeam.ts` - アグレッシブチーム戦略実装
 - `src/strategies/rebateFarming.ts` - リベートファーミング戦略実装
 - `src/strategies/aiAutonomous.ts` - AI自律戦略実装
 - `src/strategies/multiAgentConsensus.ts` - マルチエージェント陪審団戦略実装
+- `src/strategies/alphaBeta.ts` - **Alpha Beta戦略実装**
+- `src/agents/aggressiveTeamAgents.ts` - アグレッシブチームメンバー実装
 
 ## 戦略概要
 
-システムは現在**8つの取引戦略**をサポートしており、異なる市場環境とリスク選好に適しています:
+システムは現在**11の取引戦略**をサポートしており、異なる市場環境とリスク選好に適しています:
 
 | 戦略コード | 戦略名 | 実行サイクル | 保有期間 | リスクレベル | 適した人 |
 |----------|-------|------------|---------|------------|---------|
 | `ultra-short` | 超短期 | 5分 | 30分~2時間 | 中高 | 高頻度取引を好み、素早い出入りを好むトレーダー |
 | `swing-trend` | **スイングトレンド** | **20分** | **数時間~3日** | **中低** | **中長期トレンドを追求し、安定した成長を求める投資家** |
+| `medium-long` | **中長期** | **30分** | **数時間~24時間** | **中** | **AI主導の意思決定による中長期安定リターンを求める投資家** |
 | `conservative` | 保守的 | 5-15分 | 数時間~24時間 | 低 | 保守的な投資家 |
 | `balanced` | バランス | 5-15分 | 数時間~24時間 | 中 | 一般的な投資家 |
 | `aggressive` | 積極的 | 5-15分 | 数時間~24時間 | 高 | 積極的な投資家 |
-| `rebate-farming` | リベートファーミング | 2-3分 | 数分~1時間 | 中 | 手数料リベートを持つユーザー、高頻度微利益取引 |
+| `aggressive-team` | **アグレッシブチーム** | **15分** | **数時間~2日** | **高** | **チームコラボレーション＋オシレーション検出強化、月間40-60%のリターンを目指す積極的投資家** |
+| `rebate-farming` | リベートファーミング | 5分 | 10-60分 | 中 | 高額な手数料リベートを持つユーザー |
 | `ai-autonomous` | AI自律 | 柔軟 | AIが決定 | AIが決定 | AIの完全自律的な意思決定能力を信頼するユーザー |
 | `multi-agent-consensus` | **マルチエージェント陪審団** | **5-10分** | **数時間~数日** | **中** | **堅実な意思決定とリスク管理を重視する投資家** |
+| `alpha-beta` | **Alpha Beta** | **柔軟** | **AIが決定** | **AIが決定** | **ゼロ戦略ガイダンス、強制自己レビュー付きAI完全自律** |
 
 ## 詳細な戦略説明
 
@@ -724,6 +731,21 @@ export function getStrategyParams(strategy: TradingStrategy, maxLeverage: number
 | 口座ドローダウン強制クローズ | `ACCOUNT_DRAWDOWN_FORCE_CLOSE_PERCENT` | `src/config/riskParams.ts` | リスク管理パラメータ |
 
 ## バージョン履歴
+
+### v3.0 - 2025年11月15日
+- **中長期戦略を追加**（`medium-long`）
+  - 30分実行サイクル、3-10倍レバレッジ
+  - AI主導の意思決定、最小限の制約と最大限の自由度
+  - 中長期安定リターンを追求（月間目標25-50%）
+  - 頻度よりも品質を重視
+- **Alpha Beta戦略を追加**（`alpha-beta`）
+  - ゼロ戦略ガイダンス、AI完全自律的意思決定
+  - 強制自己レビューメカニズム（コア機能）
+  - 二重防護モード（コード自動 + AI主体的）
+  - 履歴から学習、継続的最適化
+- **戦略総数が9から11に増加**
+- 2つの新戦略の完全な説明で戦略ドキュメントを強化
+- 戦略切り替えガイドと使用シナリオを更新
 
 ### v2.3 - 2025年11月11日
 - マルチエージェント陪審団戦略（`multi-agent-consensus`）を追加

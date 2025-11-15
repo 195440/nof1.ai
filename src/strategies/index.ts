@@ -47,7 +47,6 @@ export { getAggressiveTeamStrategy, generateAggressiveTeamPrompt } from "./aggre
 export { getRebateFarmingStrategy, generateRebateFarmingPrompt } from "./rebateFarming";  // 返佣套利策略
 export { getAiAutonomousStrategy, generateAiAutonomousPrompt } from "./aiAutonomous";  // AI自主策略
 export { getMultiAgentConsensusStrategy, generateMultiAgentConsensusPrompt } from "./multiAgentConsensus";  // 多Agent共识策略
-export { getDeepSeekAlphaArenaStrategy, generateDeepSeekAlphaArenaPrompt } from "./deepseekAlphaArena";  // DeepSeek Alpha Arena策略
 export { getAlphaBetaStrategy, generateAlphaBetaPrompt } from "./alphaBeta";  // Alpha Beta策略
 
 import type { TradingStrategy, StrategyParams, StrategyPromptContext } from "./types";
@@ -103,8 +102,6 @@ export function getStrategyParams(strategy: TradingStrategy, maxLeverage: number
       return getAiAutonomousStrategy(maxLeverage);
     case "multi-agent-consensus":
       return getMultiAgentConsensusStrategy(maxLeverage);
-    case "deepseek-alpha":
-      return getDeepSeekAlphaArenaStrategy(maxLeverage);
     case "alpha-beta":
       return getAlphaBetaStrategy(maxLeverage);
     default:
