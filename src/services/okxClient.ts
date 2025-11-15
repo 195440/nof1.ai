@@ -843,6 +843,7 @@ export class OkxClient {
         orderSizeMin: parseFloat(info.minSz || "1"),
         orderSizeMax: parseFloat(info.maxLmtSz || "1000000"),
         quantoMultiplier: parseFloat(info.ctVal || "0.01"), // 合约乘数（使用驼峰命名与 Gate 保持一致）
+        lotSize: parseFloat(info.lotSz || "1"), // 下单数量精度
       };
     } catch (error: any) {
       logger.error(`获取 ${contract} 合约信息失败:`, error);
@@ -867,6 +868,7 @@ export class OkxClient {
             name: gateContract,
             orderSizeMin: parseFloat(inst.minSz || "1"),
             orderSizeMax: parseFloat(inst.maxLmtSz || "1000000"),
+            lotSize: parseFloat(inst.lotSz || "1"),
           };
         });
     } catch (error: any) {

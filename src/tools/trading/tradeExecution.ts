@@ -330,21 +330,37 @@ export const openPositionTool = createTool({
       
       // 获取合约乘数
       const quantoMultiplier = await getQuantoMultiplier(contract);
-      const minSize = Number.parseInt(contractInfo.orderSizeMin || "1");
-      const maxSize = Number.parseInt(contractInfo.orderSizeMax || "1000000");
+      // 兼容 Gate（下划线命名）和 OKX（驼峰命名）
+      const minSize = Number.parseFloat(contractInfo.orderSizeMin || contractInfo.order_size_min || "1");
+      const maxSize = Number.parseFloat(contractInfo.orderSizeMax || contractInfo.order_size_max || "1000000");
+      // OKX 使用 lotSize，Gate 使用 order_size_round
+      const lotSize = Number.parseFloat(contractInfo.lotSize || contractInfo.order_size_round || "1");
       
       // 计算可以开多少张合约
       // adjustedAmountUsdt = (quantity * quantoMultiplier * currentPrice) / leverage
       // => quantity = (adjustedAmountUsdt * leverage) / (quantoMultiplier * currentPrice)
       let quantity = (adjustedAmountUsdt * leverage) / (quantoMultiplier * currentPrice);
       
-      // 向上取整到整数张数（合约必须是整数）
-      // 使用 Math.ceil 确保至少开 1 张，避免 size=0 导致下单失败
-      quantity = Math.ceil(quantity);
+      // 根据 lotSize 调整数量精度（向上取整到最接近的有效精度）
+      // 例如：lotSize=0.01，quantity=0.123 -> 向上取整到 0.13
+      if (lotSize > 0) {
+        quantity = Math.ceil(quantity / lotSize) * lotSize;
+      } else {
+        // 如果没有 lotSize 信息，默认向上取整到整数
+        quantity = Math.ceil(quantity);
+      }
       
       // 确保数量在允许范围内
       quantity = Math.max(quantity, minSize);
       quantity = Math.min(quantity, maxSize);
+      
+      // 再次应用精度调整（确保 max/min 调整后仍符合精度要求）
+      if (lotSize > 0) {
+        quantity = Math.round(quantity / lotSize) * lotSize;
+        // 修正浮点数精度问题
+        const decimals = (lotSize.toString().split('.')[1] || '').length;
+        quantity = Number.parseFloat(quantity.toFixed(decimals));
+      }
       
       let size = side === "long" ? quantity : -quantity;
       
@@ -640,7 +656,7 @@ export const closePositionTool = createTool({
       //  直接从 Gate.io 获取最新的持仓信息（不依赖数据库）
       const allPositions = await client.getPositions();
       // 🔧 修复：在双向持仓模式下，需要过滤掉 size=0 的记录，找到实际持仓
-      const gatePosition = allPositions.find((p: any) => p.contract === contract && Number.parseInt(p.size || "0") !== 0);
+      const gatePosition = allPositions.find((p: any) => p.contract === contract && Number.parseFloat(p.size || "0") !== 0);
       
       if (!gatePosition) {
         return {
@@ -683,7 +699,7 @@ export const closePositionTool = createTool({
       }
       
       // 从 Gate.io 获取实时数据
-      const gateSize = Number.parseInt(gatePosition.size || "0");
+      const gateSize = Number.parseFloat(gatePosition.size || "0");
       const side = gateSize > 0 ? "long" : "short";
       const quantity = Math.abs(gateSize);
       let entryPrice = Number.parseFloat(gatePosition.entryPrice || "0");
@@ -704,8 +720,24 @@ export const closePositionTool = createTool({
         }
       }
       
-      // 计算平仓数量（向上取整，确保至少平 1 张）
-      let closeSize = Math.ceil((quantity * percentage) / 100);
+      // 获取合约信息以确定数量精度
+      const contractInfo = await client.getContractInfo(contract);
+      // 兼容 Gate（下划线命名）和 OKX（驼峰命名）
+      const lotSize = Number.parseFloat(contractInfo.lotSize || contractInfo.order_size_round || "1");
+      
+      // 计算平仓数量
+      let closeSize = (quantity * percentage) / 100;
+      
+      // 根据 lotSize 调整数量精度（向上取整到最接近的有效精度）
+      if (lotSize > 0) {
+        closeSize = Math.ceil(closeSize / lotSize) * lotSize;
+        // 修正浮点数精度问题
+        const decimals = (lotSize.toString().split('.')[1] || '').length;
+        closeSize = Number.parseFloat(closeSize.toFixed(decimals));
+      } else {
+        // 如果没有 lotSize 信息，默认向上取整到整数
+        closeSize = Math.ceil(closeSize);
+      }
       
       // 确保不超过持仓数量
       closeSize = Math.min(closeSize, quantity);
