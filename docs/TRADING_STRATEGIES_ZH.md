@@ -33,6 +33,7 @@
 - `src/strategies/types.ts` - 策略类型定义
 - `src/strategies/ultraShort.ts` - 超短线策略实现
 - `src/strategies/swingTrend.ts` - 波段趋势策略实现
+- `src/strategies/mediumLong.ts` - **中长线策略实现**
 - `src/strategies/conservative.ts` - 稳健策略实现
 - `src/strategies/balanced.ts` - 平衡策略实现
 - `src/strategies/aggressive.ts` - 激进策略实现
@@ -40,16 +41,18 @@
 - `src/strategies/rebateFarming.ts` - 返佣套利策略实现
 - `src/strategies/aiAutonomous.ts` - AI自主策略实现
 - `src/strategies/multiAgentConsensus.ts` - 陪审团策略实现
+- `src/strategies/alphaBeta.ts` - **Alpha Beta策略实现**
 - `src/agents/aggressiveTeamAgents.ts` - 激进团团员实现
 
 ## 策略概览
 
-系统目前支持 **9 种交易策略**，适应不同的市场环境和风险偏好：
+系统目前支持 **11 种交易策略**，适应不同的市场环境和风险偏好：
 
 | 策略代码 | 策略名称 | 执行周期 | 持仓时长 | 风险等级 | 适合人群 |
 |---------|---------|---------|---------|---------|---------|
 | `ultra-short` | 超短线 | 5分钟 | 30分钟-2小时 | 中高 | 喜欢高频交易、快进快出的交易者 |
 | `swing-trend` | **波段趋势** | **20分钟** | **数小时-3天** | **中低** | **追求中长期趋势、稳健成长的投资者** |
+| `medium-long` | **中长线** | **30分钟** | **数小时-24小时** | **中** | **追求中长期稳健收益，AI主导决策** |
 | `conservative` | 稳健 | 5-15分钟 | 数小时-24小时 | 低 | 保守投资者 |
 | `balanced` | 平衡 | 5-15分钟 | 数小时-24小时 | 中 | 一般投资者 |
 | `aggressive` | 激进 | 5-15分钟 | 数小时-24小时 | 高 | 激进投资者 |
@@ -57,6 +60,7 @@
 | `rebate-farming` | **返佣套利** | **5分钟** | **10-60分钟** | **中** | **拥有高额手续费返佣的用户** |
 | `ai-autonomous` | **AI自主** | **灵活** | **AI决定** | **AI决定** | **完全信任AI能力，追求最大灵活性的交易者** |
 | `multi-agent-consensus` | **陪审团** | **5-10分钟** | **数小时-数天** | **中** | **追求稳健决策、重视风险控制的投资者** |
+| `alpha-beta` | **Alpha Beta** | **灵活** | **AI决定** | **AI决定** | **零策略指导，AI完全自主决策，强制自我复盘** |
 
 ## 策略详细说明
 
@@ -205,6 +209,108 @@ INITIAL_BALANCE=2000
 | AI职责 | 开仓+平仓 | **只负责开仓** |
 | 风险等级 | 中高 | **中低** |
 | 适合行情 | 短期波动 | **中期趋势** |
+
+---
+
+### 中长线策略 (`medium-long`)
+
+**核心理念**：最小限制，最大自由度，充分发挥AI的分析和决策能力
+
+#### 策略参数
+
+> **配置文件位置**：`src/strategies/mediumLong.ts`
+
+- **执行周期**：**30分钟**（配置位置：`.env` 文件 `TRADING_INTERVAL_MINUTES=30`）
+- **建议持仓时长**：**数小时 - 24小时**
+- **杠杆范围**：**3-10倍**（固定范围，给AI充分自主权）
+  - 代码：`leverageMin: 3, leverageMax: 10`
+- **仓位大小**：**15-35%**（灵活配置，根据市场情况调整）
+  - 代码：`positionSizeMin: 15, positionSizeMax: 35`
+- **止损范围**：**-4.5% ~ -8%**（根据杠杆：高杠杆-4.5%、中杠杆-6%、低杠杆-8%）
+  - 代码：`stopLoss: { low: -8, mid: -6, high: -4.5 }`
+
+#### 核心优势
+
+1. **AI主导决策**：最小限制，充分信任AI的分析能力
+2. **灵活杠杆选择**：3-10倍范围内灵活运用
+3. **灵活仓位配置**：15-35%范围，根据信号强度调整
+4. **宽松止损空间**：给趋势足够发展空间
+5. **AI主动止盈止损**：不受固定规则限制
+
+#### AI止损止盈（由AI主动执行）
+
+> **代码实现位置**：`src/strategies/mediumLong.ts`
+
+- **止损建议**：
+  - 低杠杆（3-5倍）：-8%止损（给趋势足够空间）
+  - 中杠杆（5-7倍）：-6%止损（平衡空间和风险）
+  - 高杠杆（7-10倍）：-4.5%止损（严格控制风险）
+
+- **移动止盈建议**：
+  - 盈利达到 +12% → 止损线移至 +5%（保护7%空间）
+  - 盈利达到 +25% → 止损线移至 +15%（保护10%空间）
+  - 盈利达到 +40% → 止损线移至 +28%（保护12%空间）
+
+- **分批止盈建议**：
+  - 盈利达到 +35% → 平仓30%（保留70%追求更大利润）
+  - 盈利达到 +60% → 平仓剩余50%（累计平仓65%）
+  - 盈利达到 +100% → 全部清仓（翻倍止盈）
+
+#### 入场条件（AI灵活执行）
+
+- **建议**：多时间框架验证（5m/15m/30m/1h），但AI可根据市场情况灵活调整
+- **关键指标**：AI自主选择，可以使用MACD、RSI、EMA等
+- **市场状态判断**：单边行情积极参与，震荡行情谨慎入场
+- **重视信号质量**：注重质量而非频率
+
+#### AI职责说明
+
+- **完全自主**：自主选择入场时机、杠杆、仓位、止盈止损
+- **灵活调整**：根据市场状态动态调整策略
+- **主动管理**：AI负责所有开仓和平仓决策
+- **自主风控**：根据市场情况自主判断风险
+
+#### 适用场景
+
+- **追求中长期稳健收益**
+- **希望AI有充分自主决策权**
+- **能接受数小时到24小时的持仓周期**
+- **不想被固定策略框架限制**
+- **相信AI的分析和学习能力**
+
+#### 配置示例
+
+> **配置文件位置**：`.env` 文件（参考 `.env.example`）
+
+```bash
+# 环境变量配置
+TRADING_STRATEGY=medium-long
+TRADING_INTERVAL_MINUTES=30
+MAX_LEVERAGE=25  # 策略固定使用3-10倍
+MAX_POSITIONS=5  # 最多5个持仓
+INITIAL_BALANCE=2000
+```
+
+#### 预期收益
+
+- **月目标收益**：25-50%
+- **胜率目标**：根据AI学习情况调整
+- **盈亏比目标**：≥2:1（灵活调整）
+- **交易风格**：注重质量而非频率
+
+#### 与其他策略对比
+
+| 维度 | 中长线 (medium-long) | 波段趋势 (swing-trend) | AI自主 (ai-autonomous) |
+|-----|---------------------|---------------------|---------------------|
+| 执行周期 | **30分钟** | 20分钟 | 灵活 |
+| 杠杆倍数 | **3-10倍（固定）** | 2-5倍 | 1-最大杠杆 |
+| 仓位大小 | **15-35%** | 20-35% | 1-100% |
+| 止损幅度 | **-4.5%~-8%** | -5.5%~-9% | AI决定 |
+| 持仓时长 | **数小时-24小时** | 数小时-3天 | AI决定 |
+| 平仓方式 | **AI主动执行** | 自动监控执行 | 双重防护 |
+| 策略指导 | **最小限制** | 明确建议 | 无 |
+| 风险等级 | **中** | 中低 | AI决定 |
+| 适合行情 | **中长期趋势** | 中期趋势 | 所有行情 |
 
 ---
 
@@ -1062,6 +1168,192 @@ INITIAL_BALANCE=2000
 
 ---
 
+### Alpha Beta 策略 (`alpha-beta`)
+
+**核心理念**：零策略指导，AI完全自主决策，强制自我复盘，持续学习优化
+
+#### 策略参数
+
+> **配置文件位置**：`src/strategies/alphaBeta.ts`
+
+- **执行周期**：灵活（建议5-10分钟）
+- **杠杆范围**：1-最大杠杆（AI完全自主选择）
+  - 代码：`leverageMin: 1, leverageMax: maxLeverage`
+- **仓位大小**：1-100%（AI完全自主选择）
+  - 代码：`positionSizeMin: 1, positionSizeMax: 100`
+- **止损止盈**：双重防护（代码自动 + AI主动）
+- **交易频率**：由AI根据市场机会自主决定
+- **持仓时长**：由AI根据市场情况自主决定
+
+#### 核心特点
+
+1. **零策略指导**：
+   - 不提供任何策略建议或限制
+   - 只提供市场数据和交易工具
+   - AI完全自主分析和决策
+   
+2. **强制自我复盘机制**（核心特色）：
+   - 每个交易周期必须先进行自我复盘
+   - 分析最近盈亏交易的得失
+   - 识别改进空间，制定改进计划
+   - 从历史中学习，持续优化
+   
+3. **双重防护机制**：
+   - 代码级自动保护（每10秒自动检查）
+   - AI可以主动操作（不受代码监控限制）
+   - 提供更强的风险保护和操作灵活性
+
+4. **完全自主权**：
+   - AI自主决定所有交易参数
+   - AI自主制定交易策略
+   - AI自主管理风险
+   - AI自主学习和优化
+
+#### 双重防护机制
+
+Alpha Beta策略采用最强的双重防护模式：
+
+**第一层：代码级自动保护**（每10秒监控，作为安全网）
+
+- **自动止损**：
+  - 低杠杆（1-5倍）：亏损达到 -8% 自动平仓
+  - 中杠杆（6-10倍）：亏损达到 -6% 自动平仓
+  - 高杠杆（11倍以上）：亏损达到 -5% 自动平仓
+
+- **自动移动止盈**：
+  - 盈利达到 5% 时，止损线移至 +2%
+  - 盈利达到 10% 时，止损线移至 +5%
+  - 盈利达到 15% 时，止损线移至 +10%
+
+- **自动分批止盈**：
+  - 盈利达到 20% 时，自动平仓 30%
+  - 盈利达到 30% 时，自动平仓 30%
+  - 盈利达到 40% 时，自动平仓 100%
+
+**第二层：AI主动决策**（灵活操作权）
+
+- AI可以在代码自动保护触发**之前**主动止损止盈
+- AI可以根据市场情况灵活调整，不必等待自动触发
+- AI可以更早止损（避免更大亏损）
+- AI可以更早止盈（落袋为安）
+- 代码保护是最后的安全网，AI有完全的主动权
+
+#### 强制自我复盘机制（核心特色）
+
+每个交易周期，AI **必须先进行自我复盘**，然后再做交易决策。
+
+**复盘四步骤**：
+
+1. **回顾最近交易表现**：
+   - 分析盈利交易：什么做对了？
+   - 分析亏损交易：什么做错了？
+   - 当前胜率如何？
+
+2. **评估当前策略有效性**：
+   - 当前策略是否适应市场环境？
+   - 杠杆和仓位管理是否合理？
+   - 是否存在重复犯错的模式？
+
+3. **识别改进空间**：
+   - 哪些方面可以做得更好？
+   - 是否需要调整风险管理方式？
+   - 是否需要改变交易频率？
+
+4. **制定改进计划**：
+   - 基于复盘结果调整策略
+   - 避免之前犯过的错误
+   - 如何提高交易质量和胜率
+
+**复盘输出格式**（强制遵守）：
+
+```
+【自我复盘】
+- 最近交易回顾：（分析盈利和亏损交易）
+- 策略有效性评估：（当前策略是否适应市场）
+- 改进空间识别：（发现可改进的地方）
+- 本次改进计划：（具体的改进措施）
+
+【本次交易决策】
+（基于复盘结果做出的交易决策）
+```
+
+#### 系统硬性底线
+
+- **极端止损**：单笔交易亏损达到 -30% 时，系统会强制平仓
+- **时间限制**：持仓时间超过 36 小时，系统会强制平仓
+- **最大杠杆**：受系统配置限制（如15倍）
+- **最大持仓数**：受系统配置限制（如5个）
+
+#### 适用人群
+
+**最适合**：
+- 完全信任AI能力的交易者
+- 追求最大灵活性和自主性
+- 重视从历史中学习和持续优化
+- 希望有双重保护（代码 + AI）
+- 能接受AI完全自主决策
+- 不想被任何策略框架限制
+
+**不适合**：
+- 需要明确策略指导的新手
+- 希望严格控制风险参数
+- 不信任AI自主决策能力
+- 需要可预测的交易模式
+
+#### 配置示例
+
+> **配置文件位置**：`.env` 文件（参考 `.env.example`）
+
+```bash
+# 环境变量配置
+TRADING_STRATEGY=alpha-beta
+TRADING_INTERVAL_MINUTES=5      # 建议5-10分钟
+MAX_LEVERAGE=15                  # AI可以使用1-15倍杠杆
+MAX_POSITIONS=5                  # 最多5个持仓
+INITIAL_BALANCE=2000
+```
+
+#### 与其他策略的对比
+
+| 对比项 | Alpha Beta | AI自主 | 中长线 |
+|-------|-----------|---------|--------|
+| 策略指导 | **零（完全自主）** | 无 | 最小限制 |
+| 强制复盘 | **是（核心特色）** | 否 | 否 |
+| 杠杆范围 | 1-最大杠杆 | 1-最大杠杆 | 3-10倍 |
+| 仓位大小 | 1-100% | 1-100% | 15-35% |
+| 止损方式 | 双重防护 | 双重防护 | AI主动 |
+| 学习机制 | **强制自我复盘** | 被动学习 | 被动学习 |
+| 灵活性 | **最高** | 最高 | 高 |
+| 风险保护 | **最强** | 最强 | 强 |
+| 适合新手 | 否 | 否 | 否 |
+
+#### 核心优势
+
+**与AI自主策略的主要区别**：
+
+1. **强制自我复盘**：Alpha Beta强制AI每次都要先复盘再决策
+2. **持续学习优化**：通过复盘机制持续改进交易策略
+3. **零策略干扰**：完全不提供任何策略建议，让AI真正自主
+4. **记录推理过程**：所有决策过程都会被记录和分析
+
+**适用场景**：
+
+- 希望AI具备自我学习和进化能力
+- 相信强制复盘能提高决策质量
+- 追求长期持续优化的交易系统
+- 愿意给AI充分的试错和学习空间
+
+#### 策略代码位置
+
+- 参数配置：`src/strategies/alphaBeta.ts` → `getAlphaBetaStrategy()`
+- 提示词生成：`src/strategies/alphaBeta.ts` → `generateAlphaBetaPrompt()`
+- 双重防护配置：`enableCodeLevelProtection: true` + `allowAiOverrideProtection: true`
+- 代码止损：`src/scheduler/stopLossMonitor.ts`
+- 代码止盈：`src/scheduler/trailingStopMonitor.ts`
+- 分批止盈：`src/scheduler/partialProfitMonitor.ts`
+
+---
+
 ## 策略切换指南
 
 ### 波段趋势策略使用场景
@@ -1155,6 +1447,52 @@ INITIAL_BALANCE=2000
 - 追求稳健决策 + 多Agent合议 → 选择陪审团策略
 - 追求AI完全自主 + 最大灵活性 → 选择AI自主策略
 
+### 中长线策略使用场景
+
+**适合场景**：
+- 追求中长期稳健收益（月目标25-50%）
+- 希望AI有充分自主决策权
+- 能接受数小时到24小时的持仓周期
+- 不想被固定策略框架限制
+- 相信AI的分析和学习能力
+- 追求较长的交易周期（30分钟）
+- 希望注重质量而非频率
+
+**不适合场景**：
+- 需要明确策略指导的新手
+- 喜欢高频交易
+- 无法接受较长的持仓周期
+- 希望有严格的策略框架
+
+**与其他策略的选择**：
+- AI主导决策 + 中长期持仓 → 选择中长线策略
+- 自动监控 + 中期趋势 → 选择波段趋势策略
+- 完全自主 + 任意周期 → 选择AI自主或Alpha Beta策略
+
+### Alpha Beta策略使用场景
+
+**适合场景**：
+- 完全信任AI能力的交易者
+- 追求最大灵活性和自主性
+- 重视从历史中学习和持续优化
+- 相信强制复盘能提高决策质量
+- 希望AI具备自我学习和进化能力
+- 愿意给AI充分的试错和学习空间
+- 追求长期持续优化的交易系统
+- 希望有双重保护（代码 + AI）
+
+**不适合场景**：
+- 需要明确策略指导的新手
+- 希望严格控制风险参数
+- 不信任AI自主决策能力
+- 需要可预测的交易模式
+- 不想AI进行自我复盘
+
+**与其他策略的选择**：
+- 零策略指导 + 强制复盘 + 持续学习 → 选择Alpha Beta策略
+- AI完全自主 + 无复盘机制 → 选择AI自主策略
+- AI主导 + 最小限制 + 无复盘 → 选择中长线策略
+
 ### 策略切换步骤
 
 > **配置文件位置**：`.env` 文件（参考 `.env.example`）
@@ -1186,6 +1524,16 @@ INITIAL_BALANCE=2000
    # 或切换到陪审团策略
    TRADING_STRATEGY=multi-agent-consensus
    TRADING_INTERVAL_MINUTES=5
+   
+   # 或切换到中长线策略
+   TRADING_STRATEGY=medium-long
+   TRADING_INTERVAL_MINUTES=30
+   MAX_LEVERAGE=25  # 策略固定使用3-10倍
+   
+   # 或切换到Alpha Beta策略
+   TRADING_STRATEGY=alpha-beta
+   TRADING_INTERVAL_MINUTES=5
+   MAX_LEVERAGE=15  # AI可以使用1-15倍
    ```
 3. **重启系统**：
    ```bash
@@ -1462,6 +1810,7 @@ GATE_USE_TESTNET=true                  # 使用测试网（推荐）
 1. **策略参数定义**：每个策略在对应的 `.ts` 文件中定义了完整的参数配置，包括杠杆范围、仓位大小、止损范围等
    - 超短线：`src/strategies/ultraShort.ts` → `getUltraShortStrategy()`
    - 波段趋势：`src/strategies/swingTrend.ts` → `getSwingTrendStrategy()`
+   - **中长线**：`src/strategies/mediumLong.ts` → `getMediumLongStrategy()`
    - 稳健策略：`src/strategies/conservative.ts` → `getConservativeStrategy()`
    - 平衡策略：`src/strategies/balanced.ts` → `getBalancedStrategy()`
    - 激进策略：`src/strategies/aggressive.ts` → `getAggressiveStrategy()`
@@ -1469,10 +1818,12 @@ GATE_USE_TESTNET=true                  # 使用测试网（推荐）
    - 返佣套利：`src/strategies/rebateFarming.ts` → `getRebateFarmingStrategy()`
    - AI自主：`src/strategies/aiAutonomous.ts` → `getAiAutonomousStrategy()`
    - 陪审团：`src/strategies/multiAgentConsensus.ts` → `getMultiAgentConsensusStrategy()`
+   - **Alpha Beta**：`src/strategies/alphaBeta.ts` → `getAlphaBetaStrategy()`
 
 2. **提示词生成**：每个策略文件包含 `generateXxxPrompt()` 函数，为 AI 生成特定于该策略的决策提示词
    - 超短线：`generateUltraShortPrompt()`
    - 波段趋势：`generateSwingTrendPrompt()`
+   - **中长线**：`generateMediumLongPrompt()`
    - 稳健策略：`generateConservativePrompt()`
    - 平衡策略：`generateBalancedPrompt()`
    - 激进策略：`generateAggressivePrompt()`
@@ -1480,6 +1831,7 @@ GATE_USE_TESTNET=true                  # 使用测试网（推荐）
    - 返佣套利：`generateRebateFarmingPrompt()`
    - AI自主：`generateAiAutonomousPrompt()`
    - 陪审团：`generateMultiAgentConsensusPrompt()`
+   - **Alpha Beta**：`generateAlphaBetaPrompt()`
 
 3. **多Agent协作**（激进团和陪审团专属）：
    - 激进团团员：`src/agents/aggressiveTeamAgents.ts`
@@ -1508,6 +1860,8 @@ export function getStrategyParams(strategy: TradingStrategy, maxLeverage: number
       return getUltraShortStrategy(maxLeverage);
     case "swing-trend":
       return getSwingTrendStrategy(maxLeverage);
+    case "medium-long":
+      return getMediumLongStrategy(maxLeverage);  // 中长线策略
     case "conservative":
       return getConservativeStrategy(maxLeverage);
     case "balanced":
@@ -1515,13 +1869,15 @@ export function getStrategyParams(strategy: TradingStrategy, maxLeverage: number
     case "aggressive":
       return getAggressiveStrategy(maxLeverage);
     case "aggressive-team":
-      return getAggressiveTeamStrategy(maxLeverage);  // 新增激进团策略
+      return getAggressiveTeamStrategy(maxLeverage);
     case "rebate-farming":
       return getRebateFarmingStrategy(maxLeverage);
     case "ai-autonomous":
       return getAiAutonomousStrategy(maxLeverage);
     case "multi-agent-consensus":
       return getMultiAgentConsensusStrategy(maxLeverage);
+    case "alpha-beta":
+      return getAlphaBetaStrategy(maxLeverage);  // Alpha Beta策略
     default:
       return getAiAutonomousStrategy(maxLeverage);
   }
@@ -1544,6 +1900,21 @@ export function getStrategyParams(strategy: TradingStrategy, maxLeverage: number
 | 账户回撤强制平仓 | `ACCOUNT_DRAWDOWN_FORCE_CLOSE_PERCENT` | `src/config/riskParams.ts` | 风控参数 |
 
 ## 版本历史
+
+### v3.0 - 2025年11月15日
+- **新增中长线策略**（`medium-long`）
+  - 30分钟执行周期，3-10倍杠杆
+  - AI主导决策，最小限制最大自由度
+  - 追求中长期稳健收益（月目标25-50%）
+  - 注重质量而非频率
+- **新增Alpha Beta策略**（`alpha-beta`）
+  - 零策略指导，AI完全自主决策
+  - 强制自我复盘机制（核心特色）
+  - 双重防护模式（代码自动 + AI主动）
+  - 从历史中学习，持续优化
+- **策略总数从9种增加到11种**
+- 完善策略文档，新增两个策略的完整说明
+- 更新策略切换指南和使用场景说明
 
 ### v2.4 - 2025年11月14日
 - 新增激进团策略（`aggressive-team`）

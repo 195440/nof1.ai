@@ -73,7 +73,7 @@ const logger = createLogger({
  */
 export function getTradingStrategy(): TradingStrategy {
   const strategy = process.env.TRADING_STRATEGY || "balanced";
-  if (strategy === "conservative" || strategy === "balanced" || strategy === "aggressive" || strategy === "aggressive-team" || strategy === "ultra-short" || strategy === "swing-trend" || strategy === "rebate-farming" || strategy === "ai-autonomous" || strategy === "multi-agent-consensus") {
+  if (strategy === "conservative" || strategy === "balanced" || strategy === "aggressive" || strategy === "aggressive-team" || strategy === "ultra-short" || strategy === "swing-trend" || strategy === "medium-long" || strategy === "rebate-farming" || strategy === "ai-autonomous" || strategy === "multi-agent-consensus" || strategy === "alpha-beta") {
     return strategy;
   }
   logger.warn(`未知的交易策略: ${strategy}，使用默认策略: balanced`);
@@ -388,8 +388,8 @@ export function generateTradingPrompt(data: {
   // 判断是否允许AI在代码级保护之外继续主动操作（双重防护模式）
   const allowAiOverride = params.allowAiOverrideProtection === true;
   
-  // 如果是AI自主策略，使用完全不同的提示词格式
-  if (strategy === "ai-autonomous") {
+  // 如果是AI自主策略或Alpha Beta策略，使用完全不同的提示词格式
+  if (strategy === "ai-autonomous" || strategy === "alpha-beta") {
     return generateAiAutonomousPromptForCycle(data);
   }
   
@@ -766,9 +766,16 @@ ${isCodeLevelProtectionEnabled ? (allowAiOverride ? `│                        
 function generateInstructions(strategy: TradingStrategy, intervalMinutes: number): string {
   const params = getStrategyParams(strategy);
   
-  // 如果是AI自主策略，返回极简的系统提示词
-  if (strategy === "ai-autonomous") {
+  // 如果是AI自主策略或Alpha Beta策略，返回极简的系统提示词
+  if (strategy === "ai-autonomous" || strategy === "alpha-beta") {
+    const strategyName = strategy === "alpha-beta" ? "Alpha Beta" : "AI自主";
+    const strategyDesc = strategy === "alpha-beta" 
+      ? "你的所有行为都会被记录和分析，用于持续改进和学习。" 
+      : "";
+    
     return `你是一个完全自主的AI加密货币交易员，具备自我学习和持续改进的能力。
+
+${strategyDesc}
 
 你的任务是基于提供的市场数据和账户信息，完全自主地分析市场并做出交易决策。
 

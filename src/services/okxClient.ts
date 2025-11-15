@@ -510,6 +510,11 @@ export class OkxClient {
   }): Promise<any> {
     const instId = this.toOkxContract(params.contract);
     
+    // 验证 size 参数
+    if (params.size === 0 || !Number.isFinite(params.size)) {
+      throw new Error(`Invalid order size: ${params.size}. Size must be a non-zero finite number.`);
+    }
+    
     try {
       // 首次下单前确保持仓模式已设置（双向持仓）
       // 这个调用会被缓存，不会重复设置
@@ -592,18 +597,48 @@ export class OkxClient {
 
   /**
    * 获取订单详情
+   * @param orderId 订单ID
+   * @param contract 合约名称（可选）。如果提供，将直接查询；否则将遍历未完成订单和历史订单查找
    */
-  async getOrder(orderId: string): Promise<any> {
+  async getOrder(orderId: string, contract?: string): Promise<any> {
     try {
-      const data = await this.request("GET", "/api/v5/trade/order", {
-        ordId: orderId,
-      });
+      let order: any = null;
       
-      if (!data || data.length === 0) {
-        throw new Error("Order not found");
+      if (contract) {
+        // 如果提供了合约名称，直接查询（OKX API 要求同时提供 instId 和 ordId）
+        const instId = this.toOkxContract(contract);
+        const data = await this.request("GET", "/api/v5/trade/order", {
+          instId,
+          ordId: orderId,
+        });
+        
+        if (!data || data.length === 0) {
+          throw new Error("Order not found");
+        }
+        order = data[0];
+      } else {
+        // 如果没有提供合约名称，先从未完成订单中查找
+        logger.debug(`未提供合约名称，从订单列表中查找订单 ${orderId}`);
+        
+        const openOrders = await this.getOpenOrders();
+        order = openOrders.find((o: any) => o.id === orderId);
+        
+        // 如果未完成订单中找不到，再从历史订单中查找（最近100条）
+        if (!order) {
+          logger.debug(`未完成订单中未找到，查询历史订单`);
+          const historyOrders = await this.getOrderHistory(undefined, 100);
+          order = historyOrders.find((o: any) => o.id === orderId);
+        }
+        
+        if (!order) {
+          throw new Error("Order not found in open orders or recent history");
+        }
+        
+        // 如果从列表中找到，已经是转换后的格式，直接返回
+        return order;
       }
       
-      const order = data[0];
+      // 转换原始 OKX 订单格式为统一格式
       const gateContract = this.toGateContract(order.instId);
       
       // OKX 订单状态: live, partially_filled, filled, canceled
@@ -807,7 +842,8 @@ export class OkxClient {
         name: contract,
         orderSizeMin: parseFloat(info.minSz || "1"),
         orderSizeMax: parseFloat(info.maxLmtSz || "1000000"),
-        quanto_multiplier: parseFloat(info.ctVal || "0.01"), // 合约乘数
+        quantoMultiplier: parseFloat(info.ctVal || "0.01"), // 合约乘数（使用驼峰命名与 Gate 保持一致）
+        lotSize: parseFloat(info.lotSz || "1"), // 下单数量精度
       };
     } catch (error: any) {
       logger.error(`获取 ${contract} 合约信息失败:`, error);
@@ -832,6 +868,7 @@ export class OkxClient {
             name: gateContract,
             orderSizeMin: parseFloat(inst.minSz || "1"),
             orderSizeMax: parseFloat(inst.maxLmtSz || "1000000"),
+            lotSize: parseFloat(inst.lotSz || "1"),
           };
         });
     } catch (error: any) {

@@ -1060,9 +1060,15 @@ async function closeAllPositions(reason: string): Promise<void> {
     }
     
     for (const pos of activePositions) {
-      const size = Number.parseInt(pos.size || "0");
+      const size = Number.parseFloat(pos.size || "0"); // 修复：使用 parseFloat 而非 parseInt
       const contract = pos.contract;
       const symbol = contract.replace("_USDT", "");
+      
+      // 跳过无效的持仓
+      if (size === 0 || !Number.isFinite(size)) {
+        logger.warn(`跳过无效持仓: ${symbol}, size=${pos.size}`);
+        continue;
+      }
       
       try {
         await exchangeClient.placeOrder({
@@ -1320,6 +1326,13 @@ async function executeTradingDecision() {
       // 执行强制平仓
       if (shouldClose) {
         logger.warn(`【强制平仓】${symbol} ${side} - ${closeReason}`);
+        
+        // 验证持仓数量是否有效
+        if (pos.quantity === 0 || !Number.isFinite(pos.quantity)) {
+          logger.error(`无效的持仓数量: ${symbol}, quantity=${pos.quantity}`);
+          continue;
+        }
+        
         try {
           const contract = `${symbol}_USDT`;
           const size = side === 'long' ? -pos.quantity : pos.quantity;

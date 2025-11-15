@@ -39,6 +39,7 @@ export type { TradingStrategy, StrategyParams, StrategyPromptContext } from "./t
 // ==================== 各策略实现导出 ====================
 export { getUltraShortStrategy, generateUltraShortPrompt } from "./ultraShort";          // 超短线策略
 export { getSwingTrendStrategy, generateSwingTrendPrompt } from "./swingTrend";        // 波段趋势策略
+export { getMediumLongStrategy, generateMediumLongPrompt } from "./mediumLong";        // 中长线策略
 export { getConservativeStrategy, generateConservativePrompt } from "./conservative";  // 稳健策略
 export { getBalancedStrategy, generateBalancedPrompt } from "./balanced";              // 平衡策略
 export { getAggressiveStrategy, generateAggressivePrompt } from "./aggressive";        // 激进策略
@@ -46,10 +47,12 @@ export { getAggressiveTeamStrategy, generateAggressiveTeamPrompt } from "./aggre
 export { getRebateFarmingStrategy, generateRebateFarmingPrompt } from "./rebateFarming";  // 返佣套利策略
 export { getAiAutonomousStrategy, generateAiAutonomousPrompt } from "./aiAutonomous";  // AI自主策略
 export { getMultiAgentConsensusStrategy, generateMultiAgentConsensusPrompt } from "./multiAgentConsensus";  // 多Agent共识策略
+export { getAlphaBetaStrategy, generateAlphaBetaPrompt } from "./alphaBeta";  // Alpha Beta策略
 
 import type { TradingStrategy, StrategyParams, StrategyPromptContext } from "./types";
 import { getUltraShortStrategy, generateUltraShortPrompt } from "./ultraShort";
 import { getSwingTrendStrategy, generateSwingTrendPrompt } from "./swingTrend";
+import { getMediumLongStrategy, generateMediumLongPrompt } from "./mediumLong";
 import { getConservativeStrategy, generateConservativePrompt } from "./conservative";
 import { getBalancedStrategy, generateBalancedPrompt } from "./balanced";
 import { getAggressiveStrategy, generateAggressivePrompt } from "./aggressive";
@@ -57,6 +60,7 @@ import { getAggressiveTeamStrategy, generateAggressiveTeamPrompt } from "./aggre
 import { getRebateFarmingStrategy, generateRebateFarmingPrompt } from "./rebateFarming";
 import { getAiAutonomousStrategy, generateAiAutonomousPrompt } from "./aiAutonomous";
 import { getMultiAgentConsensusStrategy, generateMultiAgentConsensusPrompt } from "./multiAgentConsensus";
+import { getAlphaBetaStrategy, generateAlphaBetaPrompt } from "./alphaBeta";
 
 /**
  * 获取策略参数（基于 MAX_LEVERAGE 动态计算）
@@ -82,6 +86,8 @@ export function getStrategyParams(strategy: TradingStrategy, maxLeverage: number
       return getUltraShortStrategy(maxLeverage);
     case "swing-trend":
       return getSwingTrendStrategy(maxLeverage);
+    case "medium-long":
+      return getMediumLongStrategy(maxLeverage);
     case "conservative":
       return getConservativeStrategy(maxLeverage);
     case "balanced":
@@ -96,6 +102,8 @@ export function getStrategyParams(strategy: TradingStrategy, maxLeverage: number
       return getAiAutonomousStrategy(maxLeverage);
     case "multi-agent-consensus":
       return getMultiAgentConsensusStrategy(maxLeverage);
+    case "alpha-beta":
+      return getAlphaBetaStrategy(maxLeverage);
     default:
       return getAiAutonomousStrategy(maxLeverage);
   }
@@ -144,12 +152,16 @@ export function generateStrategySpecificPrompt(
       return generateUltraShortPrompt(params, context);
     case "swing-trend":
       return generateSwingTrendPrompt(params, context);
+    case "medium-long":
+      return generateMediumLongPrompt(params, context);
     case "rebate-farming":
       return generateRebateFarmingPrompt(params, context);
     case "ai-autonomous":
       return generateAiAutonomousPrompt(params, context);
     case "multi-agent-consensus":
       return generateMultiAgentConsensusPrompt(params, context);
+    case "alpha-beta":
+      return generateAlphaBetaPrompt(params, context);
     default:
       return generateAiAutonomousPrompt(params, context);
   }

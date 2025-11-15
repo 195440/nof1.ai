@@ -75,8 +75,10 @@ export interface IExchangeClient {
 
   /**
    * 获取订单详情
+   * @param orderId 订单ID
+   * @param contract 合约名称（可选，某些交易所如OKX需要此参数）
    */
-  getOrder(orderId: string): Promise<any>;
+  getOrder(orderId: string, contract?: string): Promise<any>;
 
   /**
    * 取消订单
