@@ -338,8 +338,9 @@ export const openPositionTool = createTool({
       // => quantity = (adjustedAmountUsdt * leverage) / (quantoMultiplier * currentPrice)
       let quantity = (adjustedAmountUsdt * leverage) / (quantoMultiplier * currentPrice);
       
-      // 向下取整到整数张数（合约必须是整数）
-      quantity = Math.floor(quantity);
+      // 向上取整到整数张数（合约必须是整数）
+      // 使用 Math.ceil 确保至少开 1 张，避免 size=0 导致下单失败
+      quantity = Math.ceil(quantity);
       
       // 确保数量在允许范围内
       quantity = Math.max(quantity, minSize);
@@ -703,8 +704,20 @@ export const closePositionTool = createTool({
         }
       }
       
-      // 计算平仓数量
-      const closeSize = Math.floor((quantity * percentage) / 100);
+      // 计算平仓数量（向上取整，确保至少平 1 张）
+      let closeSize = Math.ceil((quantity * percentage) / 100);
+      
+      // 确保不超过持仓数量
+      closeSize = Math.min(closeSize, quantity);
+      
+      // 验证平仓数量有效性
+      if (closeSize === 0 || !Number.isFinite(closeSize)) {
+        return {
+          success: false,
+          message: `平仓数量无效: closeSize=${closeSize}, quantity=${quantity}, percentage=${percentage}`,
+        };
+      }
+      
       const size = side === "long" ? -closeSize : closeSize;
       
       //  获取合约乘数用于计算盈亏和手续费

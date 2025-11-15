@@ -192,6 +192,11 @@ export class GateClient {
     stopLoss?: number;
     takeProfit?: number;
   }) {
+    // 验证 size 参数
+    if (params.size === 0 || !Number.isFinite(params.size)) {
+      throw new Error(`Invalid order size: ${params.size}. Size must be a non-zero finite number.`);
+    }
+    
     // 验证并调整数量（在 try 外部定义，以便在 catch 中使用）
     let adjustedSize = params.size;
     
@@ -407,9 +412,12 @@ export class GateClient {
 
   /**
    * 获取订单详情
+   * @param orderId 订单ID
+   * @param contract 合约名称（可选，Gate.io 不需要此参数）
    */
-  async getOrder(orderId: string) {
+  async getOrder(orderId: string, contract?: string) {
     try {
+      // Gate.io API 不需要 contract 参数，忽略该参数
       const result = await this.futuresApi.getFuturesOrder(
         this.settle,
         orderId

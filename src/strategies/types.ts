@@ -19,7 +19,7 @@
 /**
  * 交易策略类型定义
  * 
- * 支持10种交易策略：
+ * 支持11种交易策略：
  * - conservative: 稳健策略，低风险低杠杆
  * - balanced: 平衡策略，中等风险，适合大多数投资者
  * - aggressive: 激进策略，高风险高杠杆
@@ -30,8 +30,9 @@
  * - rebate-farming: 返佣套利策略，2-3分钟执行周期，高频微利交易
  * - ai-autonomous: AI自主策略，完全由AI主导，不提供任何策略建议
  * - multi-agent-consensus: 陪审团策略
+ * - deepseek-alpha: DeepSeek Alpha Arena策略，完全复刻Alpha Arena设计理念
  */
-export type TradingStrategy = "conservative" | "balanced" | "aggressive" | "aggressive-team" | "ultra-short" | "swing-trend" | "medium-long" | "rebate-farming" | "ai-autonomous" | "multi-agent-consensus";
+export type TradingStrategy = "conservative" | "balanced" | "aggressive" | "aggressive-team" | "ultra-short" | "swing-trend" | "medium-long" | "rebate-farming" | "ai-autonomous" | "multi-agent-consensus" | "deepseek-alpha";
 
 /**
  * 策略提示词生成上下文

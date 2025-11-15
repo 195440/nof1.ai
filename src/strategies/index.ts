@@ -47,6 +47,7 @@ export { getAggressiveTeamStrategy, generateAggressiveTeamPrompt } from "./aggre
 export { getRebateFarmingStrategy, generateRebateFarmingPrompt } from "./rebateFarming";  // 返佣套利策略
 export { getAiAutonomousStrategy, generateAiAutonomousPrompt } from "./aiAutonomous";  // AI自主策略
 export { getMultiAgentConsensusStrategy, generateMultiAgentConsensusPrompt } from "./multiAgentConsensus";  // 多Agent共识策略
+export { getDeepSeekAlphaArenaStrategy, generateDeepSeekAlphaArenaPrompt } from "./deepseekAlphaArena";  // DeepSeek Alpha Arena策略
 
 import type { TradingStrategy, StrategyParams, StrategyPromptContext } from "./types";
 import { getUltraShortStrategy, generateUltraShortPrompt } from "./ultraShort";
@@ -59,6 +60,7 @@ import { getAggressiveTeamStrategy, generateAggressiveTeamPrompt } from "./aggre
 import { getRebateFarmingStrategy, generateRebateFarmingPrompt } from "./rebateFarming";
 import { getAiAutonomousStrategy, generateAiAutonomousPrompt } from "./aiAutonomous";
 import { getMultiAgentConsensusStrategy, generateMultiAgentConsensusPrompt } from "./multiAgentConsensus";
+import { getDeepSeekAlphaArenaStrategy, generateDeepSeekAlphaArenaPrompt } from "./deepseekAlphaArena";
 
 /**
  * 获取策略参数（基于 MAX_LEVERAGE 动态计算）
@@ -100,6 +102,8 @@ export function getStrategyParams(strategy: TradingStrategy, maxLeverage: number
       return getAiAutonomousStrategy(maxLeverage);
     case "multi-agent-consensus":
       return getMultiAgentConsensusStrategy(maxLeverage);
+    case "deepseek-alpha":
+      return getDeepSeekAlphaArenaStrategy(maxLeverage);
     default:
       return getAiAutonomousStrategy(maxLeverage);
   }
@@ -156,6 +160,8 @@ export function generateStrategySpecificPrompt(
       return generateAiAutonomousPrompt(params, context);
     case "multi-agent-consensus":
       return generateMultiAgentConsensusPrompt(params, context);
+    case "deepseek-alpha":
+      return generateDeepSeekAlphaArenaPrompt(params, context);
     default:
       return generateAiAutonomousPrompt(params, context);
   }
