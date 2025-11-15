@@ -17,11 +17,11 @@
  */
 
 /**
- * 查询 Gate.io 历史仓位记录
+ * 查询交易所历史仓位记录
  * 用于输出账号合约的历史仓位记录
  */
 
-import { createGateClient } from "../src/services/gateClient.js";
+import { createExchangeClient, getExchangeType } from "../src/services/exchangeClient.js";
 import { createLogger } from "../src/utils/loggerUtils";
 
 const logger = createLogger({
@@ -31,15 +31,18 @@ const logger = createLogger({
 
 async function queryPositionHistory() {
   try {
-    const gateClient = createGateClient();
+    const exchangeType = getExchangeType();
+    const exchangeName = exchangeType === "okx" ? "OKX" : "Gate.io";
+    
+    const exchangeClient = createExchangeClient();
     
     logger.info("=".repeat(80));
-    logger.info("开始查询历史仓位记录...");
+    logger.info(`开始查询 ${exchangeName} 历史仓位记录...`);
     logger.info("=".repeat(80));
     
     // 查询历史仓位记录（已平仓的仓位）
     logger.info("\n查询历史仓位记录（已平仓的仓位结算记录）...");
-    const positionHistory = await gateClient.getPositionHistory(undefined, 50);
+    const positionHistory = await exchangeClient.getPositionHistory(undefined, 50);
     
     if (positionHistory && positionHistory.length > 0) {
       logger.info(`找到 ${positionHistory.length} 条历史仓位记录:\n`);
@@ -61,7 +64,7 @@ async function queryPositionHistory() {
     
     // 查询历史结算记录（更详细的信息）
     logger.info("\n查询历史结算记录（更详细的历史仓位信息）...");
-    const settlementHistory = await gateClient.getSettlementHistory(undefined, 50);
+    const settlementHistory = await exchangeClient.getSettlementHistory(undefined, 50);
     
     if (settlementHistory && settlementHistory.length > 0) {
       logger.info(`找到 ${settlementHistory.length} 条历史结算记录:\n`);

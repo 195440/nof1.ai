@@ -20,31 +20,35 @@
  * 检查交易记录和持仓状态的一致性
  */
 import { createClient } from "@libsql/client";
-import { createGateClient } from "../src/services/gateClient";
+import { createExchangeClient, getExchangeType } from "../src/services/exchangeClient";
 
 const dbClient = createClient({
   url: process.env.DATABASE_URL || "file:./.voltagent/trading.db",
 });
 
 async function checkConsistency() {
+  const exchangeType = getExchangeType();
+  const exchangeName = exchangeType === "okx" ? "OKX" : "Gate.io";
+  
   console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
   console.log("📊 检查交易记录与持仓状态一致性");
+  console.log(`当前交易所: ${exchangeName}`);
   console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n");
 
-  const gateClient = createGateClient();
+  const exchangeClient = createExchangeClient();
 
   try {
-    // 1. 从 Gate.io 获取实际持仓
-    console.log("🔍 步骤1: 获取 Gate.io 实际持仓...");
-    const gatePositions = await gateClient.getPositions();
-    const activeGatePositions = gatePositions.filter(
+    // 1. 从交易所获取实际持仓
+    console.log(`🔍 步骤1: 获取 ${exchangeName} 实际持仓...`);
+    const exchangePositions = await exchangeClient.getPositions();
+    const activeExchangePositions = exchangePositions.filter(
       (p: any) => Number.parseInt(p.size || "0") !== 0
     );
 
-    console.log(`   ✅ Gate.io 当前持仓数: ${activeGatePositions.length}\n`);
+    console.log(`   ✅ ${exchangeName} 当前持仓数: ${activeExchangePositions.length}\n`);
 
-    if (activeGatePositions.length > 0) {
-      for (const pos of activeGatePositions) {
+    if (activeExchangePositions.length > 0) {
+      for (const pos of activeExchangePositions) {
         const size = Number.parseInt(pos.size || "0");
         const symbol = pos.contract.replace("_USDT", "");
         const side = size > 0 ? "long" : "short";
@@ -61,7 +65,7 @@ async function checkConsistency() {
         console.log(`      当前价: ${markPrice.toFixed(4)}`);
         console.log(`      杠杆: ${leverage}x`);
         console.log(`      未实现盈亏: ${pnl >= 0 ? "+" : ""}${pnl.toFixed(2)} USDT`);
-        console.log(`      Gate.io size值: ${size} (${size > 0 ? "正数=做多" : "负数=做空"})\n`);
+        console.log(`      ${exchangeName} size值: ${size} (${size > 0 ? "正数=做多" : "负数=做空"})\n`);
       }
     }
 
@@ -85,52 +89,52 @@ async function checkConsistency() {
     }
 
     // 3. 对比一致性
-    console.log("🔍 步骤3: 对比 Gate.io 与数据库持仓一致性...\n");
+    console.log(`🔍 步骤3: 对比 ${exchangeName} 与数据库持仓一致性...\n`);
 
-    const gateSymbols = new Set(
-      activeGatePositions.map((p: any) => p.contract.replace("_USDT", ""))
+    const exchangeSymbols = new Set(
+      activeExchangePositions.map((p: any) => p.contract.replace("_USDT", ""))
     );
     const dbSymbols = new Set(
       dbPositions.rows.map((row: any) => row.symbol)
     );
 
-    // 检查 Gate.io 有但数据库没有的
-    const missingInDb = Array.from(gateSymbols).filter(s => !dbSymbols.has(s));
+    // 检查交易所有但数据库没有的
+    const missingInDb = Array.from(exchangeSymbols).filter(s => !dbSymbols.has(s));
     if (missingInDb.length > 0) {
-      console.log(`   ⚠️ Gate.io 有但数据库缺失的持仓: ${missingInDb.join(", ")}`);
+      console.log(`   ⚠️ ${exchangeName} 有但数据库缺失的持仓: ${missingInDb.join(", ")}`);
     }
 
-    // 检查数据库有但 Gate.io 没有的
-    const missingInGate = Array.from(dbSymbols).filter(s => !gateSymbols.has(s));
-    if (missingInGate.length > 0) {
-      console.log(`   ⚠️ 数据库有但 Gate.io 已平仓的持仓: ${missingInGate.join(", ")}`);
+    // 检查数据库有但交易所没有的
+    const missingInExchange = Array.from(dbSymbols).filter(s => !exchangeSymbols.has(s));
+    if (missingInExchange.length > 0) {
+      console.log(`   ⚠️ 数据库有但 ${exchangeName} 已平仓的持仓: ${missingInExchange.join(", ")}`);
     }
 
     // 检查两边都有的，对比详细信息
-    const commonSymbols = Array.from(gateSymbols).filter(s => dbSymbols.has(s));
+    const commonSymbols = Array.from(exchangeSymbols).filter(s => dbSymbols.has(s));
     for (const symbol of commonSymbols) {
-      const gatePos = activeGatePositions.find(
+      const exchangePos = activeExchangePositions.find(
         (p: any) => p.contract.replace("_USDT", "") === symbol
       );
       const dbPos = dbPositions.rows.find(
         (row: any) => row.symbol === symbol
       ) as any;
 
-      const gateSize = Number.parseInt(gatePos.size || "0");
-      const gateSide = gateSize > 0 ? "long" : "short";
-      const gateQuantity = Math.abs(gateSize);
+      const exchangeSize = Number.parseInt(exchangePos.size || "0");
+      const exchangeSide = exchangeSize > 0 ? "long" : "short";
+      const exchangeQuantity = Math.abs(exchangeSize);
 
       const inconsistencies: string[] = [];
 
-      if (gateSide !== dbPos.side) {
+      if (exchangeSide !== dbPos.side) {
         inconsistencies.push(
-          `方向不一致: Gate=${gateSide}, DB=${dbPos.side}`
+          `方向不一致: ${exchangeName}=${exchangeSide}, DB=${dbPos.side}`
         );
       }
 
-      if (gateQuantity !== dbPos.quantity) {
+      if (exchangeQuantity !== dbPos.quantity) {
         inconsistencies.push(
-          `数量不一致: Gate=${gateQuantity}, DB=${dbPos.quantity}`
+          `数量不一致: ${exchangeName}=${exchangeQuantity}, DB=${dbPos.quantity}`
         );
       }
 
@@ -211,7 +215,7 @@ async function checkConsistency() {
     console.log("   - trades表中的 side 字段表示持仓方向（long=做多, short=做空）");
     console.log("   - 开仓记录: side=持仓方向，实际执行=long时买入(+size)，short时卖出(-size)");
     console.log("   - 平仓记录: side=原持仓方向，实际执行=long时卖出(-size)，short时买入(+size)");
-    console.log("   - Gate.io的size字段: 正数=做多，负数=做空\n");
+    console.log(`   - ${exchangeName}的size字段: 正数=做多，负数=做空\n`);
 
   } catch (error) {
     console.error("❌ 检查失败:", error);

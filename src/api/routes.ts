@@ -65,8 +65,8 @@ export function createApiRoutes() {
    */
   app.get("/api/account", async (c) => {
     try {
-      const gateClient = createExchangeClient();
-      const account = await gateClient.getFuturesAccount();
+      const exchangeClient = createExchangeClient();
+      const account = await exchangeClient.getFuturesAccount();
       
       // 从数据库获取初始资金
       const initialResult = await dbClient.execute(
@@ -104,8 +104,8 @@ export function createApiRoutes() {
    */
   app.get("/api/positions", async (c) => {
     try {
-      const gateClient = createExchangeClient();
-      const gatePositions = await gateClient.getPositions();
+      const exchangeClient = createExchangeClient();
+      const gatePositions = await exchangeClient.getPositions();
       
       // 从数据库获取止损止盈信息
       const dbResult = await dbClient.execute("SELECT symbol, stop_loss, profit_target FROM positions");
@@ -333,7 +333,7 @@ export function createApiRoutes() {
       const symbolsParam = c.req.query("symbols") || "BTC,ETH,SOL,BNB,DOGE,XRP";
       const symbols = symbolsParam.split(",").map(s => s.trim());
       
-      const gateClient = createExchangeClient();
+      const exchangeClient = createExchangeClient();
       const prices: Record<string, number> = {};
       
       // 并发获取所有币种价格
@@ -341,7 +341,7 @@ export function createApiRoutes() {
         symbols.map(async (symbol) => {
           try {
             const contract = `${symbol}_USDT`;
-            const ticker = await gateClient.getFuturesTicker(contract);
+            const ticker = await exchangeClient.getFuturesTicker(contract);
             prices[symbol] = Number.parseFloat(ticker.last || "0");
           } catch (error: any) {
             logger.error(`获取 ${symbol} 价格失败:`, error);
@@ -428,11 +428,11 @@ export function createApiRoutes() {
       
       logger.info(`开始手动平仓: ${symbol}`);
       
-      const gateClient = createExchangeClient();
+      const exchangeClient = createExchangeClient();
       const contract = `${symbol}_USDT`;
       
       // 获取当前持仓
-      const allPositions = await gateClient.getPositions();
+      const allPositions = await exchangeClient.getPositions();
       const gatePosition = allPositions.find((p: any) => 
         p.contract === contract && Number.parseInt(p.size || "0") !== 0
       );
@@ -475,7 +475,7 @@ export function createApiRoutes() {
       
       // 执行平仓
       const closeSize = side === "long" ? -quantity : quantity;
-      const order = await gateClient.placeOrder({
+      const order = await exchangeClient.placeOrder({
         contract,
         size: closeSize,
         price: 0,  // 市价单
@@ -493,7 +493,7 @@ export function createApiRoutes() {
       
       if (order.id) {
         try {
-          const orderInfo = await gateClient.getOrder(order.id);
+          const orderInfo = await exchangeClient.getOrder(order.id);
           if (orderInfo.status === "finished") {
             actualExitPrice = Number.parseFloat(orderInfo.fillPrice || orderInfo.price || currentPrice.toString());
             orderStatus = "filled";

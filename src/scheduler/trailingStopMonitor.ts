@@ -215,7 +215,7 @@ function calculatePnlPercent(entryPrice: number, currentPrice: number, side: str
  * 如果价格为0或盈亏不正确，从开仓记录重新计算
  */
 async function fixTrailingStopTradeRecord(symbol: string): Promise<void> {
-  const gateClient = createExchangeClient();
+  const exchangeClient = createExchangeClient();
   
   try {
     // 查找最近的平仓记录
@@ -256,7 +256,7 @@ async function fixTrailingStopTradeRecord(symbol: string): Promise<void> {
     if (closePrice === 0 || !Number.isFinite(closePrice)) {
       try {
         const contract = `${symbol}_USDT`;
-        const ticker = await gateClient.getFuturesTicker(contract);
+        const ticker = await exchangeClient.getFuturesTicker(contract);
         closePrice = Number.parseFloat(ticker.last || ticker.markPrice || "0");
         
         if (closePrice > 0) {
@@ -331,7 +331,7 @@ async function executeTrailingStopClose(
   drawdownThreshold: number,
   stage: string
 ): Promise<boolean> {
-  const gateClient = createExchangeClient();
+  const exchangeClient = createExchangeClient();
   const contract = `${symbol}_USDT`;
   
   try {
@@ -343,7 +343,7 @@ async function executeTrailingStopClose(
     logger.warn(`  回撤幅度: ${drawdownPercent.toFixed(2)}% (阈值: ${drawdownThreshold.toFixed(2)}%)`);
     
     // 1. 执行平仓订单
-    const order = await gateClient.placeOrder({
+    const order = await exchangeClient.placeOrder({
       contract,
       size,
       price: 0,
@@ -367,7 +367,7 @@ async function executeTrailingStopClose(
         await new Promise(resolve => setTimeout(resolve, 500));
         
         try {
-          const orderStatus = await gateClient.getOrder(order.id?.toString() || "");
+          const orderStatus = await exchangeClient.getOrder(order.id?.toString() || "");
           
           if (orderStatus.status === 'finished') {
             const fillPrice = Number.parseFloat(orderStatus.fill_price || orderStatus.price || "0");
@@ -389,7 +389,7 @@ async function executeTrailingStopClose(
     // 如果未能从订单获取价格，使用ticker价格
     if (actualExitPrice === 0) {
       try {
-        const ticker = await gateClient.getFuturesTicker(contract);
+        const ticker = await exchangeClient.getFuturesTicker(contract);
         actualExitPrice = Number.parseFloat(ticker.last || ticker.markPrice || "0");
         
         if (actualExitPrice > 0) {
@@ -515,7 +515,7 @@ async function checkPeakPnlAndTrailingStop(autoCloseEnabled: boolean) {
   }
   
   try {
-    const gateClient = createExchangeClient();
+    const exchangeClient = createExchangeClient();
     const now = Date.now();
     
     // 1. ===== 账户净值峰值监控（所有策略共享）=====
@@ -524,7 +524,7 @@ async function checkPeakPnlAndTrailingStop(autoCloseEnabled: boolean) {
       accountCheckCount++;
       
       // 获取账户信息
-      const account = await gateClient.getFuturesAccount();
+      const account = await exchangeClient.getFuturesAccount();
       const accountTotal = Number.parseFloat(account.total || "0");
       const unrealisedPnl = Number.parseFloat(account.unrealisedPnl || "0");
       const totalBalance = accountTotal + unrealisedPnl; // 包含未实现盈亏的真实总资产
@@ -571,7 +571,7 @@ async function checkPeakPnlAndTrailingStop(autoCloseEnabled: boolean) {
     }
     
     // 2. 获取所有持仓
-    const gatePositions = await gateClient.getPositions();
+    const gatePositions = await exchangeClient.getPositions();
     const activePositions = gatePositions.filter((p: any) => Number.parseInt(p.size || "0") !== 0);
     
     if (activePositions.length === 0) {

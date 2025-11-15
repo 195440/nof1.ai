@@ -127,10 +127,19 @@ SYNC_CONFIG_ON_STARTUP=true             # 启动时同步配置
 # 数据库
 DATABASE_URL=file:./.voltagent/trading.db
 
+# 交易所选择（gate/okx，默认: gate）
+EXCHANGE=gate
+
 # Gate.io API 凭证(建议先使用测试网!)
 GATE_API_KEY=your_api_key_here
 GATE_API_SECRET=your_api_secret_here
 GATE_USE_TESTNET=true
+
+# OKX API 凭证（当 EXCHANGE=okx 时需要配置）
+OKX_API_KEY=
+OKX_API_SECRET=
+OKX_API_PASSPHRASE=
+OKX_USE_TESTNET=true
 
 # 手动平仓密码（用于网页界面平仓功能）
 CLOSE_POSITION_PASSWORD=
@@ -181,11 +190,28 @@ ACCOUNT_RECORD_INTERVAL_MINUTES=1            # 账户记录间隔
 **数据库配置：**
 - `DATABASE_URL`: 数据库文件路径，存储交易记录和决策日志
 
-**API 配置：**
+**交易所配置：**
+- `EXCHANGE`: 选择使用的交易所（`gate` 或 `okx`，默认: `gate`）
+  - 设置为 `gate` 使用 Gate.io 交易所
+  - 设置为 `okx` 使用 OKX 交易所
+
+**Gate.io API 配置：**
+- `GATE_API_KEY`: Gate.io API 密钥
+- `GATE_API_SECRET`: Gate.io API 密钥
 - `GATE_USE_TESTNET`: 设置为 `true` 使用测试网，`false` 使用正式网
+
+**OKX API 配置：**
+- `OKX_API_KEY`: OKX API 密钥（当 `EXCHANGE=okx` 时必需）
+- `OKX_API_SECRET`: OKX API 密钥（当 `EXCHANGE=okx` 时必需）
+- `OKX_API_PASSPHRASE`: OKX API 口令（当 `EXCHANGE=okx` 时必需）
+- `OKX_USE_TESTNET`: 设置为 `true` 使用测试网，`false` 使用正式网
+
+**其他 API 配置：**
 - `CLOSE_POSITION_PASSWORD`: 网页界面手动平仓的安全密码
 
-> ⚠️ **重要**：首次使用请务必设置 `GATE_USE_TESTNET=true` 在测试网环境测试！
+> ⚠️ **重要**：
+> - 首次使用请务必在测试网环境测试（`GATE_USE_TESTNET=true` 或 `OKX_USE_TESTNET=true`）！
+> - 切换交易所时，请确保配置对应交易所的 API 密钥
 
 ### 第五步：数据库初始化
 

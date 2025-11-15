@@ -41,7 +41,7 @@
 
 import { createLogger } from "../utils/loggerUtils";
 import { createClient } from "@libsql/client";
-import { createGateClient } from "../services/gateClient";
+import { createExchangeClient } from "../services/exchangeClient";
 import { getChinaTimeISO } from "../utils/timeUtils";
 import { getQuantoMultiplier } from "../utils/contractUtils";
 import { getTradingStrategy, getStrategyParams } from "../agents/tradingAgent";
@@ -133,7 +133,7 @@ async function executePartialClose(
   totalClosedPercent: number,
   stage: string
 ): Promise<boolean> {
-  const gateClient = createGateClient();
+  const exchangeClient = createExchangeClient();
   const contract = `${symbol}_USDT`;
   
   try {
@@ -165,7 +165,7 @@ async function executePartialClose(
     logger.warn(`  累计平仓: ${totalClosedPercent}%`);
     
     // 1. 执行平仓订单
-    const order = await gateClient.placeOrder({
+    const order = await exchangeClient.placeOrder({
       contract,
       size,
       price: 0,
@@ -189,7 +189,7 @@ async function executePartialClose(
         await new Promise(resolve => setTimeout(resolve, 500));
         
         try {
-          const orderStatus = await gateClient.getOrder(order.id?.toString() || "");
+          const orderStatus = await exchangeClient.getOrder(order.id?.toString() || "");
           
           if (orderStatus.status === 'finished') {
             const fillPrice = Number.parseFloat(orderStatus.fill_price || orderStatus.price || "0");
@@ -211,7 +211,7 @@ async function executePartialClose(
     // 如果未能从订单获取价格，使用ticker价格
     if (actualExitPrice === 0) {
       try {
-        const ticker = await gateClient.getFuturesTicker(contract);
+        const ticker = await exchangeClient.getFuturesTicker(contract);
         actualExitPrice = Number.parseFloat(ticker.last || ticker.markPrice || "0");
         
         if (actualExitPrice > 0) {
@@ -380,10 +380,10 @@ async function checkPartialProfitConditions() {
   }
   
   try {
-    const gateClient = createGateClient();
+    const exchangeClient = createExchangeClient();
     
     // 1. 获取所有持仓
-    const gatePositions = await gateClient.getPositions();
+    const gatePositions = await exchangeClient.getPositions();
     const activePositions = gatePositions.filter((p: any) => Number.parseInt(p.size || "0") !== 0);
     
     if (activePositions.length === 0) {

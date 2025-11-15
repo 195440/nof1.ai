@@ -7,7 +7,7 @@
 
 import "dotenv/config";
 import { createClient } from "@libsql/client";
-import { createGateClient } from "../src/services/gateClient";
+import { createExchangeClient } from "../src/services/exchangeClient";
 import { getQuantoMultiplier } from "../src/utils/contractUtils";
 
 const dbClient = createClient({
@@ -15,7 +15,7 @@ const dbClient = createClient({
 });
 
 async function fixTrailingStopRecords() {
-  const gateClient = createGateClient();
+  const exchangeClient = createExchangeClient();
   
   try {
     console.log("开始修复移动止盈交易记录...\n");
@@ -66,7 +66,7 @@ async function fixTrailingStopRecords() {
         let closePrice = 0;
         
         try {
-          const ticker = await gateClient.getFuturesTicker(contract);
+          const ticker = await exchangeClient.getFuturesTicker(contract);
           closePrice = Number.parseFloat(ticker.last || ticker.markPrice || "0");
         } catch (error) {
           console.log(`  ❌ 无法获取ticker价格，跳过`);

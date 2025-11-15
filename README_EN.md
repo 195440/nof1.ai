@@ -184,10 +184,19 @@ SYNC_CONFIG_ON_STARTUP=true             # Sync config on startup
 # Database
 DATABASE_URL=file:./.voltagent/trading.db
 
+# Exchange Selection (gate/okx, default: gate)
+EXCHANGE=gate
+
 # Gate.io API Credentials (use testnet first!)
 GATE_API_KEY=your_api_key_here
 GATE_API_SECRET=your_api_secret_here
 GATE_USE_TESTNET=true
+
+# OKX API Credentials (required when EXCHANGE=okx)
+OKX_API_KEY=
+OKX_API_SECRET=
+OKX_API_PASSPHRASE=
+OKX_USE_TESTNET=true
 
 # Manual Close Position Password (for web interface)
 CLOSE_POSITION_PASSWORD=
@@ -318,9 +327,14 @@ nof1.ai/
 | `ACCOUNT_TAKE_PROFIT_USDT` | Account take profit line (USDT) | 20000 | No |
 | `SYNC_CONFIG_ON_STARTUP` | Sync config on startup | true | No |
 | `DATABASE_URL` | SQLite database file path | file:./.voltagent/trading.db | No |
-| `GATE_API_KEY` | Gate.io API key | - | Yes |
-| `GATE_API_SECRET` | Gate.io API secret | - | Yes |
-| `GATE_USE_TESTNET` | Use testnet environment | true | No |
+| `EXCHANGE` | Exchange to use (`gate`/`okx`) | gate | No |
+| `GATE_API_KEY` | Gate.io API key | - | Yes (when EXCHANGE=gate) |
+| `GATE_API_SECRET` | Gate.io API secret | - | Yes (when EXCHANGE=gate) |
+| `GATE_USE_TESTNET` | Use Gate.io testnet environment | true | No |
+| `OKX_API_KEY` | OKX API key | - | Yes (when EXCHANGE=okx) |
+| `OKX_API_SECRET` | OKX API secret | - | Yes (when EXCHANGE=okx) |
+| `OKX_API_PASSPHRASE` | OKX API passphrase | - | Yes (when EXCHANGE=okx) |
+| `OKX_USE_TESTNET` | Use OKX testnet environment | true | No |
 | `CLOSE_POSITION_PASSWORD` | Password for manual close position in web interface | - | Yes |
 | `OPENAI_API_KEY` | OpenAI compatible API key | - | Yes |
 | `OPENAI_BASE_URL` | API base URL | https://openrouter.ai/api/v1 | No |
@@ -787,10 +801,18 @@ cp .voltagent/trading.db "$backup_dir/trading-$(date +%Y%m%d-%H%M%S).db"
 # 2. Edit .env file
 nano .env
 
-# 3. Update configuration
+# 3. Update configuration for Gate.io
+EXCHANGE=gate
 GATE_USE_TESTNET=false
 GATE_API_KEY=your_mainnet_api_key
 GATE_API_SECRET=your_mainnet_api_secret
+
+# Or update configuration for OKX
+EXCHANGE=okx
+OKX_USE_TESTNET=false
+OKX_API_KEY=your_okx_mainnet_api_key
+OKX_API_SECRET=your_okx_mainnet_api_secret
+OKX_API_PASSPHRASE=your_okx_passphrase
 
 # 4. Restart system
 npm run trading:start

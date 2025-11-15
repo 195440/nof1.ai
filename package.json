@@ -38,7 +38,7 @@
     "db:reset": "tsx --env-file=.env ./src/database/reset.ts",
     "db:close-and-reset": "bash scripts/close-reset-and-start.sh",
     "db:status": "bash scripts/db-status.sh",
-    "db:sync": "bash scripts/sync-from-gate.sh",
+    "db:sync": "bash scripts/sync-from-exchange.sh",
     "db:sync-positions": "bash scripts/sync-positions.sh",
     "db:check-consistency": "tsx --env-file=.env ./scripts/check-consistency.ts",
     "db:migrate:peak-pnl": "tsx --env-file=.env ./src/database/add-peak-pnl-column.ts",

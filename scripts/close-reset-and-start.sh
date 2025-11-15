@@ -89,8 +89,16 @@ echo -e "${GREEN}✓${NC} 找到 .env 文件"
 # 读取环境变量
 source .env
 
+# 读取配置的交易所
+EXCHANGE=${EXCHANGE:-gate}
+EXCHANGE=$(echo "$EXCHANGE" | tr '[:upper:]' '[:lower:]')
+
 # 检查必需的环境变量
-REQUIRED_VARS=("GATE_API_KEY" "GATE_API_SECRET" "OPENAI_API_KEY")
+if [ "$EXCHANGE" = "okx" ]; then
+    REQUIRED_VARS=("OKX_API_KEY" "OKX_API_SECRET" "OKX_API_PASSPHRASE" "OPENAI_API_KEY")
+else
+    REQUIRED_VARS=("GATE_API_KEY" "GATE_API_SECRET" "OPENAI_API_KEY")
+fi
 MISSING_VARS=()
 
 for var in "${REQUIRED_VARS[@]}"; do
@@ -105,17 +113,33 @@ if [ ${#MISSING_VARS[@]} -gt 0 ]; then
         echo "   - $var"
     done
     echo ""
-    echo "请在 .env 文件中配置这些变量"
+    if [ "$EXCHANGE" = "okx" ]; then
+        echo "请在 .env 文件中配置 OKX API 密钥"
+    else
+        echo "请在 .env 文件中配置 Gate.io API 密钥"
+    fi
     exit 1
 fi
 
 echo -e "${GREEN}✓${NC} 环境变量检查通过"
 
-# 检查是否使用测试网
-if grep -q "GATE_USE_TESTNET=true" .env; then
-    echo -e "${GREEN}✓${NC} 当前配置: 测试网模式（推荐）"
+# 显示配置的交易所
+if [ "$EXCHANGE" = "okx" ]; then
+    echo -e "${BLUE}📊${NC} 当前交易所: OKX"
+    # 检查是否使用测试网
+    if grep -q "OKX_USE_TESTNET=true" .env; then
+        echo -e "${GREEN}✓${NC} 当前配置: 测试网模式（推荐）"
+    else
+        echo -e "${YELLOW}⚠${NC} 当前配置: 正式网模式"
+    fi
 else
-    echo -e "${YELLOW}⚠${NC} 当前配置: 正式网模式"
+    echo -e "${BLUE}📊${NC} 当前交易所: Gate.io"
+    # 检查是否使用测试网
+    if grep -q "GATE_USE_TESTNET=true" .env; then
+        echo -e "${GREEN}✓${NC} 当前配置: 测试网模式（推荐）"
+    else
+        echo -e "${YELLOW}⚠${NC} 当前配置: 正式网模式"
+    fi
 fi
 echo ""
 
@@ -128,7 +152,7 @@ echo "  3. 删除所有历史交易记录"
 echo "  4. 删除所有持仓信息"
 echo "  5. 删除所有账户历史"
 echo "  6. 重新初始化数据库"
-echo "  7. 从 Gate.io 同步持仓数据"
+echo "  7. 从交易所同步持仓数据"
 echo ""
 echo -e "${RED}此操作不可恢复！${NC}"
 echo ""
@@ -207,11 +231,21 @@ echo ""
 echo "⚙️  步骤 5/7：显示当前配置..."
 echo ""
 
-# 检查是否使用测试网
-if grep -q "GATE_USE_TESTNET=true" .env; then
-    echo -e "${GREEN}✓${NC} 当前配置: 测试网模式（推荐）"
+# 显示交易所配置
+if [ "$EXCHANGE" = "okx" ]; then
+    echo -e "${BLUE}📊${NC} 当前交易所: OKX"
+    if grep -q "OKX_USE_TESTNET=true" .env; then
+        echo -e "${GREEN}✓${NC} 当前配置: 测试网模式（推荐）"
+    else
+        echo -e "${YELLOW}⚠${NC} 当前配置: 正式网模式"
+    fi
 else
-    echo -e "${YELLOW}⚠${NC} 当前配置: 正式网模式"
+    echo -e "${BLUE}📊${NC} 当前交易所: Gate.io"
+    if grep -q "GATE_USE_TESTNET=true" .env; then
+        echo -e "${GREEN}✓${NC} 当前配置: 测试网模式（推荐）"
+    else
+        echo -e "${YELLOW}⚠${NC} 当前配置: 正式网模式"
+    fi
 fi
 
 # 显示初始资金
@@ -246,7 +280,7 @@ echo -e "${YELLOW}系统已完成以下操作：${NC}"
 echo "  ✓ 已停止所有运行中的进程"
 echo "  ✓ 已平仓所有持仓"
 echo "  ✓ 已重置数据库到初始状态"
-echo "  ✓ 已从 Gate.io 同步持仓数据"
+echo "  ✓ 已从交易所同步持仓数据"
 echo ""
 echo -e "${BLUE}如需启动交易系统，请运行：${NC}"
 echo "  npm run trading:start"

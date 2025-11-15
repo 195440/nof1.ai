@@ -74,7 +74,7 @@ function ensureRange(value: number, min: number, max: number, defaultValue?: num
  * 优化：增加数据验证和错误处理，返回时序数据用于提示词
  */
 async function collectMarketData() {
-  const gateClient = createExchangeClient();
+  const exchangeClient = createExchangeClient();
   const marketData: Record<string, any> = {};
 
   for (const symbol of SYMBOLS) {
@@ -88,7 +88,7 @@ async function collectMarketData() {
       
       while (retryCount <= maxRetries) {
         try {
-          ticker = await gateClient.getFuturesTicker(contract);
+          ticker = await exchangeClient.getFuturesTicker(contract);
           
           // 验证价格数据有效性
           const price = Number.parseFloat(ticker.last || "0");
@@ -109,12 +109,12 @@ async function collectMarketData() {
       }
       
       // 获取所有时间框架的K线数据（优化后的配置，确保技术指标准确性）
-      const candles1m = await gateClient.getFuturesCandles(contract, "1m", 150);   // 2.5小时，EMA50有充足验证数据
-      const candles3m = await gateClient.getFuturesCandles(contract, "3m", 120);   // 6小时，覆盖半个交易日
-      const candles5m = await gateClient.getFuturesCandles(contract, "5m", 100);   // 8.3小时，日内趋势分析
-      const candles15m = await gateClient.getFuturesCandles(contract, "15m", 96);  // 24小时，完整一天
-      const candles30m = await gateClient.getFuturesCandles(contract, "30m", 120); // 2.5天，中期趋势
-      const candles1h = await gateClient.getFuturesCandles(contract, "1h", 168);   // 7天完整一周，周级别分析
+      const candles1m = await exchangeClient.getFuturesCandles(contract, "1m", 150);   // 2.5小时，EMA50有充足验证数据
+      const candles3m = await exchangeClient.getFuturesCandles(contract, "3m", 120);   // 6小时，覆盖半个交易日
+      const candles5m = await exchangeClient.getFuturesCandles(contract, "5m", 100);   // 8.3小时，日内趋势分析
+      const candles15m = await exchangeClient.getFuturesCandles(contract, "15m", 96);  // 24小时，完整一天
+      const candles30m = await exchangeClient.getFuturesCandles(contract, "30m", 120); // 2.5天，中期趋势
+      const candles1h = await exchangeClient.getFuturesCandles(contract, "1h", 168);   // 7天完整一周，周级别分析
       
       // 计算每个时间框架的指标
       const indicators1m = calculateIndicators(candles1m);
@@ -170,7 +170,7 @@ async function collectMarketData() {
       // 获取资金费率
       let fundingRate = 0;
       try {
-        const fr = await gateClient.getFundingRate(contract);
+        const fr = await exchangeClient.getFundingRate(contract);
         fundingRate = Number.parseFloat(fr.r || "0");
         if (!Number.isFinite(fundingRate)) {
           fundingRate = 0;
@@ -579,10 +579,10 @@ async function calculateSharpeRatio(): Promise<number> {
  * - 前端显示时需加上 unrealisedPnl
  */
 async function getAccountInfo() {
-  const gateClient = createExchangeClient();
+  const exchangeClient = createExchangeClient();
   
   try {
-    const account = await gateClient.getFuturesAccount();
+    const account = await exchangeClient.getFuturesAccount();
     
     // 从数据库获取初始资金
     const initialResult = await dbClient.execute(
@@ -648,11 +648,11 @@ async function getAccountInfo() {
  * 实时持仓数据应该直接从 Gate.io 获取
  */
 async function syncPositionsFromGate(cachedPositions?: any[]) {
-  const gateClient = createExchangeClient();
+  const exchangeClient = createExchangeClient();
   
   try {
     // 如果提供了缓存数据，使用缓存；否则重新获取
-    const gatePositions = cachedPositions || await gateClient.getPositions();
+    const gatePositions = cachedPositions || await exchangeClient.getPositions();
     const dbResult = await dbClient.execute("SELECT symbol, sl_order_id, tp_order_id, stop_loss, profit_target, entry_order_id, opened_at, peak_pnl_percent, partial_close_percentage FROM positions");
     const dbPositionsMap = new Map(
       dbResult.rows.map((row: any) => [row.symbol, row])
@@ -686,7 +686,7 @@ async function syncPositionsFromGate(cachedPositions?: any[]) {
       
       if (entryPrice === 0 || currentPrice === 0) {
         try {
-          const ticker = await gateClient.getFuturesTicker(pos.contract);
+          const ticker = await exchangeClient.getFuturesTicker(pos.contract);
           if (currentPrice === 0) {
             currentPrice = Number.parseFloat(ticker.markPrice || ticker.last || "0");
           }
@@ -753,11 +753,11 @@ async function syncPositionsFromGate(cachedPositions?: any[]) {
  * @returns 格式化后的持仓数据
  */
 async function getPositions(cachedGatePositions?: any[]) {
-  const gateClient = createExchangeClient();
+  const exchangeClient = createExchangeClient();
   
   try {
     // 如果提供了缓存数据，使用缓存；否则重新获取
-    const gatePositions = cachedGatePositions || await gateClient.getPositions();
+    const gatePositions = cachedGatePositions || await exchangeClient.getPositions();
     
     // 从数据库获取持仓的开仓时间、峰值盈利和杠杆数（数据库中保存了正确的数据）
     const dbResult = await dbClient.execute("SELECT symbol, opened_at, peak_pnl_percent, leverage FROM positions");
@@ -1047,12 +1047,12 @@ async function fixHistoricalPnlRecords() {
  * 清仓所有持仓
  */
 async function closeAllPositions(reason: string): Promise<void> {
-  const gateClient = createExchangeClient();
+  const exchangeClient = createExchangeClient();
   
   try {
     logger.warn(`清仓所有持仓，原因: ${reason}`);
     
-    const positions = await gateClient.getPositions();
+    const positions = await exchangeClient.getPositions();
     const activePositions = positions.filter((p: any) => Number.parseInt(p.size || "0") !== 0);
     
     if (activePositions.length === 0) {
@@ -1065,7 +1065,7 @@ async function closeAllPositions(reason: string): Promise<void> {
       const symbol = contract.replace("_USDT", "");
       
       try {
-        await gateClient.placeOrder({
+        await exchangeClient.placeOrder({
           contract,
           size: -size,
           price: 0, // 市价单必须传 price: 0
@@ -1173,8 +1173,8 @@ async function executeTradingDecision() {
     
     // 3. 同步持仓信息（优化：只调用一次API，避免重复）
     try {
-      const gateClient = createExchangeClient();
-      const rawGatePositions = await gateClient.getPositions();
+      const exchangeClient = createExchangeClient();
+      const rawGatePositions = await exchangeClient.getPositions();
       
       // 添加详细日志：显示原始持仓数据
       logger.info(`Gate.io 原始持仓数据: ${JSON.stringify(rawGatePositions.map((p: any) => ({
@@ -1214,7 +1214,7 @@ async function executeTradingDecision() {
     }
     
     // 4. ====== 强制风控检查（在AI执行前） ======
-    const gateClient = createExchangeClient();
+    const exchangeClient = createExchangeClient();
     
     for (const pos of positions) {
       const symbol = pos.symbol;
@@ -1325,7 +1325,7 @@ async function executeTradingDecision() {
           const size = side === 'long' ? -pos.quantity : pos.quantity;
           
           // 1. 执行平仓订单
-          const order = await gateClient.placeOrder({
+          const order = await exchangeClient.placeOrder({
             contract,
             size,
             price: 0,
@@ -1345,7 +1345,7 @@ async function executeTradingDecision() {
             await new Promise(resolve => setTimeout(resolve, 500));
             
             try {
-              const orderStatus = await gateClient.getOrder(order.id?.toString() || "");
+              const orderStatus = await exchangeClient.getOrder(order.id?.toString() || "");
               
               if (orderStatus.status === 'finished') {
                 actualExitPrice = Number.parseFloat(orderStatus.fill_price || orderStatus.price || "0");
@@ -1632,7 +1632,7 @@ async function executeTradingDecision() {
       });
       
       // Agent 执行后重新同步持仓数据（优化：只调用一次API）
-      const updatedRawPositions = await gateClient.getPositions();
+      const updatedRawPositions = await exchangeClient.getPositions();
       await syncPositionsFromGate(updatedRawPositions);
       const updatedPositions = await getPositions(updatedRawPositions);
       

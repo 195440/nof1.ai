@@ -183,10 +183,19 @@ SYNC_CONFIG_ON_STARTUP=true             # 启动时同步配置
 # 数据库
 DATABASE_URL=file:./.voltagent/trading.db
 
+# 交易所选择（gate/okx，默认: gate）
+EXCHANGE=gate
+
 # Gate.io API 凭证(建议先使用测试网!)
 GATE_API_KEY=your_api_key_here
 GATE_API_SECRET=your_api_secret_here
 GATE_USE_TESTNET=true
+
+# OKX API 凭证（当 EXCHANGE=okx 时需要配置）
+OKX_API_KEY=
+OKX_API_SECRET=
+OKX_API_PASSPHRASE=
+OKX_USE_TESTNET=true
 
 # 手动平仓密码（用于网页界面平仓功能）
 CLOSE_POSITION_PASSWORD=
@@ -317,9 +326,14 @@ nof1.ai/
 | `ACCOUNT_TAKE_PROFIT_USDT` | 账户止盈线(USDT) | 20000 | 否 |
 | `SYNC_CONFIG_ON_STARTUP` | 启动时同步配置 | true | 否 |
 | `DATABASE_URL` | SQLite 数据库文件路径 | file:./.voltagent/trading.db | 否 |
-| `GATE_API_KEY` | Gate.io API 密钥 | - | 是 |
-| `GATE_API_SECRET` | Gate.io API 密钥 | - | 是 |
-| `GATE_USE_TESTNET` | 使用测试网环境 | true | 否 |
+| `EXCHANGE` | 使用的交易所（`gate`/`okx`） | gate | 否 |
+| `GATE_API_KEY` | Gate.io API 密钥 | - | 是（当 EXCHANGE=gate 时） |
+| `GATE_API_SECRET` | Gate.io API 密钥 | - | 是（当 EXCHANGE=gate 时） |
+| `GATE_USE_TESTNET` | 使用 Gate.io 测试网环境 | true | 否 |
+| `OKX_API_KEY` | OKX API 密钥 | - | 是（当 EXCHANGE=okx 时） |
+| `OKX_API_SECRET` | OKX API 密钥 | - | 是（当 EXCHANGE=okx 时） |
+| `OKX_API_PASSPHRASE` | OKX API 口令 | - | 是（当 EXCHANGE=okx 时） |
+| `OKX_USE_TESTNET` | 使用 OKX 测试网环境 | true | 否 |
 | `CLOSE_POSITION_PASSWORD` | 网页界面手动平仓密码 | - | 是 |
 | `OPENAI_API_KEY` | OpenAI 兼容的 API 密钥 | - | 是 |
 | `OPENAI_BASE_URL` | API 基础地址 | https://openrouter.ai/api/v1 | 否 |
@@ -791,10 +805,18 @@ cp .voltagent/trading.db "$backup_dir/trading-$(date +%Y%m%d-%H%M%S).db"
 # 2. 编辑 .env 文件
 nano .env
 
-# 3. 更新配置
+# 3. 更新 Gate.io 配置
+EXCHANGE=gate
 GATE_USE_TESTNET=false
 GATE_API_KEY=your_mainnet_api_key
 GATE_API_SECRET=your_mainnet_api_secret
+
+# 或更新 OKX 配置
+EXCHANGE=okx
+OKX_USE_TESTNET=false
+OKX_API_KEY=your_okx_mainnet_api_key
+OKX_API_SECRET=your_okx_mainnet_api_secret
+OKX_API_PASSPHRASE=your_okx_passphrase
 
 # 4. 重启系统
 npm run trading:start

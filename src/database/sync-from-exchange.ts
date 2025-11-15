@@ -17,24 +17,28 @@
  */
 
 /**
- * 从 Gate.io 同步账户资金并重新初始化数据库
+ * 从交易所同步账户资金并重新初始化数据库
+ * 支持 Gate.io 和 OKX 交易所
  */
 import "dotenv/config";
 import { createClient } from "@libsql/client";
 import { CREATE_TABLES_SQL } from "./schema";
 import { createLogger } from "../utils/loggerUtils";
-import { createExchangeClient } from "../services/exchangeClient";
+import { createExchangeClient, getExchangeType } from "../services/exchangeClient";
 import * as fs from "node:fs";
 import * as path from "node:path";
 
 const logger = createLogger({
-  name: "sync-from-gate",
+  name: "sync-from-exchange",
   level: "info",
 });
 
-async function syncFromGate() {
+async function syncFromExchange() {
   try {
-    logger.info("🔄 从 Gate.io 同步账户信息...");
+    const exchangeType = getExchangeType();
+    const exchangeName = exchangeType === "okx" ? "OKX" : "Gate.io";
+    
+    logger.info(`🔄 从 ${exchangeName} 同步账户信息...`);
     
     // 1. 连接交易所获取当前账户余额
     const exchangeClient = createExchangeClient();
@@ -44,11 +48,11 @@ async function syncFromGate() {
     const availableBalance = Number.parseFloat(account.available || "0");
     const unrealizedPnl = Number.parseFloat(account.unrealisedPnl || "0");
     
-    // Gate.io 的 account.total 不包含未实现盈亏
+    // 交易所的 account.total 可能不包含未实现盈亏（视交易所而定）
     // 真实总资产 = account.total + unrealisedPnl
     const currentBalance = accountTotal + unrealizedPnl;
     
-    logger.info(`\n📊 Gate.io 当前账户状态:`);
+    logger.info(`\n📊 ${exchangeName} 当前账户状态:`);
     logger.info(`   账户余额: ${accountTotal} USDT`);
     logger.info(`   未实现盈亏: ${unrealizedPnl >= 0 ? '+' : ''}${unrealizedPnl} USDT`);
     logger.info(`   总资产(含盈亏): ${currentBalance} USDT`);
@@ -103,7 +107,7 @@ async function syncFromGate() {
     await client.executeMultiple(CREATE_TABLES_SQL);
     logger.info("✅ 表创建完成");
     
-    // 7. 插入初始账户记录（使用 Gate.io 的实际资金）
+    // 7. 插入初始账户记录（使用交易所的实际资金）
     logger.info(`💰 插入初始资金记录: ${currentBalance} USDT`);
     await client.execute({
       sql: `INSERT INTO account_history 
@@ -201,6 +205,7 @@ async function syncFromGate() {
     logger.info(`${"=".repeat(60)}`);
     
     logger.info(`\n📊 新的初始状态:`);
+    logger.info(`   交易所: ${exchangeName}`);
     logger.info(`   总资产: ${currentBalance} USDT`);
     logger.info(`   可用资金: ${availableBalance} USDT`);
     logger.info(`   未实现盈亏: ${unrealizedPnl} USDT`);
@@ -223,5 +228,5 @@ async function syncFromGate() {
 }
 
 // 执行同步
-syncFromGate();
+syncFromExchange();
 

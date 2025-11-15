@@ -18,12 +18,12 @@
 
 /**
  * 快速同步持仓（不重置数据库）
- * 只从 Gate.io 同步持仓到本地数据库
+ * 从交易所同步持仓到本地数据库（支持 Gate.io 和 OKX）
  */
 import "dotenv/config";
 import { createClient } from "@libsql/client";
 import { createLogger } from "../utils/loggerUtils";
-import { createExchangeClient } from "../services/exchangeClient";
+import { createExchangeClient, getExchangeType } from "../services/exchangeClient";
 
 const logger = createLogger({
   name: "sync-positions",
@@ -32,7 +32,9 @@ const logger = createLogger({
 
 async function syncPositionsOnly() {
   try {
-    logger.info("🔄 从 Gate.io 同步持仓...");
+    const exchangeType = getExchangeType();
+    const exchangeName = exchangeType === "okx" ? "OKX" : "Gate.io";
+    logger.info(`🔄 从 ${exchangeName} 同步持仓...`);
     
     // 1. 连接数据库
     const dbUrl = process.env.DATABASE_URL || "file:./.voltagent/trading.db";
@@ -74,12 +76,12 @@ async function syncPositionsOnly() {
       logger.info("✅ 数据库表创建完成");
     }
     
-    // 3. 从 Gate.io 获取持仓
-    const gateClient = createExchangeClient();
-    const positions = await gateClient.getPositions();
+    // 3. 从交易所获取持仓
+    const exchangeClient = createExchangeClient();
+    const positions = await exchangeClient.getPositions();
     const activePositions = positions.filter(p => Number.parseInt(p.size || "0") !== 0);
     
-    logger.info(`\n📊 Gate.io 当前持仓数: ${activePositions.length}`);
+    logger.info(`\n📊 ${exchangeName} 当前持仓数: ${activePositions.length}`);
     
     // 4. 清空本地持仓表
     await client.execute("DELETE FROM positions");

@@ -183,10 +183,19 @@ SYNC_CONFIG_ON_STARTUP=true             # 起動時の設定同期
 # データベース
 DATABASE_URL=file:./.voltagent/trading.db
 
+# 取引所選択（gate/okx、デフォルト: gate）
+EXCHANGE=gate
+
 # Gate.io API 認証情報(テストネットを先に使用することをお勧めします!)
 GATE_API_KEY=your_api_key_here
 GATE_API_SECRET=your_api_secret_here
 GATE_USE_TESTNET=true
+
+# OKX API 認証情報（EXCHANGE=okx の場合に必要）
+OKX_API_KEY=
+OKX_API_SECRET=
+OKX_API_PASSPHRASE=
+OKX_USE_TESTNET=true
 
 # 手動ポジションクローズパスワード（Web インターフェース用）
 CLOSE_POSITION_PASSWORD=
@@ -318,9 +327,14 @@ nof1.ai/
 | `ACCOUNT_TAKE_PROFIT_USDT` | 口座テイクプロフィットライン(USDT) | 20000 | いいえ |
 | `SYNC_CONFIG_ON_STARTUP` | 起動時の設定同期 | true | いいえ |
 | `DATABASE_URL` | SQLite データベースファイルパス | file:./.voltagent/trading.db | いいえ |
-| `GATE_API_KEY` | Gate.io API キー | - | はい |
-| `GATE_API_SECRET` | Gate.io API シークレット | - | はい |
-| `GATE_USE_TESTNET` | テストネット環境を使用 | true | いいえ |
+| `EXCHANGE` | 使用する取引所（`gate`/`okx`） | gate | いいえ |
+| `GATE_API_KEY` | Gate.io API キー | - | はい（EXCHANGE=gate の場合） |
+| `GATE_API_SECRET` | Gate.io API シークレット | - | はい（EXCHANGE=gate の場合） |
+| `GATE_USE_TESTNET` | Gate.io テストネット環境を使用 | true | いいえ |
+| `OKX_API_KEY` | OKX API キー | - | はい（EXCHANGE=okx の場合） |
+| `OKX_API_SECRET` | OKX API シークレット | - | はい（EXCHANGE=okx の場合） |
+| `OKX_API_PASSPHRASE` | OKX API パスフレーズ | - | はい（EXCHANGE=okx の場合） |
+| `OKX_USE_TESTNET` | OKX テストネット環境を使用 | true | いいえ |
 | `CLOSE_POSITION_PASSWORD` | Web インターフェースの手動ポジションクローズパスワード | - | はい |
 | `OPENAI_API_KEY` | OpenAI 互換 API キー | - | はい |
 | `OPENAI_BASE_URL` | API ベース URL | https://openrouter.ai/api/v1 | いいえ |
@@ -788,10 +802,18 @@ cp .voltagent/trading.db "$backup_dir/trading-$(date +%Y%m%d-%H%M%S).db"
 # 2. .env ファイルを編集
 nano .env
 
-# 3. 設定を更新
+# 3. Gate.io 設定を更新
+EXCHANGE=gate
 GATE_USE_TESTNET=false
 GATE_API_KEY=your_mainnet_api_key
 GATE_API_SECRET=your_mainnet_api_secret
+
+# または OKX 設定を更新
+EXCHANGE=okx
+OKX_USE_TESTNET=false
+OKX_API_KEY=your_okx_mainnet_api_key
+OKX_API_SECRET=your_okx_mainnet_api_secret
+OKX_API_PASSPHRASE=your_okx_passphrase
 
 # 4. システムを再起動
 npm run trading:start

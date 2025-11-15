@@ -42,10 +42,10 @@ const dbClient = createClient({
  */
 export async function recordAccountAssets(skipLog: boolean = false) {
   try {
-    const gateClient = createExchangeClient();
+    const exchangeClient = createExchangeClient();
     
     // Get account information from Gate.io
-    const account = await gateClient.getFuturesAccount();
+    const account = await exchangeClient.getFuturesAccount();
     
     // Extract account data
     // Gate.io 的 account.total 不包含未实现盈亏
