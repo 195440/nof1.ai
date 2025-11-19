@@ -91,6 +91,9 @@ export interface StrategyParams {
   /** 最大仓位大小（账户净值百分比），如32表示32% */
   positionSizeMax: number;
   
+  /** 所有持仓总保证金不超过此百分比（可选），如50表示50% */
+  maxTotalMarginPercent?: number;
+  
   /** 推荐仓位配置，根据信号强度选择不同仓位 */
   positionSizeRecommend: {
     /** 普通信号时使用的仓位，如"25-28%" */

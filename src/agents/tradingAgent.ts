@@ -735,7 +735,7 @@ ${isCodeLevelProtectionEnabled ? (allowAiOverride ? `│                        
   // 上一次的AI决策记录（仅供参考，不是当前状态）
   if (recentDecisions && recentDecisions.length > 0) {
     prompt += `\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n`;
-    prompt += `【历史决策记录 - 仅供参考】\n`;
+    prompt += `【历史决策记录开始】\n`;
     prompt += `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n`;
     prompt += `重要提醒：以下是历史决策记录，仅作为参考，不代表当前状态！\n`;
     prompt += `当前市场数据和持仓信息请参考上方实时数据。\n\n`;
@@ -750,7 +750,7 @@ ${isCodeLevelProtectionEnabled ? (allowAiOverride ? `│                        
       prompt += `  当时持仓数量: ${decision.positions_count}\n`;
       prompt += `  当时决策内容: ${decision.decision}\n\n`;
     }
-    
+    prompt += `【历史决策记录结束】\n`;
     prompt += `\n使用建议：\n`;
     prompt += `- 仅作为决策连续性参考，不要被历史决策束缚\n`;
     prompt += `- 市场已经变化，请基于当前最新数据独立判断\n`;

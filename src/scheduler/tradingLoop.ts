@@ -1501,19 +1501,19 @@ async function executeTradingDecision() {
       // 不影响主流程，继续执行
     }
     
-    // 7. 获取历史成交记录（最近10条）
+    // 7. 获取历史成交记录（最近20条）
     let tradeHistory: any[] = [];
     try {
-      tradeHistory = await getTradeHistory(10);
+      tradeHistory = await getTradeHistory(20);
     } catch (error) {
       logger.warn("获取历史成交记录失败:", error as any);
       // 不影响主流程，继续执行
     }
     
-    // 8. 获取上一次的AI决策
+    // 8. 获取最近的AI决策（最近5次）
     let recentDecisions: any[] = [];
     try {
-      recentDecisions = await getRecentDecisions(1);
+      recentDecisions = await getRecentDecisions(5);
     } catch (error) {
       logger.warn("获取最近决策记录失败:", error as any);
       // 不影响主流程，继续执行
