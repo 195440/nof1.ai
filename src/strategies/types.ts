@@ -196,5 +196,19 @@ export interface StrategyParams {
    * 注意：此字段仅在 enableCodeLevelProtection = true 时有意义
    */
   allowAiOverrideProtection?: boolean;
+  
+  /**
+   * 最大空仓时间（小时）
+   * 
+   * 如果设置此参数，当连续空仓超过指定小时数时，系统会提醒AI必须开仓
+   * 用于防止过度保守，确保策略保持活跃
+   * 
+   * undefined: 不限制空仓时间
+   * number: 最大空仓小时数，超过后强制要求开仓
+   * 
+   * 使用场景：
+   * - alpha-beta策略：6小时（防止连续6小时不开仓）
+   */
+  maxIdleHours?: number;
 }
 

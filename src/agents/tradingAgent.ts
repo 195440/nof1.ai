@@ -51,7 +51,7 @@ export function getAccountRiskConfig(): AccountRiskConfig {
  * 导入策略类型和参数
  */
 import type { TradingStrategy, StrategyParams, StrategyPromptContext } from "../strategies";
-import { getStrategyParams as getStrategyParamsBase, generateStrategySpecificPrompt } from "../strategies";
+import { getStrategyParams as getStrategyParamsBase, generateStrategySpecificPrompt, generateAlphaBetaPrompt } from "../strategies";
 
 // 重新导出类型供外部使用
 export type { TradingStrategy, StrategyParams };
@@ -78,6 +78,268 @@ export function getTradingStrategy(): TradingStrategy {
   }
   logger.warn(`未知的交易策略: ${strategy}，使用默认策略: balanced`);
   return "balanced";
+}
+
+/**
+ * 生成Alpha Beta策略的交易提示词
+ * 结合策略规则（来自alphaBeta.ts）和周期数据
+ */
+function generateAlphaBetaPromptForCycle(data: {
+  minutesElapsed: number;
+  iteration: number;
+  intervalMinutes: number;
+  marketData: any;
+  accountInfo: any;
+  positions: any[];
+  tradeHistory?: any[];
+  recentDecisions?: any[];
+}): string {
+  const { minutesElapsed, iteration, intervalMinutes, marketData, accountInfo, positions, tradeHistory, recentDecisions } = data;
+  const currentTime = formatChinaTime();
+  const params = getStrategyParams('alpha-beta');
+  
+  // 生成策略规则提示词
+  const strategyPrompt = generateAlphaBetaPrompt(params, {
+    intervalMinutes,
+    maxPositions: RISK_PARAMS.MAX_POSITIONS,
+    extremeStopLossPercent: RISK_PARAMS.EXTREME_STOP_LOSS_PERCENT,
+    maxHoldingHours: RISK_PARAMS.MAX_HOLDING_HOURS,
+    tradingSymbols: RISK_PARAMS.TRADING_SYMBOLS,
+  });
+  
+  // 生成周期数据提示词
+  let dataPrompt = `
+---
+【交易周期 #${iteration}】${currentTime}
+---
+
+已运行: ${minutesElapsed} 分钟
+执行周期: 每 ${intervalMinutes} 分钟
+
+---
+【当前账户状态】
+---
+
+总资产: ${(accountInfo?.totalBalance ?? 0).toFixed(2)} USDT
+可用余额: ${(accountInfo?.availableBalance ?? 0).toFixed(2)} USDT
+未实现盈亏: ${(accountInfo?.unrealisedPnl ?? 0) >= 0 ? '+' : ''}${(accountInfo?.unrealisedPnl ?? 0).toFixed(2)} USDT
+持仓数量: ${positions?.length ?? 0} 个
+
+`;
+
+  // 输出持仓信息
+  if (positions && positions.length > 0) {
+    dataPrompt += `---
+【当前持仓】
+---
+
+`;
+    for (const pos of positions) {
+      const holdingMinutes = Math.floor((new Date().getTime() - new Date(pos.opened_at).getTime()) / (1000 * 60));
+      const holdingHours = (holdingMinutes / 60).toFixed(1);
+      
+      const entryPrice = pos.entry_price ?? 0;
+      const currentPrice = pos.current_price ?? 0;
+      const unrealizedPnl = pos.unrealized_pnl ?? 0;
+      let pnlPercent = 0;
+      
+      if (entryPrice > 0 && currentPrice > 0) {
+        if (pos.side === 'long') {
+          pnlPercent = ((currentPrice - entryPrice) / entryPrice) * 100 * (pos.leverage ?? 1);
+        } else {
+          pnlPercent = ((entryPrice - currentPrice) / entryPrice) * 100 * (pos.leverage ?? 1);
+        }
+      }
+      
+      dataPrompt += `${pos.contract} ${pos.side === 'long' ? '做多' : '做空'}:
+  持仓量: ${pos.quantity ?? 0} 张
+  杠杆: ${pos.leverage ?? 1}x
+  入场价: ${entryPrice.toFixed(2)}
+  当前价: ${currentPrice.toFixed(2)}
+  盈亏: ${pnlPercent >= 0 ? '+' : ''}${pnlPercent.toFixed(2)}% (${unrealizedPnl >= 0 ? '+' : ''}${unrealizedPnl.toFixed(2)} USDT)
+  持仓时间: ${holdingHours} 小时
+
+`;
+    }
+  } else {
+    dataPrompt += `---
+【当前持仓】
+---
+
+无持仓
+
+`;
+    
+    // 计算空仓时间
+    if (params.maxIdleHours) {
+      let lastCloseTime: Date | null = null;
+      
+      if (tradeHistory && tradeHistory.length > 0) {
+        for (const trade of tradeHistory) {
+          if (trade.type === 'close') {
+            lastCloseTime = new Date(trade.timestamp);
+            break;
+          }
+        }
+      }
+      
+      if (!lastCloseTime) {
+        lastCloseTime = new Date(Date.now() - minutesElapsed * 60 * 1000);
+      }
+      
+      const idleMinutes = Math.floor((Date.now() - lastCloseTime.getTime()) / (1000 * 60));
+      const idleHours = idleMinutes / 60;
+      const maxIdleHours = params.maxIdleHours;
+      
+      if (idleHours >= maxIdleHours * 0.75) {
+        const remainingMinutes = Math.max(0, maxIdleHours * 60 - idleMinutes);
+        const isUrgent = idleHours >= maxIdleHours;
+        
+        dataPrompt += `---
+【空仓时间警告】
+---
+
+`;
+        
+        if (isUrgent) {
+          dataPrompt += `** 紧急！已超过最大空仓时间 **
+当前空仓时间：${Math.floor(idleHours)}小时${Math.floor(idleMinutes % 60)}分钟
+已超过最大空仓时间限制（${maxIdleHours}小时）
+必须在本周期内开仓！
+
+开仓门槛调整：
+- 信号评分要求：>=65分（正常>=70分）
+- 仓位大小：8-10%
+- 杠杆倍数：2倍
+- 止损设置：-3%
+
+`;
+        } else {
+          dataPrompt += `空仓时间提醒：
+当前空仓时间：${Math.floor(idleHours)}小时${Math.floor(idleMinutes % 60)}分钟
+距离${maxIdleHours}小时限制还有：${Math.floor(remainingMinutes)}分钟
+建议尽快寻找开仓机会
+
+`;
+        }
+      }
+    }
+  }
+
+  // 输出市场数据
+  dataPrompt += `---
+【市场数据】
+---
+
+`;
+
+  if (marketData) {
+    for (const [symbol, dataRaw] of Object.entries(marketData)) {
+      const data = dataRaw as any;
+      
+      dataPrompt += `【${symbol}】
+当前价格: ${(data?.price ?? 0).toFixed(2)}
+EMA20: ${(data?.ema20 ?? 0).toFixed(2)}
+EMA50: ${(data?.ema50 ?? 0).toFixed(2)}
+MACD: ${(data?.macd ?? 0).toFixed(4)}
+RSI(7): ${(data?.rsi7 ?? 0).toFixed(1)}
+`;
+      
+      if (data?.fundingRate !== undefined) {
+        dataPrompt += `资金费率: ${(data.fundingRate * 100).toFixed(4)}%
+`;
+      }
+      
+      dataPrompt += `
+`;
+      
+      // 输出1H时间框架数据（最重要）
+      if (data?.multiTimeframe?.['1h']) {
+        const tf = data.multiTimeframe['1h'] as any;
+        dataPrompt += `1H时间框架（主要参考）:
+  价格序列: ${(tf?.prices ?? []).slice(-5).map((p: number) => p.toFixed(1)).join(' -> ')}
+  EMA20序列: ${(tf?.ema20 ?? []).slice(-5).map((e: number) => e.toFixed(1)).join(' -> ')}
+  MACD序列: ${(tf?.macd ?? []).slice(-5).map((m: number) => m.toFixed(3)).join(' -> ')}
+  趋势判断: ${tf?.ema20?.length > 0 && tf?.ema20[tf.ema20.length-1] > tf?.ema50?.[tf.ema50.length-1] ? '多头排列' : '空头排列'}
+
+`;
+      }
+    }
+  }
+
+  // 输出历史交易记录
+  if (tradeHistory && tradeHistory.length > 0) {
+    dataPrompt += `---
+【最近交易记录】
+---
+
+`;
+    let profitCount = 0;
+    let lossCount = 0;
+    let longCount = 0;
+    let shortCount = 0;
+    let totalProfit = 0;
+    
+    for (const trade of tradeHistory.slice(0, 10)) {
+      const tradeTime = formatChinaTime(trade.timestamp);
+      const pnl = trade?.pnl ?? 0;
+      
+      dataPrompt += `${trade.symbol}_USDT ${trade.side === 'long' ? '做多' : '做空'}:
+  时间: ${tradeTime}
+  盈亏: ${pnl >= 0 ? '+' : ''}${pnl.toFixed(2)} USDT
+
+`;
+      
+      if (trade.side === 'long') longCount++;
+      else shortCount++;
+      
+      if (pnl > 0) profitCount++;
+      else if (pnl < 0) lossCount++;
+      totalProfit += pnl;
+    }
+    
+    if (profitCount > 0 || lossCount > 0) {
+      const winRate = profitCount / (profitCount + lossCount) * 100;
+      const longRate = longCount / (longCount + shortCount) * 100;
+      dataPrompt += `统计（最近${Math.min(10, tradeHistory.length)}笔）:
+- 胜率: ${winRate.toFixed(1)}% (${profitCount}胜${lossCount}负)
+- 做多比例: ${longRate.toFixed(0)}% (${longCount}多/${shortCount}空)
+- 净盈亏: ${totalProfit >= 0 ? '+' : ''}${totalProfit.toFixed(2)} USDT
+${longRate > 80 ? '\n** 警告：做空比例过低，请认真检查做空机会！**\n' : ''}
+`;
+    }
+  }
+
+  // 输出历史决策记录
+  if (recentDecisions && recentDecisions.length > 0) {
+    dataPrompt += `---
+【最近决策记录】
+---
+
+`;
+    for (let i = 0; i < Math.min(3, recentDecisions.length); i++) {
+      const decision = recentDecisions[i];
+      const decisionTime = formatChinaTime(decision.timestamp);
+      dataPrompt += `周期 #${decision.iteration} (${decisionTime}):
+  账户: ${(decision?.account_value ?? 0).toFixed(2)} USDT
+  持仓: ${decision?.positions_count ?? 0}个
+  决策: ${decision?.decision ?? '无'}
+
+`;
+    }
+  }
+
+  dataPrompt += `---
+【可用工具】
+---
+
+- openPosition: 开仓（symbol, side, leverage, amountUsdt）
+- closePosition: 平仓（symbol, closePercent）
+
+现在请按照策略规则进行分析和决策。
+`;
+
+  return strategyPrompt + dataPrompt;
 }
 
 /**
@@ -166,6 +428,79 @@ function generateAiAutonomousPromptForCycle(data: {
 无持仓
 
 `;
+    
+    // 计算空仓时间（仅对 alpha-beta 策略）
+    const strategy = getTradingStrategy();
+    const params = getStrategyParams(strategy);
+    
+    if (strategy === 'alpha-beta' && params.maxIdleHours) {
+      // 查找最后一笔平仓交易的时间
+      let lastCloseTime: Date | null = null;
+      
+      if (tradeHistory && tradeHistory.length > 0) {
+        // 找到最近的平仓记录
+        for (const trade of tradeHistory) {
+          if (trade.type === 'close') {
+            lastCloseTime = new Date(trade.timestamp);
+            break; // tradeHistory 已经按时间倒序排列
+          }
+        }
+      }
+      
+      // 如果没有找到平仓记录，说明从未开仓，使用系统启动时间
+      // 这里我们使用当前时间减去已运行分钟数作为启动时间
+      if (!lastCloseTime) {
+        lastCloseTime = new Date(Date.now() - minutesElapsed * 60 * 1000);
+      }
+      
+      // 计算空仓时长
+      const idleMinutes = Math.floor((Date.now() - lastCloseTime.getTime()) / (1000 * 60));
+      const idleHours = idleMinutes / 60;
+      const maxIdleHours = params.maxIdleHours;
+      
+      // 如果空仓时间超过4.5小时（75%的限制），开始提醒
+      if (idleHours >= maxIdleHours * 0.75) {
+        const remainingMinutes = Math.max(0, maxIdleHours * 60 - idleMinutes);
+        const isUrgent = idleHours >= maxIdleHours;
+        
+        prompt += `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+【空仓时间警告】
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+`;
+        
+        if (isUrgent) {
+          prompt += `⚠️⚠️⚠️ 紧急提醒 ⚠️⚠️⚠️
+当前空仓时间：${Math.floor(idleHours)}小时${Math.floor(idleMinutes % 60)}分钟
+已超过最大空仓时间限制（${maxIdleHours}小时）
+**必须在本周期内开仓！**
+
+`;
+        } else {
+          prompt += `⚠️ 空仓时间提醒
+当前空仓时间：${Math.floor(idleHours)}小时${Math.floor(idleMinutes % 60)}分钟
+距离${maxIdleHours}小时限制还有：${Math.floor(remainingMinutes)}分钟
+建议尽快寻找开仓机会
+
+`;
+        }
+        
+        prompt += `开仓门槛调整：
+- 信号评分要求：≥70分（正常≥75分）
+- 震荡市评分要求：≥75分（正常≥80分）
+- 仓位大小：8-10%（最小档位）
+- 杠杆倍数：2倍（保守档位）
+- 止损设置：-3%（严格执行）
+
+重要说明：
+- 此规则是为了防止过度保守，不是鼓励盲目交易
+- 即使降低门槛，也必须有基本的技术支持
+- 可以选择多个币种中信号最好的
+- 开仓后仍需严格执行止损止盈规则
+
+`;
+      }
+    }
   }
 
   // 输出市场数据
@@ -388,9 +723,14 @@ export function generateTradingPrompt(data: {
   // 判断是否允许AI在代码级保护之外继续主动操作（双重防护模式）
   const allowAiOverride = params.allowAiOverrideProtection === true;
   
-  // 如果是AI自主策略或Alpha Beta策略，使用完全不同的提示词格式
-  if (strategy === "ai-autonomous" || strategy === "alpha-beta") {
+  // 如果是AI自主策略，使用极简的提示词格式
+  if (strategy === "ai-autonomous") {
     return generateAiAutonomousPromptForCycle(data);
+  }
+  
+  // 如果是Alpha Beta策略，结合策略规则和周期数据
+  if (strategy === "alpha-beta") {
+    return generateAlphaBetaPromptForCycle(data);
   }
   
   // 生成止损规则描述（基于 stopLoss 配置和杠杆范围）
