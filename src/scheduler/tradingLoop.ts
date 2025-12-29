@@ -24,7 +24,7 @@ import { createLogger } from "../utils/loggerUtils";
 import { createClient } from "@libsql/client";
 import { createTradingAgent, generateTradingPrompt, getAccountRiskConfig, getTradingStrategy, getStrategyParams } from "../agents/tradingAgent";
 import { createExchangeClient } from "../services/exchangeClient";
-import { getChinaTimeISO } from "../utils/timeUtils";
+import { getChinaTimeISO, formatChinaTime } from "../utils/timeUtils";
 import { RISK_PARAMS } from "../config/riskParams";
 import { getQuantoMultiplier } from "../utils/contractUtils";
 
@@ -905,6 +905,355 @@ async function getRecentDecisions(limit: number = 3) {
   }
 }
 
+/**
+ * 获取最近2小时的资产曲线数据
+ * 用于让AI看到账户净值的变化趋势
+ */
+async function getRecentAccountCurve(): Promise<string> {
+  try {
+    // 查询最近2小时的账户历史记录
+    const result = await dbClient.execute({
+      sql: `SELECT timestamp, total_value, unrealized_pnl, return_percent
+            FROM account_history 
+            WHERE datetime(timestamp) > datetime('now', '-2 hours')
+            ORDER BY timestamp ASC`,
+      args: [],
+    });
+    
+    if (!result.rows || result.rows.length === 0) {
+      return `【资产曲线】（最近2小时）\n暂无数据\n\n`;
+    }
+    
+    const records = result.rows;
+    
+    // 计算关键指标
+    const firstRecord = records[0];
+    const lastRecord = records[records.length - 1];
+    const startValue = Number.parseFloat(firstRecord.total_value as string);
+    const endValue = Number.parseFloat(lastRecord.total_value as string);
+    const change = endValue - startValue;
+    const changePercent = startValue > 0 ? (change / startValue * 100) : 0;
+    
+    // 找出峰值和谷值
+    let peakValue = startValue;
+    let troughValue = startValue;
+    let peakTime = firstRecord.timestamp;
+    let troughTime = firstRecord.timestamp;
+    
+    for (const record of records) {
+      const value = Number.parseFloat(record.total_value as string);
+      if (value > peakValue) {
+        peakValue = value;
+        peakTime = record.timestamp;
+      }
+      if (value < troughValue) {
+        troughValue = value;
+        troughTime = record.timestamp;
+      }
+    }
+    
+    const maxDrawdown = peakValue > 0 ? ((peakValue - troughValue) / peakValue * 100) : 0;
+    const maxGain = troughValue > 0 ? ((peakValue - troughValue) / troughValue * 100) : 0;
+    
+    // 生成简化的资产曲线（每10个数据点取1个，最多显示12个点）
+    const step = Math.max(1, Math.floor(records.length / 12));
+    const sampledRecords = records.filter((_, index) => index % step === 0 || index === records.length - 1);
+    
+    let curve = `
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+【资产曲线】（最近2小时账户净值变化）
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+📊 总体变化:
+  • 起始净值: ${startValue.toFixed(2)} USDT (${formatChinaTime(firstRecord.timestamp as string)})
+  • 当前净值: ${endValue.toFixed(2)} USDT (${formatChinaTime(lastRecord.timestamp as string)})
+  • 净变化: ${change >= 0 ? '+' : ''}${change.toFixed(2)} USDT (${changePercent >= 0 ? '+' : ''}${changePercent.toFixed(2)}%)
+  
+📈 区间统计:
+  • 峰值: ${peakValue.toFixed(2)} USDT (${formatChinaTime(peakTime as string)})
+  • 谷值: ${troughValue.toFixed(2)} USDT (${formatChinaTime(troughTime as string)})
+  • 最大回撤: ${maxDrawdown.toFixed(2)}%
+  • 最大涨幅: ${maxGain.toFixed(2)}%
+
+📉 资产曲线（时间 → 净值）:
+`;
+
+    for (const record of sampledRecords) {
+      const value = Number.parseFloat(record.total_value as string);
+      const time = formatChinaTime(record.timestamp as string);
+      const timeShort = time.substring(11, 16); // 只保留HH:MM
+      const returnPct = Number.parseFloat(record.return_percent as string || "0");
+      
+      curve += `  ${timeShort} → ${value.toFixed(2)}U (${returnPct >= 0 ? '+' : ''}${returnPct.toFixed(2)}%)\n`;
+    }
+    
+    curve += `\n💡 趋势判断:\n`;
+    if (changePercent > 2) {
+      curve += `  ✅ 上升趋势：最近2小时净值上涨${changePercent.toFixed(2)}%，策略表现良好\n`;
+    } else if (changePercent > 0) {
+      curve += `  ➖ 微涨：最近2小时净值小幅上涨${changePercent.toFixed(2)}%，保持谨慎\n`;
+    } else if (changePercent > -2) {
+      curve += `  ⚠️ 微跌：最近2小时净值下跌${Math.abs(changePercent).toFixed(2)}%，需要注意风险\n`;
+    } else {
+      curve += `  🚨 下跌趋势：最近2小时净值下跌${Math.abs(changePercent).toFixed(2)}%，必须降低风险！\n`;
+    }
+    
+    if (maxDrawdown > 5) {
+      curve += `  ⚠️ 回撤警告：区间最大回撤${maxDrawdown.toFixed(2)}%，需要加强风控\n`;
+    }
+    
+    curve += `\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n`;
+    
+    return curve;
+  } catch (error) {
+    logger.error("获取资产曲线数据失败:", error as any);
+    return `【资产曲线】\n数据获取失败\n\n`;
+  }
+}
+
+/**
+ * 生成长期学习摘要（最近24小时）
+ * 识别常见错误模式和成功模式
+ */
+async function generateLongTermSummary(): Promise<string> {
+  try {
+    // 1. 统计最近24小时的交易表现
+    const last24hResult = await dbClient.execute({
+      sql: `SELECT 
+              symbol, side, type, price, quantity, leverage, pnl, fee, timestamp
+            FROM trades 
+            WHERE type='close' AND datetime(timestamp) > datetime('now', '-24 hours')
+            ORDER BY timestamp DESC`,
+      args: [],
+    });
+    
+    if (!last24hResult.rows || last24hResult.rows.length === 0) {
+      return `【长期学习摘要】（最近24小时）\n暂无交易数据\n\n`;
+    }
+    
+    const trades = last24hResult.rows;
+    
+    // 基本统计
+    let totalTrades = trades.length;
+    let wins = 0;
+    let losses = 0;
+    let totalWinAmount = 0;
+    let totalLossAmount = 0;
+    let longTrades = 0;
+    let shortTrades = 0;
+    let longWins = 0;
+    let shortWins = 0;
+    
+    // 按场景分类统计
+    const scenarioStats = new Map<string, { wins: number; total: number; pnl: number }>();
+    
+    for (const trade of trades) {
+      const pnl = Number.parseFloat(trade.pnl as string || "0");
+      const side = trade.side as string;
+      
+      // 基本统计
+      if (pnl > 0) {
+        wins++;
+        totalWinAmount += pnl;
+        if (side === 'long') longWins++;
+        else shortWins++;
+      } else if (pnl < 0) {
+        losses++;
+        totalLossAmount += Math.abs(pnl);
+      }
+      
+      if (side === 'long') longTrades++;
+      else shortTrades++;
+    }
+    
+    // 2. 查询对应的开仓决策，识别模式
+    const patternAnalysis = await analyzeTradePatterns(trades);
+    
+    // 3. 生成摘要
+    const winRate = totalTrades > 0 ? (wins / totalTrades * 100) : 0;
+    const avgWin = wins > 0 ? totalWinAmount / wins : 0;
+    const avgLoss = losses > 0 ? totalLossAmount / losses : 0;
+    const profitLossRatio = avgLoss > 0 ? avgWin / avgLoss : 0;
+    
+    const longWinRate = longTrades > 0 ? (longWins / longTrades * 100) : 0;
+    const shortWinRate = shortTrades > 0 ? (shortWins / shortTrades * 100) : 0;
+    
+    let summary = `
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+【长期学习摘要】（最近24小时策略表现）
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+📊 总体表现:
+  • 交易笔数: ${totalTrades}笔
+  • 胜率: ${winRate.toFixed(1)}% (${wins}胜${losses}负)
+  • 平均盈利: +${avgWin.toFixed(2)} USDT/笔
+  • 平均亏损: -${avgLoss.toFixed(2)} USDT/笔
+  • 盈亏比: ${profitLossRatio.toFixed(2)}:1 ${profitLossRatio >= 1.5 ? '✅达标' : '❌未达标(目标≥1.5)'}
+
+🎯 方向统计:
+  • 做多: ${longTrades}笔, 胜率${longWinRate.toFixed(1)}%
+  • 做空: ${shortTrades}笔, 胜率${shortWinRate.toFixed(1)}%
+  ${Math.abs(longWinRate - shortWinRate) > 20 ? `⚠️ 做${longWinRate > shortWinRate ? '多' : '空'}表现明显更好，但要注意双向平衡` : ''}
+
+`;
+
+    // 4. 添加模式分析结果
+    if (patternAnalysis.errorPatterns.length > 0) {
+      summary += `❌ 常见错误模式（需要避免）:\n`;
+      for (const pattern of patternAnalysis.errorPatterns) {
+        summary += `  • ${pattern.description}: 成功率${pattern.successRate.toFixed(0)}% (${pattern.count}笔) ${pattern.avgLoss ? `平均亏${pattern.avgLoss.toFixed(2)}U` : ''}\n`;
+      }
+      summary += `\n`;
+    }
+    
+    if (patternAnalysis.successPatterns.length > 0) {
+      summary += `✅ 成功模式（值得重复）:\n`;
+      for (const pattern of patternAnalysis.successPatterns) {
+        summary += `  • ${pattern.description}: 成功率${pattern.successRate.toFixed(0)}% (${pattern.count}笔) ${pattern.avgWin ? `平均赚${pattern.avgWin.toFixed(2)}U` : ''}\n`;
+      }
+      summary += `\n`;
+    }
+    
+    summary += `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n`;
+    
+    return summary;
+  } catch (error) {
+    logger.error("生成长期学习摘要失败:", error as any);
+    return `【长期学习摘要】\n生成失败\n\n`;
+  }
+}
+
+/**
+ * 分析交易模式，识别常见错误和成功模式
+ */
+async function analyzeTradePatterns(trades: any[]): Promise<{
+  errorPatterns: Array<{ description: string; successRate: number; count: number; avgLoss?: number }>;
+  successPatterns: Array<{ description: string; successRate: number; count: number; avgWin?: number }>;
+}> {
+  const errorPatterns: Array<{ description: string; successRate: number; count: number; avgLoss?: number }> = [];
+  const successPatterns: Array<{ description: string; successRate: number; count: number; avgWin?: number }> = [];
+  
+  try {
+    // 分析1：基于高杠杆的交易表现
+    const highLevTrades = trades.filter(t => Number.parseInt(t.leverage as string || "1") >= 10);
+    if (highLevTrades.length >= 3) {
+      const highLevWins = highLevTrades.filter(t => Number.parseFloat(t.pnl as string || "0") > 0).length;
+      const highLevWinRate = (highLevWins / highLevTrades.length) * 100;
+      const highLevLosses = highLevTrades.filter(t => Number.parseFloat(t.pnl as string || "0") < 0);
+      const avgHighLevLoss = highLevLosses.length > 0 
+        ? highLevLosses.reduce((sum, t) => sum + Math.abs(Number.parseFloat(t.pnl as string || "0")), 0) / highLevLosses.length
+        : 0;
+      
+      if (highLevWinRate < 50) {
+        errorPatterns.push({
+          description: `使用高杠杆(≥10x)交易`,
+          successRate: highLevWinRate,
+          count: highLevTrades.length,
+          avgLoss: avgHighLevLoss
+        });
+      } else if (highLevWinRate >= 60) {
+        const highLevWinTrades = highLevTrades.filter(t => Number.parseFloat(t.pnl as string || "0") > 0);
+        const avgHighLevWin = highLevWinTrades.length > 0
+          ? highLevWinTrades.reduce((sum, t) => sum + Number.parseFloat(t.pnl as string || "0"), 0) / highLevWinTrades.length
+          : 0;
+        successPatterns.push({
+          description: `使用高杠杆(≥10x)交易`,
+          successRate: highLevWinRate,
+          count: highLevTrades.length,
+          avgWin: avgHighLevWin
+        });
+      }
+    }
+    
+    // 分析2：做多 vs 做空表现
+    const longTrades = trades.filter(t => t.side === 'long');
+    const shortTrades = trades.filter(t => t.side === 'short');
+    
+    if (longTrades.length >= 3) {
+      const longWins = longTrades.filter(t => Number.parseFloat(t.pnl as string || "0") > 0).length;
+      const longWinRate = (longWins / longTrades.length) * 100;
+      const longLosses = longTrades.filter(t => Number.parseFloat(t.pnl as string || "0") < 0);
+      
+      if (longWinRate < 40) {
+        const avgLongLoss = longLosses.length > 0
+          ? longLosses.reduce((sum, t) => sum + Math.abs(Number.parseFloat(t.pnl as string || "0")), 0) / longLosses.length
+          : 0;
+        errorPatterns.push({
+          description: `做多交易`,
+          successRate: longWinRate,
+          count: longTrades.length,
+          avgLoss: avgLongLoss
+        });
+      }
+    }
+    
+    if (shortTrades.length >= 3) {
+      const shortWins = shortTrades.filter(t => Number.parseFloat(t.pnl as string || "0") > 0).length;
+      const shortWinRate = (shortWins / shortTrades.length) * 100;
+      const shortLosses = shortTrades.filter(t => Number.parseFloat(t.pnl as string || "0") < 0);
+      
+      if (shortWinRate < 40) {
+        const avgShortLoss = shortLosses.length > 0
+          ? shortLosses.reduce((sum, t) => sum + Math.abs(Number.parseFloat(t.pnl as string || "0")), 0) / shortLosses.length
+          : 0;
+        errorPatterns.push({
+          description: `做空交易`,
+          successRate: shortWinRate,
+          count: shortTrades.length,
+          avgLoss: avgShortLoss
+        });
+      }
+    }
+    
+    // 分析3：按币种分析（识别哪些币种表现好/差）
+    const symbolStats = new Map<string, { wins: number; total: number; totalPnl: number }>();
+    for (const trade of trades) {
+      const symbol = trade.symbol as string;
+      const pnl = Number.parseFloat(trade.pnl as string || "0");
+      
+      if (!symbolStats.has(symbol)) {
+        symbolStats.set(symbol, { wins: 0, total: 0, totalPnl: 0 });
+      }
+      
+      const stats = symbolStats.get(symbol)!;
+      stats.total++;
+      stats.totalPnl += pnl;
+      if (pnl > 0) stats.wins++;
+    }
+    
+    // 识别表现差的币种
+    for (const [symbol, stats] of symbolStats.entries()) {
+      if (stats.total >= 3) {
+        const winRate = (stats.wins / stats.total) * 100;
+        if (winRate < 35 || stats.totalPnl < -10) {
+          errorPatterns.push({
+            description: `交易${symbol}（表现不佳）`,
+            successRate: winRate,
+            count: stats.total,
+            avgLoss: stats.totalPnl / stats.total
+          });
+        } else if (winRate >= 70 && stats.totalPnl > 5) {
+          successPatterns.push({
+            description: `交易${symbol}（表现优秀）`,
+            successRate: winRate,
+            count: stats.total,
+            avgWin: stats.totalPnl / stats.total
+          });
+        }
+      }
+    }
+    
+    // 按成功率排序
+    errorPatterns.sort((a, b) => a.successRate - b.successRate);
+    successPatterns.sort((a, b) => b.successRate - a.successRate);
+    
+    return { errorPatterns: errorPatterns.slice(0, 3), successPatterns: successPatterns.slice(0, 3) };
+  } catch (error) {
+    logger.error("分析交易模式失败:", error as any);
+    return { errorPatterns: [], successPatterns: [] };
+  }
+}
+
 
 /**
  * 同步风险配置到数据库
@@ -1519,6 +1868,24 @@ async function executeTradingDecision() {
       // 不影响主流程，继续执行
     }
     
+    // 8.1 获取资产曲线数据（最近2小时）
+    let accountCurve = '';
+    try {
+      accountCurve = await getRecentAccountCurve();
+    } catch (error) {
+      logger.warn("获取资产曲线数据失败:", error as any);
+      // 不影响主流程，继续执行
+    }
+    
+    // 8.2 生成长期学习摘要（最近24小时）
+    let longTermSummary = '';
+    try {
+      longTermSummary = await generateLongTermSummary();
+    } catch (error) {
+      logger.warn("生成长期学习摘要失败:", error as any);
+      // 不影响主流程，继续执行
+    }
+    
     // 9. 生成提示词并调用 Agent
     const prompt = generateTradingPrompt({
       minutesElapsed,
@@ -1529,6 +1896,8 @@ async function executeTradingDecision() {
       positions,
       tradeHistory,
       recentDecisions,
+      accountCurve,
+      longTermSummary,
       positionCount: positions.length,
     });
     

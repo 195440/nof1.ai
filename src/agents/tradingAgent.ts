@@ -93,8 +93,10 @@ function generateAlphaBetaPromptForCycle(data: {
   positions: any[];
   tradeHistory?: any[];
   recentDecisions?: any[];
+  accountCurve?: string;
+  longTermSummary?: string;
 }): string {
-  const { minutesElapsed, iteration, intervalMinutes, marketData, accountInfo, positions, tradeHistory, recentDecisions } = data;
+  const { minutesElapsed, iteration, intervalMinutes, marketData, accountInfo, positions, tradeHistory, recentDecisions, accountCurve, longTermSummary } = data;
   const currentTime = formatChinaTime();
   const params = getStrategyParams('alpha-beta');
   
@@ -267,10 +269,10 @@ RSI(7): ${(data?.rsi7 ?? 0).toFixed(1)}
     }
   }
 
-  // 输出历史交易记录
+  // 输出历史交易记录和统计摘要
   if (tradeHistory && tradeHistory.length > 0) {
     dataPrompt += `---
-【最近交易记录】
+【交易统计摘要】（最近表现，用于自我评估）
 ---
 
 `;
@@ -279,54 +281,135 @@ RSI(7): ${(data?.rsi7 ?? 0).toFixed(1)}
     let longCount = 0;
     let shortCount = 0;
     let totalProfit = 0;
+    let totalWin = 0;
+    let totalLoss = 0;
     
+    // 先计算统计数据
     for (const trade of tradeHistory.slice(0, 10)) {
-      const tradeTime = formatChinaTime(trade.timestamp);
       const pnl = trade?.pnl ?? 0;
-      
-      dataPrompt += `${trade.symbol}_USDT ${trade.side === 'long' ? '做多' : '做空'}:
-  时间: ${tradeTime}
-  盈亏: ${pnl >= 0 ? '+' : ''}${pnl.toFixed(2)} USDT
-
-`;
       
       if (trade.side === 'long') longCount++;
       else shortCount++;
       
-      if (pnl > 0) profitCount++;
-      else if (pnl < 0) lossCount++;
+      if (pnl > 0) {
+        profitCount++;
+        totalWin += pnl;
+      } else if (pnl < 0) {
+        lossCount++;
+        totalLoss += Math.abs(pnl);
+      }
       totalProfit += pnl;
     }
     
+    // 输出统计摘要
     if (profitCount > 0 || lossCount > 0) {
       const winRate = profitCount / (profitCount + lossCount) * 100;
+      const avgWin = profitCount > 0 ? totalWin / profitCount : 0;
+      const avgLoss = lossCount > 0 ? totalLoss / lossCount : 0;
+      const profitLossRatio = avgLoss > 0 ? avgWin / avgLoss : 0;
       const longRate = longCount / (longCount + shortCount) * 100;
-      dataPrompt += `统计（最近${Math.min(10, tradeHistory.length)}笔）:
-- 胜率: ${winRate.toFixed(1)}% (${profitCount}胜${lossCount}负)
-- 做多比例: ${longRate.toFixed(0)}% (${longCount}多/${shortCount}空)
-- 净盈亏: ${totalProfit >= 0 ? '+' : ''}${totalProfit.toFixed(2)} USDT
-${longRate > 80 ? '\n** 警告：做空比例过低，请认真检查做空机会！**\n' : ''}
+      
+      dataPrompt += `最近${Math.min(10, tradeHistory.length)}笔交易表现:
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+📊 胜率: ${winRate.toFixed(1)}% (${profitCount}胜 / ${lossCount}负)
+💰 净盈亏: ${totalProfit >= 0 ? '+' : ''}${totalProfit.toFixed(2)} USDT
+📈 平均盈利: +${avgWin.toFixed(2)} USDT/笔
+📉 平均亏损: -${avgLoss.toFixed(2)} USDT/笔
+⚖️  盈亏比: ${profitLossRatio.toFixed(2)}:1 ${profitLossRatio < 1.5 ? '❌未达标(目标≥1.5:1)' : '✅达标'}
+🎯 做多比例: ${longRate.toFixed(0)}% (${longCount}多 / ${shortCount}空)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
 `;
+      
+      // 添加警告和建议
+      const warnings = [];
+      if (profitLossRatio < 1.5) {
+        warnings.push(`⚠️ 盈亏比${profitLossRatio.toFixed(2)}:1 < 1.5:1，需要改进：要么提高止盈（让利润奔跑），要么收紧止损`);
+      }
+      if (winRate < 50) {
+        warnings.push(`⚠️ 胜率${winRate.toFixed(1)}% < 50%，需要提高开仓质量或等待更好的信号`);
+      }
+      if (longRate > 80 || longRate < 20) {
+        warnings.push(`⚠️ 做${longRate > 80 ? '多' : '空'}比例过高(${longRate.toFixed(0)}%)，请注意双向平衡，认真评估${longRate > 80 ? '做空' : '做多'}机会`);
+      }
+      
+      if (warnings.length > 0) {
+        dataPrompt += `【需要改进】\n${warnings.join('\n')}\n\n`;
+      } else {
+        dataPrompt += `✅ 当前表现良好，继续保持！\n\n`;
+      }
     }
+    
+    // 输出最近交易明细（只显示5笔最新的）
+    dataPrompt += `最近5笔交易明细:\n`;
+    for (const trade of tradeHistory.slice(0, 5)) {
+      const tradeTime = formatChinaTime(trade.timestamp);
+      const pnl = trade?.pnl ?? 0;
+      const status = pnl > 0 ? '✅' : pnl < 0 ? '❌' : '➖';
+      
+      dataPrompt += `${status} ${trade.symbol} ${trade.side === 'long' ? '多' : '空'}: ${pnl >= 0 ? '+' : ''}${pnl.toFixed(2)} USDT (${tradeTime})\n`;
+    }
+    dataPrompt += `\n`;
+    }
+
+  // 输出资产曲线（最近2小时）
+  if (accountCurve) {
+    dataPrompt += accountCurve;
   }
 
-  // 输出历史决策记录
+  // 输出长期学习摘要（最近24小时）
+  if (longTermSummary) {
+    dataPrompt += longTermSummary;
+  }
+
+  // 输出历史决策记录（精简版）
   if (recentDecisions && recentDecisions.length > 0) {
     dataPrompt += `---
-【最近决策记录】
+【最近决策记录】（精简版，仅保留关键信息）
 ---
 
 `;
     for (let i = 0; i < Math.min(3, recentDecisions.length); i++) {
       const decision = recentDecisions[i];
       const decisionTime = formatChinaTime(decision.timestamp);
-      dataPrompt += `周期 #${decision.iteration} (${decisionTime}):
+      const minutesAgo = Math.floor((Date.now() - new Date(decision.timestamp).getTime()) / (1000 * 60));
+      
+      // 时效性评估
+      const relevance = minutesAgo < 30 ? '高相关' : minutesAgo < 60 ? '中等相关' : '低相关';
+      
+      // 提取关键信息（只保留前500字符的核心决策内容）
+      let decisionSummary = decision?.decision ?? '无记录';
+      
+      // 提取操作类型和理由
+      const actionMatch = decisionSummary.match(/(?:开仓|平仓|继续持有|观望|加仓)/);
+      const action = actionMatch ? actionMatch[0] : '未知操作';
+      
+      // 提取币种
+      const symbolMatch = decisionSummary.match(/(BTC|ETH|SOL|BNB|XRP|DOGE|LTC|UNI)(?:USDT)?/g);
+      const symbols = symbolMatch ? [...new Set(symbolMatch)].join(', ') : '未指定';
+      
+      // 提取关键理由（查找"理由"、"原因"、"依据"等关键词后的内容）
+      let reasoning = '';
+      const reasoningMatch = decisionSummary.match(/(?:理由|原因|依据|决策)[：:]\s*([^\n]{0,200})/);
+      if (reasoningMatch) {
+        reasoning = reasoningMatch[1].trim();
+      } else {
+        // 如果没找到明确理由，尝试提取决策段落的前100字符
+        const decisionSection = decisionSummary.match(/【执行】[\s\S]{0,150}/);
+        reasoning = decisionSection ? decisionSection[0].replace(/【执行】/, '').trim() : '未提取到理由';
+      }
+      
+      dataPrompt += `周期 #${decision.iteration} (${minutesAgo}分钟前，${relevance}):
+  操作: ${action} ${symbols}
   账户: ${(decision?.account_value ?? 0).toFixed(2)} USDT
   持仓: ${decision?.positions_count ?? 0}个
-  决策: ${decision?.decision ?? '无'}
+  理由摘要: ${reasoning.substring(0, 150)}${reasoning.length > 150 ? '...' : ''}
 
 `;
     }
+    
+    dataPrompt += `注意：以上为历史决策摘要，当前市场可能已变化，请基于最新数据独立判断。
+`;
   }
 
   dataPrompt += `---
@@ -710,9 +793,11 @@ export function generateTradingPrompt(data: {
   positions: any[];
   tradeHistory?: any[];
   recentDecisions?: any[];
+  accountCurve?: string;
+  longTermSummary?: string;
   positionCount?: number;
 }): string {
-  const { minutesElapsed, iteration, intervalMinutes, marketData, accountInfo, positions, tradeHistory, recentDecisions, positionCount } = data;
+  const { minutesElapsed, iteration, intervalMinutes, marketData, accountInfo, positions, tradeHistory, recentDecisions, accountCurve, longTermSummary, positionCount } = data;
   const currentTime = formatChinaTime();
   
   // 获取当前策略参数（用于每周期强调风控规则）
@@ -1072,12 +1157,22 @@ ${isCodeLevelProtectionEnabled ? (allowAiOverride ? `│                        
     }
   }
 
-  // 上一次的AI决策记录（仅供参考，不是当前状态）
+  // 插入资产曲线（最近2小时）
+  if (accountCurve) {
+    prompt += accountCurve;
+  }
+  
+  // 插入长期学习摘要（最近24小时）
+  if (longTermSummary) {
+    prompt += longTermSummary;
+  }
+  
+  // 上一次的AI决策记录（精简版，只保留关键信息）
   if (recentDecisions && recentDecisions.length > 0) {
     prompt += `\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n`;
-    prompt += `【历史决策记录开始】\n`;
+    prompt += `【历史决策摘要】（精简版）\n`;
     prompt += `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n`;
-    prompt += `重要提醒：以下是历史决策记录，仅作为参考，不代表当前状态！\n`;
+    prompt += `重要提醒：以下是历史决策摘要，仅提取关键信息供参考！\n`;
     prompt += `当前市场数据和持仓信息请参考上方实时数据。\n\n`;
     
     for (let i = 0; i < recentDecisions.length; i++) {
@@ -1085,15 +1180,51 @@ ${isCodeLevelProtectionEnabled ? (allowAiOverride ? `│                        
       const decisionTime = formatChinaTime(decision.timestamp);
       const timeDiff = Math.floor((new Date().getTime() - new Date(decision.timestamp).getTime()) / (1000 * 60));
       
-      prompt += `【历史】决策 #${decision.iteration} (${decisionTime}，${timeDiff}分钟前):\n`;
-      prompt += `  当时账户价值: ${decision.account_value.toFixed(2)} USDT\n`;
-      prompt += `  当时持仓数量: ${decision.positions_count}\n`;
-      prompt += `  当时决策内容: ${decision.decision}\n\n`;
+      // 时效性评估
+      const relevance = timeDiff < 30 ? '🟢高相关' : timeDiff < 60 ? '🟡中等相关' : '🔴低相关';
+      
+      // 提取关键信息
+      let decisionText = decision.decision || '';
+      
+      // 提取操作类型
+      const actionMatch = decisionText.match(/(?:开仓|平仓|继续持有|观望|加仓|止损|止盈)/g);
+      const actions = actionMatch ? [...new Set(actionMatch)].slice(0, 2).join('、') : '未知操作';
+      
+      // 提取币种
+      const symbolMatch = decisionText.match(/(BTC|ETH|SOL|BNB|XRP|DOGE|LTC|UNI)(?:USDT)?/g);
+      const symbols = symbolMatch ? [...new Set(symbolMatch)].slice(0, 3).join(', ') : '未指定';
+      
+      // 提取关键判断（查找"判断"、"分析"、"理由"等）
+      let keyJudgment = '';
+      const judgmentPatterns = [
+        /(?:市场状态|状态)[：:]\s*([^\n]{0,80})/,
+        /(?:判断|分析|理由)[：:]\s*([^\n]{0,80})/,
+        /(?:评分)[：:]\s*([^\n]{0,80})/
+      ];
+      
+      for (const pattern of judgmentPatterns) {
+        const match = decisionText.match(pattern);
+        if (match) {
+          keyJudgment = match[1].trim();
+          break;
+        }
+      }
+      
+      if (!keyJudgment) {
+        // 如果没找到，提取"总结"部分的前80字符
+        const summaryMatch = decisionText.match(/(?:总结|决策)[：:][\s\S]{0,100}/);
+        keyJudgment = summaryMatch ? summaryMatch[0].substring(0, 80) + '...' : '未提取到关键判断';
+      }
+      
+      prompt += `【历史】#${decision.iteration} (${timeDiff}分钟前，${relevance}):\n`;
+      prompt += `  账户: ${decision.account_value.toFixed(2)} USDT | 持仓: ${decision.positions_count}个\n`;
+      prompt += `  操作: ${actions} ${symbols ? `(${symbols})` : ''}\n`;
+      prompt += `  关键判断: ${keyJudgment.substring(0, 120)}${keyJudgment.length > 120 ? '...' : ''}\n\n`;
     }
-    prompt += `【历史决策记录结束】\n`;
-    prompt += `\n使用建议：\n`;
+    
+    prompt += `使用建议：\n`;
+    prompt += `- 注意时效性标记：🟢=高相关 🟡=中等 🔴=低相关（市场可能已变）\n`;
     prompt += `- 仅作为决策连续性参考，不要被历史决策束缚\n`;
-    prompt += `- 市场已经变化，请基于当前最新数据独立判断\n`;
     prompt += `- 如果市场条件改变，应该果断调整策略\n\n`;
   }
 
