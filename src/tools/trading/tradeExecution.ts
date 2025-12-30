@@ -257,30 +257,45 @@ export const openPositionTool = createTool({
       const { getStrategyParams, getTradingStrategy } = await import("../../agents/tradingAgent.js");
       const strategy = getTradingStrategy();
       const strategyParams = getStrategyParams(strategy);
+      const isAlphaBeta = strategy === "alpha-beta";
       
       let adjustedLeverage = leverage;
       let adjustedAmountUsdt = amountUsdt;
       
-      // 从market data中获取ATR（需要从上下文传入）
-      // 这里先计算ATR百分比
+      // 计算 ATR%（仅 AlphaBeta 用于动态风险；并避免“未收盘K线成交量=0”导致 ATR 失真）
       let atrPercent = 0;
       let volatilityLevel = "normal";
       
       try {
-        // 获取市场数据（包含ATR）
-        const marketDataModule = await import("../trading/marketData.js");
         const ticker = await client.getFuturesTicker(contract);
         const currentPrice = Number.parseFloat(ticker.last || "0");
         
         // 获取1小时K线计算ATR
         const candles1h = await client.getFuturesCandles(contract, "1h", 24);
-        if (candles1h && candles1h.length > 14) {
+        if (candles1h && candles1h.length > 14 && Number.isFinite(currentPrice) && currentPrice > 0) {
+          // AlphaBeta：丢弃可能的未收盘K线（周期边界容易出现 v=0），避免 ATR 失真
+          // 其他策略：保持原有行为，避免影响非当前策略
+          let usableCandles = candles1h;
+          if (isAlphaBeta) {
+            try {
+              if (candles1h.length >= 2) {
+                const last = candles1h[candles1h.length - 1] as any;
+                const lastVol = last && typeof last === "object" && "v" in last ? Number.parseFloat(last.v) : NaN;
+                if (Number.isFinite(lastVol) && lastVol === 0) {
+                  usableCandles = candles1h.slice(0, -1);
+                }
+              }
+            } catch {
+              usableCandles = candles1h;
+            }
+          }
+
           // 计算ATR14
           const trs = [];
-          for (let i = 1; i < candles1h.length; i++) {
-            const high = Number.parseFloat(candles1h[i].h);
-            const low = Number.parseFloat(candles1h[i].l);
-            const prevClose = Number.parseFloat(candles1h[i - 1].c);
+          for (let i = 1; i < usableCandles.length; i++) {
+            const high = Number.parseFloat((usableCandles[i] as any).h);
+            const low = Number.parseFloat((usableCandles[i] as any).l);
+            const prevClose = Number.parseFloat((usableCandles[i - 1] as any).c);
             const tr = Math.max(high - low, Math.abs(high - prevClose), Math.abs(low - prevClose));
             trs.push(tr);
           }
@@ -288,9 +303,10 @@ export const openPositionTool = createTool({
           atrPercent = (atr14 / currentPrice) * 100;
           
           // 确定波动率级别
-          if (atrPercent > 5) {
+          // AlphaBeta 更贴合加密市场的阈值：1小时 ATR% 通常在 0.x%~2.x%
+          if (atrPercent >= (isAlphaBeta ? 1.2 : 5)) {
             volatilityLevel = "high";
-          } else if (atrPercent < 2) {
+          } else if (atrPercent <= (isAlphaBeta ? 0.4 : 2)) {
             volatilityLevel = "low";
           }
         }
@@ -299,18 +315,64 @@ export const openPositionTool = createTool({
       }
       
       // 根据波动率调整参数
-      if (volatilityLevel === "high") {
+      if (strategyParams?.volatilityAdjustment && volatilityLevel === "high") {
         const adjustment = strategyParams.volatilityAdjustment.highVolatility;
         adjustedLeverage = Math.max(1, Math.round(leverage * adjustment.leverageFactor));
         adjustedAmountUsdt = Math.max(10, amountUsdt * adjustment.positionFactor);
         logger.info(`🌊 高波动市场 (ATR ${atrPercent.toFixed(2)}%)：杠杆 ${leverage}x → ${adjustedLeverage}x，仓位 ${amountUsdt.toFixed(0)} → ${adjustedAmountUsdt.toFixed(0)} USDT`);
-      } else if (volatilityLevel === "low") {
+      } else if (strategyParams?.volatilityAdjustment && volatilityLevel === "low") {
         const adjustment = strategyParams.volatilityAdjustment.lowVolatility;
         adjustedLeverage = Math.min(RISK_PARAMS.MAX_LEVERAGE, Math.round(leverage * adjustment.leverageFactor));
         adjustedAmountUsdt = Math.min(totalBalance * 0.32, amountUsdt * adjustment.positionFactor);
         logger.info(`🌊 低波动市场 (ATR ${atrPercent.toFixed(2)}%)：杠杆 ${leverage}x → ${adjustedLeverage}x，仓位 ${amountUsdt.toFixed(0)} → ${adjustedAmountUsdt.toFixed(0)} USDT`);
       } else {
         logger.info(`🌊 正常波动市场 (ATR ${atrPercent.toFixed(2)}%)：保持原始参数`);
+      }
+
+      // ====== AlphaBeta 反追单硬过滤（只影响当前策略） ======
+      if (isAlphaBeta) {
+        try {
+          const sig = await dbClient.execute({
+            sql: `SELECT price, ema_20, ema_50, macd, rsi_7, rsi_14, atr_14, timestamp
+                  FROM trading_signals
+                  WHERE symbol = ?
+                  ORDER BY datetime(timestamp) DESC
+                  LIMIT 1`,
+            args: [symbol],
+          });
+
+          if (sig.rows.length > 0) {
+            const s: any = sig.rows[0];
+            const sigPrice = Number.parseFloat(s.price as string);
+            const ema20 = Number.parseFloat(s.ema_20 as string);
+            const ema50 = Number.parseFloat(s.ema_50 as string);
+            const macd = Number.parseFloat(s.macd as string);
+            const rsi7 = Number.parseFloat(s.rsi_7 as string);
+
+            const bullishTrend = Number.isFinite(sigPrice) && Number.isFinite(ema20) && Number.isFinite(ema50) && Number.isFinite(macd)
+              ? sigPrice > ema20 && ema20 > ema50 && macd > 0
+              : false;
+            const bearishTrend = Number.isFinite(sigPrice) && Number.isFinite(ema20) && Number.isFinite(ema50) && Number.isFinite(macd)
+              ? sigPrice < ema20 && ema20 < ema50 && macd < 0
+              : false;
+
+            // 典型“追高追低”保护：极端 RSI7 只允许在同向趋势结构里出手，否则拒绝
+            if (side === "long" && Number.isFinite(rsi7) && rsi7 >= 85 && !bullishTrend) {
+              return {
+                success: false,
+                message: `AlphaBeta 反追单保护：${symbol} RSI7=${rsi7.toFixed(1)} 极端超买，但趋势结构未确认（需 price>EMA20>EMA50 且 MACD>0），拒绝做多开仓。`,
+              };
+            }
+            if (side === "short" && Number.isFinite(rsi7) && rsi7 <= 15 && !bearishTrend) {
+              return {
+                success: false,
+                message: `AlphaBeta 反追单保护：${symbol} RSI7=${rsi7.toFixed(1)} 极端超卖，但趋势结构未确认（需 price<EMA20<EMA50 且 MACD<0），拒绝做空开仓。`,
+              };
+            }
+          }
+        } catch (error) {
+          logger.warn(`AlphaBeta 反追单保护检查失败（不影响主流程）: ${error}`);
+        }
       }
       
       // ====== 风控检查通过，继续开仓 ======
@@ -337,9 +399,13 @@ export const openPositionTool = createTool({
       const lotSize = Number.parseFloat(contractInfo.lotSize || contractInfo.order_size_round || "1");
       
       // 计算可以开多少张合约
-      // adjustedAmountUsdt = (quantity * quantoMultiplier * currentPrice) / leverage
-      // => quantity = (adjustedAmountUsdt * leverage) / (quantoMultiplier * currentPrice)
-      let quantity = (adjustedAmountUsdt * leverage) / (quantoMultiplier * currentPrice);
+      // AlphaBeta：使用调整后的杠杆参与张数/保证金计算，使波动率自适应真实生效
+      // 其他策略：保持原有行为，避免影响非当前策略
+      const leverageForSizing = isAlphaBeta ? adjustedLeverage : leverage;
+
+      // adjustedAmountUsdt = (quantity * quantoMultiplier * currentPrice) / leverageForSizing
+      // => quantity = (adjustedAmountUsdt * leverageForSizing) / (quantoMultiplier * currentPrice)
+      let quantity = (adjustedAmountUsdt * leverageForSizing) / (quantoMultiplier * currentPrice);
       
       // 根据 lotSize 调整数量精度（向上取整到最接近的有效精度）
       // 例如：lotSize=0.01，quantity=0.123 -> 向上取整到 0.13
@@ -366,17 +432,17 @@ export const openPositionTool = createTool({
       
       // 最后验证：如果 size 为 0 或者太小，放弃开仓
       if (Math.abs(size) < minSize) {
-        const minMargin = (minSize * quantoMultiplier * currentPrice) / leverage;
+        const minMargin = (minSize * quantoMultiplier * currentPrice) / leverageForSizing;
         return {
           success: false,
-          message: `计算的数量 ${Math.abs(size)} 张小于最小限制 ${minSize} 张，需要至少 ${minMargin.toFixed(2)} USDT 保证金（当前${adjustedAmountUsdt.toFixed(2)} USDT，杠杆${leverage}x）`,
+          message: `计算的数量 ${Math.abs(size)} 张小于最小限制 ${minSize} 张，需要至少 ${minMargin.toFixed(2)} USDT 保证金（当前${adjustedAmountUsdt.toFixed(2)} USDT，杠杆${leverageForSizing}x）`,
         };
       }
       
       // 计算实际使用的保证金
-      let actualMargin = (Math.abs(size) * quantoMultiplier * currentPrice) / leverage;
+      let actualMargin = (Math.abs(size) * quantoMultiplier * currentPrice) / leverageForSizing;
       
-      logger.info(`开仓 ${symbol} ${side === "long" ? "做多" : "做空"} ${Math.abs(size)}张 (杠杆${leverage}x)`);
+      logger.info(`开仓 ${symbol} ${side === "long" ? "做多" : "做空"} ${Math.abs(size)}张 (杠杆${leverageForSizing}x)`);
       
       //  市价单开仓（不设置止盈止损）
       const order = await client.placeOrder({
@@ -491,7 +557,8 @@ export const openPositionTool = createTool({
           actualFillPrice, // 使用实际成交价格
           finalQuantity,   // 使用实际成交数量
           adjustedLeverage, // 使用实际调整后的杠杆
-          fee,            // 手续费
+          // AlphaBeta 口径：手续费统一记录在 close 交易（往返总手续费），避免统计时 open/close 双计
+          isAlphaBeta ? 0 : fee,
           getChinaTimeISO(),
           dbStatus,
         ],

@@ -142,8 +142,8 @@ export function generateAlphaBetaPrompt(
 8) **历史表现优先**：参考近期交易胜率和盈亏，连续亏损时降低仓位和杠杆
 9) **持仓优先于开仓**：每个周期必须先检查持仓管理（止盈/止损/加仓），再考虑新开仓
 10) **从失败中学习**：如果某币种亏损，下次评分时更严格（+5分门槛）
-11) **小盈利不平仓**：盈利在+3%~+12%之间且趋势未失效，继续持有等待达到12%目标
-12) **手续费意识**：预期ROI必须>3%才值得交易，否则手续费会吃掉利润
+11) **小盈利不平仓**：盈利在+1%~+3%之间且趋势未失效，继续持有等待触发+3%第一档分批止盈
+12) **手续费意识**：预期ROI必须达标（低杠杆≥2%，中杠杆≥3%），否则手续费会吃掉利润
 
 ---
 【1｜口径说明（非常重要）】
@@ -187,7 +187,7 @@ ROI% = ((currentPrice-entryPrice)/entryPrice*100*(long?+1:-1)) * leverage
 - 只做两类：**回踩续趋势（优先）** / **放量突破（次选）**
 - 量能确认（根据场景）：
   * 趋势延续：volume/avgVolume ≥ 0.8 即可（趋势中量缩是正常的）
-  * 放量突破：volume/avgVolume ≥ 1.2 更优（突破需要量能确认）
+  * 放量突破：volume/avgVolume ≥ 0.8（量比越高越好；但门槛下调以避免错过有效突破）
 - 资金费率过滤：若做多但资金费率显著为正，且预计持仓跨多个费率周期 → 降分或放弃（做空反之）
 
 ### Range（震荡战术）
@@ -217,14 +217,13 @@ ROI% = ((currentPrice-entryPrice)/entryPrice*100*(long?+1:-1)) * leverage
 
 
 ⚠️ **严格开仓条件（缺一不可）**：
-1. 预期ROI必须根据杠杆调整：
+1) 预期ROI必须根据杠杆调整：
    - 低杠杆（3-5倍）：预期ROI ≥ 2%（手续费约0.5%）
    - 中杠杆（6-8倍）：预期ROI ≥ 3%（手续费约0.8%）
-4. 该币种上次亏损 → 本次评分门槛提高到 ≥ 85
-5. 该币种连续2次亏损 → 评分门槛提高到 ≥ 90
-3. 成交量 ≥ 1.2倍平均成交量（有量能支持）
-4. 该币种上次亏损 → 本次评分门槛提高到 ≥ 85
-5. 该方向最近3笔胜率<50% → 该方向评分门槛+5分
+2) 成交量 ≥ 0.8倍平均成交量（有量能支持）
+3) 该币种上次亏损 → 本次评分门槛提高到 ≥ 85
+4) 该币种连续2次亏损 → 评分门槛提高到 ≥ 90
+5) 该方向最近3笔胜率<50% → 该方向评分门槛+5分
 ---
 【5｜杠杆与仓位（动态计算，必须输出计算过程）】
 ---
@@ -266,7 +265,7 @@ ROI% = ((currentPrice-entryPrice)/entryPrice*100*(long?+1:-1)) * leverage
 
 **第一优先级：检查现有持仓**（在考虑新开仓之前）
 1) 立即止损情况（必须执行）：
-   - 亏损 ≤ -4% → 立即 closePosition 100%（配合止盈3%，快速止损）
+   - 亏损达到止损线（按杠杆分档：${params.stopLoss.low}% / ${params.stopLoss.mid}% / ${params.stopLoss.high}%）→ 立即 closePosition 100%
    - 峰值回撤 ≥ 35% → 立即 closePosition 100%
    - 结构失效（价格跌破EMA20 + MACD转负）→ 立即 closePosition 100%
 
@@ -345,18 +344,18 @@ ROI% = ((currentPrice-entryPrice)/entryPrice*100*(long?+1:-1)) * leverage
 步骤D：双向评分表（每币种 LONG/SHORT 两个分数 + 关键依据）
 步骤E：选择“最佳一笔”（若有）并给出【仓位与杠杆】
 
-步骤E：最后检查（开仓前7项检查）
+步骤F：最后检查（开仓前7项检查）
 1. ✅ 评分≥门槛（80/85/92）？
-2. ✅ 预期ROI≥5%？
+2. ✅ 预期ROI达标（低杠杆≥2%，中杠杆≥3%）？
 3. ✅ 多时间框架完全一致？
-4. ✅ 成交量≥1.2倍平均？
+4. ✅ 成交量≥0.8倍平均？
 5. ✅ 历史表现检查通过？
 6. ✅ 根据历史表现调整：
    - 胜率<50% → 评分≥85
    - 币种上次亏损 → 评分≥85
 7. **任一不满足→观望！**
 
-步骤F：执行（优先级顺序）
+步骤G：执行（优先级顺序）
 1. 若有持仓：**优先**止盈/止损
 2. 若开新仓：**通过全部检查后**调用openPosition
 3. 若观望：说明"为什么不满足标准"
@@ -369,6 +368,37 @@ ROI% = ((currentPrice-entryPrice)/entryPrice*100*(long?+1:-1)) * leverage
 
 **宁可不做，不可做错！**
 观望等待高质量机会，比频繁交易更重要。
+
+---
+【9｜强制结构化输出（提高可执行性与可审计性）】
+---
+
+在你输出长文本分析之后，必须再输出一个 **JSON 摘要**（便于审计与复盘），格式如下（字段齐全，数值用数字，缺失填 null）：
+
+JSON 示例：
+{
+  "strategy": "alpha-beta",
+  "timestamp": "ISO8601",
+  "accountValue": 0,
+  "positionsCount": 0,
+  "perSymbol": [
+    {
+      "symbol": "BTC",
+      "marketState": "TrendUp|TrendDown|Range|Chaos",
+      "longScore": 0,
+      "shortScore": 0,
+      "chosenSide": "long|short|null",
+      "meetsHardRules": true,
+      "reasons": ["..."],
+      "action": "open|close|hold|wait",
+      "open": { "leverage": 0, "amountUsdt": 0 },
+      "manage": { "closePercent": 0, "reason": "..." }
+    }
+  ],
+  "bestAction": { "symbol": "BTC", "action": "open|close|hold|wait", "side": "long|short|null" }
+}
+
+注意：如果不交易，仍然要输出 JSON（bestAction.action = "wait"），并写清楚是哪个硬门槛没过（例如“成交量<0.8倍均量 / 预期ROI不达标 / 多时间框架冲突 / 评分不够”）。
 
 ---
 【8｜系统参数】

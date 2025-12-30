@@ -141,6 +141,7 @@ async function collectMarketData() {
         macd: Number.isFinite(indicators.macd),
         rsi14: Number.isFinite(indicators.rsi14) && indicators.rsi14 >= 0 && indicators.rsi14 <= 100,
         volume: Number.isFinite(indicators.volume) && indicators.volume >= 0,
+        atr14: Number.isFinite((indicators as any).atr14) && (indicators as any).atr14 >= 0,
         candleCount: {
           "1m": candles1m.length,
           "3m": candles3m.length,
@@ -159,6 +160,7 @@ async function collectMarketData() {
       if (!dataQuality.rsi14) issues.push("RSI14无效或超出范围");
       if (!dataQuality.volume) issues.push("成交量无效");
       if (indicators.volume === 0) issues.push("当前成交量为0");
+      if (!dataQuality.atr14) issues.push("ATR14无效");
       
       if (issues.length > 0) {
         logger.warn(`${symbol} 数据质量问题 [${dataTimestamp}]: ${issues.join(", ")}`);
@@ -208,8 +210,8 @@ async function collectMarketData() {
       // 保存技术指标到数据库（确保所有数值都是有效的）
       await dbClient.execute({
         sql: `INSERT INTO trading_signals 
-              (symbol, timestamp, price, ema_20, ema_50, macd, rsi_7, rsi_14, volume, funding_rate)
-              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+              (symbol, timestamp, price, ema_20, ema_50, macd, rsi_7, rsi_14, volume, funding_rate, atr_3, atr_14)
+              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         args: [
           symbol,
           getChinaTimeISO(),
@@ -221,6 +223,8 @@ async function collectMarketData() {
           ensureFinite(indicators.rsi14, 50),
           ensureFinite(indicators.volume),
           ensureFinite(fundingRate),
+          ensureFinite((indicators as any).atr3),
+          ensureFinite((indicators as any).atr14),
         ],
       });
     } catch (error) {
@@ -452,40 +456,72 @@ function calculateIndicators(candles: any[]) {
       rsi14: 50,
       volume: 0,
       avgVolume: 0,
+      atr3: 0,
+      atr14: 0,
     };
   }
 
-  // 处理对象格式的K线数据（Gate.io API返回的是对象，不是数组）
-  const closes = candles
-    .map((c) => {
-      // 如果是对象格式（FuturesCandlestick）
-      if (c && typeof c === 'object' && 'c' in c) {
-        return Number.parseFloat(c.c);
+  // Gate.io 往往会返回“当前未收盘K线”，在周期边界（例如 :00/:30）该K线成交量经常为0
+  // 为避免 volume=0 的系统性误判，这里优先使用最近一根已形成K线（必要时丢弃最后一根）
+  let usableCandles = candles;
+  try {
+    if (candles.length >= 2) {
+      const last = candles[candles.length - 1];
+      let lastVol = NaN;
+      if (last && typeof last === "object" && "v" in last) {
+        lastVol = Number.parseFloat((last as any).v);
+      } else if (Array.isArray(last)) {
+        lastVol = Number.parseFloat(last[1]);
       }
-      // 如果是数组格式（兼容旧代码）
-      if (Array.isArray(c)) {
-        return Number.parseFloat(c[2]);
+      if (Number.isFinite(lastVol) && lastVol === 0) {
+        usableCandles = candles.slice(0, -1);
       }
-      return NaN;
-    })
-    .filter(n => Number.isFinite(n));
+    }
+  } catch {
+    // 保底：不影响主流程
+    usableCandles = candles;
+  }
 
-  const volumes = candles
-    .map((c) => {
-      // 如果是对象格式（FuturesCandlestick）
-      if (c && typeof c === 'object' && 'v' in c) {
-        const vol = Number.parseFloat(c.v);
-        // 验证成交量：必须是有限数字且非负
-        return Number.isFinite(vol) && vol >= 0 ? vol : 0;
-      }
-      // 如果是数组格式（兼容旧代码）
-      if (Array.isArray(c)) {
-        const vol = Number.parseFloat(c[1]);
-        return Number.isFinite(vol) && vol >= 0 ? vol : 0;
-      }
-      return 0;
-    })
-    .filter(n => n >= 0); // 过滤掉负数成交量
+  // 统一解析K线字段，确保 closes/highs/lows/volumes 长度一致（避免 ATR 因数组错位失真）
+  const closes: number[] = [];
+  const highs: number[] = [];
+  const lows: number[] = [];
+  const volumes: number[] = [];
+
+  for (const c of usableCandles) {
+    let close = NaN;
+    let high = NaN;
+    let low = NaN;
+    let vol = NaN;
+
+    if (c && typeof c === "object" && "c" in c) {
+      close = Number.parseFloat((c as any).c);
+      high = Number.parseFloat((c as any).h);
+      low = Number.parseFloat((c as any).l);
+      vol = Number.parseFloat((c as any).v);
+    } else if (Array.isArray(c)) {
+      close = Number.parseFloat(c[2]);
+      high = Number.parseFloat(c[3]);
+      low = Number.parseFloat(c[4]);
+      vol = Number.parseFloat(c[1]);
+    }
+
+    if (!Number.isFinite(close)) {
+      continue;
+    }
+
+    // 如果高低价缺失，退化为收盘价，保证数组对齐
+    if (!Number.isFinite(high)) high = close;
+    if (!Number.isFinite(low)) low = close;
+
+    // 成交量缺失/非法：置0（后续会通过“丢弃未收盘K线”逻辑尽量避免边界0）
+    if (!Number.isFinite(vol) || vol < 0) vol = 0;
+
+    closes.push(close);
+    highs.push(high);
+    lows.push(low);
+    volumes.push(vol);
+  }
 
   if (closes.length === 0 || volumes.length === 0) {
     return {
@@ -497,6 +533,8 @@ function calculateIndicators(candles: any[]) {
       rsi14: 50,
       volume: 0,
       avgVolume: 0,
+      atr3: 0,
+      atr14: 0,
     };
   }
 
@@ -509,6 +547,8 @@ function calculateIndicators(candles: any[]) {
     rsi14: ensureRange(calcRSI(closes, 14), 0, 100, 50),
     volume: ensureFinite(volumes.at(-1) || 0),
     avgVolume: ensureFinite(volumes.length > 0 ? volumes.reduce((a, b) => a + b, 0) / volumes.length : 0),
+    atr3: ensureFinite(calcATR(highs, lows, closes, 3)),
+    atr14: ensureFinite(calcATR(highs, lows, closes, 14)),
   };
 }
 
@@ -1393,6 +1433,91 @@ async function fixHistoricalPnlRecords() {
 }
 
 /**
+ * 对账 pending 订单状态（仅 AlphaBeta）
+ * - 将 trades.status 从 pending 更新为 filled / cancelled
+ * - 尝试回填成交价与成交数量（若交易所返回 fill_price/filled size）
+ *
+ * 说明：盈亏与手续费的精确修复由 fixHistoricalPnlRecords 负责（基于 open/close 价格重算）
+ */
+async function reconcilePendingTrades(exchangeClient: ReturnType<typeof createExchangeClient>) {
+  try {
+    // 仅处理最近 48 小时的 pending，避免无限扫描
+    const pending = await dbClient.execute({
+      sql: `SELECT id, order_id, symbol, type, side, price, quantity, timestamp
+            FROM trades
+            WHERE status = 'pending'
+              AND datetime(timestamp) >= datetime('now','-48 hours')
+            ORDER BY datetime(timestamp) DESC
+            LIMIT 200`,
+      args: [],
+    });
+
+    if (!pending.rows || pending.rows.length === 0) {
+      return;
+    }
+
+    let updated = 0;
+
+    for (const row of pending.rows) {
+      const id = (row as any).id as number;
+      const orderId = ((row as any).order_id as string) || "";
+      const symbol = ((row as any).symbol as string) || "";
+
+      if (!orderId || !symbol) continue;
+
+      try {
+        const order = await exchangeClient.getOrder(orderId);
+        const status = (order as any)?.status as string;
+
+        if (!status) continue;
+
+        let newStatus: "pending" | "filled" | "cancelled" = "pending";
+        if (status === "finished") newStatus = "filled";
+        else if (status === "cancelled") newStatus = "cancelled";
+        else newStatus = "pending";
+
+        // 可选回填：fill_price + filled size
+        const fillPrice = Number.parseFloat((order as any)?.fill_price || "0");
+        const size = Number.parseFloat((order as any)?.size || "0");
+        const left = Number.parseFloat((order as any)?.left || "0");
+        const filledQty = Number.isFinite(size) && Number.isFinite(left) ? Math.abs(size - left) : NaN;
+
+        const updates: { sql: string; args: any[] }[] = [];
+
+        if (newStatus !== "pending") {
+          // 更新状态 +（如可用）成交信息
+          if (Number.isFinite(fillPrice) && fillPrice > 0 && Number.isFinite(filledQty) && filledQty > 0) {
+            updates.push({
+              sql: `UPDATE trades SET status = ?, price = ?, quantity = ? WHERE id = ?`,
+              args: [newStatus, fillPrice, filledQty, id],
+            });
+          } else {
+            updates.push({
+              sql: `UPDATE trades SET status = ? WHERE id = ?`,
+              args: [newStatus, id],
+            });
+          }
+        }
+
+        for (const u of updates) {
+          await dbClient.execute(u);
+          updated++;
+        }
+      } catch (error) {
+        // 某些订单可能已不可查或短暂失败；不影响主循环
+        logger.debug(`pending 对账失败 ${symbol} order=${orderId}:`, error as any);
+      }
+    }
+
+    if (updated > 0) {
+      logger.info(`✅ pending 订单对账完成：更新 ${updated} 条 trades 记录`);
+    }
+  } catch (error) {
+    logger.warn("pending 订单对账失败（不影响主流程）:", error as any);
+  }
+}
+
+/**
  * 清仓所有持仓
  */
 async function closeAllPositions(reason: string): Promise<void> {
@@ -1841,6 +1966,17 @@ async function executeTradingDecision() {
       logger.error(`市场数据: ${Object.keys(marketData).length}, 账户: ${accountInfo?.totalBalance}, 持仓: ${positions.length}`);
       return;
     }
+
+    // 5.5（AlphaBeta）对账 pending 订单状态，修复 status 与成交价/数量（不影响其他策略）
+    try {
+      const currentStrategy = getTradingStrategy();
+      if (currentStrategy === "alpha-beta") {
+        await reconcilePendingTrades(exchangeClient);
+      }
+    } catch (error) {
+      logger.warn("pending 订单对账失败:", error as any);
+      // 不影响主流程
+    }
     
     // 6. 修复历史盈亏记录
     try {
@@ -1911,6 +2047,9 @@ async function executeTradingDecision() {
     const agent = await createTradingAgent(intervalMinutes, marketData);
     
     try {
+      // 记录本次 AI 周期的时间窗口，用于回填 actions_taken（决策→执行可审计）
+      const cycleStartIso = getChinaTimeISO();
+
       // 设置足够大的 maxOutputTokens 以避免输出被截断
       // DeepSeek API 限制: max_tokens 范围为 [1, 8192]
       const response = await agent.generateText(prompt, {
@@ -1918,6 +2057,8 @@ async function executeTradingDecision() {
         maxSteps: 20,
         temperature: 0.4,
       });
+
+      const cycleEndIso = getChinaTimeISO();
       
       // 从响应中提取AI的完整回复，不进行任何切分
       let decisionText = "";
@@ -1996,6 +2137,41 @@ async function executeTradingDecision() {
       logger.info("=".repeat(80));
       logger.info(decisionText || "无决策输出");
       logger.info("=".repeat(80) + "\n");
+
+      // 回填 actions_taken：用“本次周期窗口内落库的 trades”作为可审计执行证据
+      let actionsTaken = "[]";
+      try {
+        const tradesInCycle = await dbClient.execute({
+          sql: `SELECT order_id, symbol, side, type, price, quantity, leverage, pnl, fee, timestamp, status
+                FROM trades
+                WHERE datetime(timestamp) >= datetime(?,'-1 minutes')
+                  AND datetime(timestamp) <= datetime(?,'+1 minutes')
+                ORDER BY datetime(timestamp) ASC`,
+          args: [cycleStartIso, cycleEndIso],
+        });
+
+        const actions = (tradesInCycle.rows || []).map((row: any) => {
+          const type = row.type as string;
+          return {
+            action: type === "open" ? "open_position" : "close_position",
+            orderId: row.order_id,
+            symbol: row.symbol,
+            side: row.side,
+            tradeType: type,
+            price: Number.parseFloat(row.price as string),
+            quantity: Number.parseFloat(row.quantity as string),
+            leverage: Number.parseInt(row.leverage as string),
+            pnl: row.pnl !== null && row.pnl !== undefined ? Number.parseFloat(row.pnl as string) : undefined,
+            fee: row.fee !== null && row.fee !== undefined ? Number.parseFloat(row.fee as string) : undefined,
+            status: row.status,
+            timestamp: row.timestamp,
+          };
+        });
+
+        actionsTaken = JSON.stringify(actions);
+      } catch (error) {
+        logger.warn("回填 actions_taken 失败（不影响主流程）:", error as any);
+      }
       
       // 保存决策记录
       await dbClient.execute({
@@ -2007,7 +2183,7 @@ async function executeTradingDecision() {
           iterationCount,
           JSON.stringify(marketData),
           decisionText,
-          "[]",
+          actionsTaken,
           accountInfo.totalBalance,
           positions.length,
         ],
