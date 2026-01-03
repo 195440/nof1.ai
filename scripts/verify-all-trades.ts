@@ -22,6 +22,9 @@ const MULTIPLIERS: Record<string, number> = {
   'BNB': 0.001,  // 已修复
   'BCH': 0.01,
   'DOGE': 100,
+  'ADA': 100,    // 添加更多币种支持
+  'AVAX': 0.1,
+  'MATIC': 10,
 };
 
 async function verifyAllTrades() {
