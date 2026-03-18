@@ -44,8 +44,9 @@ open-nof1.ai 是一个 AI 驱动的加密货币自动交易系统，将大语言
 │    Trading Tools   │            │   Gate.io API Client  │
 │                    │            │                       │
 │ - Market Data      │◄───────────┤ - Order Management    │
-│ - Account Info     │            │ - Position Query      │
-│ - Trade Execution  │            │ - Market Data Stream  │
+│ - News Data        │            │ - Position Query      │
+│ - Account Info     │            │ - Market Data Stream  │
+│ - Trade Execution  │            │                       │
 └─────────┬──────────┘            └───────────────────────┘
           │
 ┌─────────┴──────────┐
@@ -209,6 +210,11 @@ ACCOUNT_RECORD_INTERVAL_MINUTES=1            # 账户记录间隔
 **其他 API 配置：**
 - `CLOSE_POSITION_PASSWORD`: 网页界面手动平仓的安全密码
 
+**Gate MCP News 配置：**
+- `GATE_NEWS_MCP_ENABLED`: 是否启用消息面数据（默认 true，设为 false 可关闭）
+- `GATE_NEWS_MCP_URL`: MCP 端点地址（默认 https://api.gatemcp.ai/mcp/news）
+- 以上配置项均有默认值，无需额外配置即可使用
+
 > ⚠️ **重要**：
 > - 首次使用请务必在测试网环境测试（`GATE_USE_TESTNET=true` 或 `OKX_USE_TESTNET=true`）！
 > - 切换交易所时，请确保配置对应交易所的 API 密钥
@@ -263,6 +269,13 @@ npm run trading:start
 - **自主分析**: 无预配置交易信号
 - **多时间框架**: 跨多个时间窗口聚合数据
 - **风险管理**: AI 控制的仓位规模和杠杆管理
+
+### 消息面数据集成
+
+- **数据来源**: 通过 Gate MCP News 端点获取实时加密货币快讯、交易所公告、社交情绪数据
+- **并行采集**: 消息面数据与技术面数据并行采集，每周期与市场数据同时获取，为 AI 决策提供更全面的信息维度
+- **AI 工具**: 支持 getCryptoNews、getExchangeAnnouncements、getSocialSentiment
+- **故障隔离**: 消息面数据获取失败不影响交易主流程
 
 ### 完整交易功能
 

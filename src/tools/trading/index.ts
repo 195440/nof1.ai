@@ -46,3 +46,10 @@ export {
   syncPositionsTool,
 } from "./accountManagement";
 
+// 消息面数据工具（Gate MCP News）
+export {
+  getCryptoNewsTool,
+  getExchangeAnnouncementsTool,
+  getLatestEventsTool,
+} from "./newsData";
+

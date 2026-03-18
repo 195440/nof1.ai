@@ -62,6 +62,40 @@ The system currently supports **11 trading strategies**, suitable for different 
 | `multi-agent-consensus` | **Multi-Agent Jury** | **5-10 minutes** | **Hours - Days** | **Medium** | **Investors seeking robust decision-making and risk control** |
 | `alpha-beta` | **Alpha Beta** | **Flexible** | **AI decides** | **AI decides** | **Zero strategy guidance, AI fully autonomous with forced self-review** |
 
+---
+
+## Sentiment Data Assistance
+
+The system retrieves sentiment data through the Gate MCP News endpoint as a supplementary reference to technical analysis, helping each strategy make more comprehensive decisions.
+
+### Sentiment Data Source and Collection
+
+- **Data Source**: Fetches 3 types of sentiment data via the Gate MCP News endpoint: crypto news, exchange announcements, and social sentiment
+- **Collection Method**: Sentiment data is collected in parallel with technical data in each trading cycle
+- **On-Demand Query**: AI can use 3 sentiment tools to query deeper information as needed
+- **Supplementary Role**: Sentiment data is for reference only and does not replace technical analysis; technical analysis remains the core basis for decisions
+- **Fault Isolation**: Failure to obtain sentiment data does not affect the main trading flow
+
+### Sentiment Application by Strategy
+
+| Strategy Type | Sentiment Application |
+|--------------|----------------------|
+| Conservative/Balanced | Sentiment data for risk alerts (e.g., reduce position on major negative news) |
+| Aggressive | Sentiment data for event-driven trading opportunities |
+| AI Autonomous | AI decides how to use sentiment data |
+| Alpha-Beta | Sentiment data as an additional analysis dimension to assist signal scoring |
+
+### Configuration
+
+| Configuration Item | Description | Default |
+|-------------------|-------------|---------|
+| `GATE_NEWS_MCP_ENABLED` | Enable or disable sentiment feature | Enabled by default; set to `false` to disable |
+| `GATE_NEWS_MCP_URL` | MCP endpoint URL | `https://api.gatemcp.ai/mcp/news` |
+
+No additional configuration is required; the system enables sentiment data collection by default.
+
+---
+
 ## Detailed Strategy Descriptions
 
 ### Ultra-Short Strategy (`ultra-short`)

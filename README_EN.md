@@ -62,8 +62,9 @@ The system follows a **minimal human intervention** design philosophy, abandonin
 │    Trading Tools   │            │   Gate.io API Client  │
 │                    │            │                       │
 │ - Market Data      │◄───────────┤ - Order Management    │
-│ - Account Info     │            │ - Position Query      │
-│ - Trade Execution  │            │ - Market Data Stream  │
+│ - News Data        │            │ - Position Query      │
+│ - Account Info     │            │ - Market Data Stream  │
+│ - Trade Execution  │            │                       │
 └─────────┬──────────┘            └───────────────────────┘
           │
 ┌─────────┴──────────┐
@@ -131,6 +132,13 @@ The system follows a **minimal human intervention** design philosophy, abandonin
 - **Leverage Control**: Configurable maximum leverage
 - **Trade Throttling**: Minimum interval between trades
 - **Audit Trail**: Complete database logging of all actions
+
+### News Data Integration
+
+- **Data Source**: Fetches real-time cryptocurrency news, exchange announcements, and social sentiment data via Gate MCP News endpoint
+- **Parallel Collection**: News data is collected in parallel with technical/market data each cycle, providing AI with a more comprehensive information dimension for decision-making
+- **AI Tools**: Supports 3 AI tools: getCryptoNews, getExchangeAnnouncements, getSocialSentiment
+- **Fault Isolation**: News data fetch failures do not affect the main trading flow
 
 ### Production-Ready Deployment
 
@@ -343,6 +351,10 @@ nof1.ai/
 | `ACCOUNT_DRAWDOWN_NO_NEW_POSITION_PERCENT` | Drawdown threshold to stop opening new positions, only allow closing (%) | 30 | No |
 | `ACCOUNT_DRAWDOWN_FORCE_CLOSE_PERCENT` | Drawdown threshold to force close all positions to protect remaining funds (%) | 50 | No |
 | `ACCOUNT_RECORD_INTERVAL_MINUTES` | Account asset record interval (minutes) | 1 | No |
+| `GATE_NEWS_MCP_ENABLED` | Enable Gate MCP News sentiment data | true | No |
+| `GATE_NEWS_MCP_URL` | Gate MCP News endpoint URL | https://api.gatemcp.ai/mcp/news | No |
+
+> **Gate MCP News Configuration**: Both variables have default values; no additional configuration is required. To disable news data, set `GATE_NEWS_MCP_ENABLED` to `false`.
 
 ### Trading Strategies
 

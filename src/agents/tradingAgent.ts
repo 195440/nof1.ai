@@ -81,6 +81,113 @@ export function getTradingStrategy(): TradingStrategy {
 }
 
 /**
+ * 格式化单条快讯/公告
+ * MCP 返回的 item 结构: { metadata: { title, create_time, labels: { sentiment, categories }, total_score }, text }
+ */
+function formatNewsItem(item: any): string {
+  if (typeof item === "string") return item;
+  if (!item || typeof item !== "object") return String(item);
+
+  const title = item.metadata?.title || item.title || "";
+  const time = item.metadata?.create_time || item.create_time || "";
+  const sentiment = item.metadata?.labels?.sentiment || "";
+  const score = item.metadata?.total_score || 0;
+
+  if (!title && !item.text) return JSON.stringify(item);
+
+  let result = "";
+  if (time) result += `[${time}] `;
+  result += title || (typeof item.text === "string" ? item.text.slice(0, 80) : "");
+
+  const tags: string[] = [];
+  if (sentiment) {
+    const sentimentMap: Record<string, string> = { pos: "利好", neu: "中性", neg: "利空" };
+    tags.push(sentimentMap[sentiment] || sentiment);
+  }
+  if (score > 0) tags.push(`评分${score}`);
+  if (tags.length > 0) result += ` (${tags.join(", ")})`;
+
+  return result;
+}
+
+/**
+ * 格式化事件异动条目
+ * 事件结构: { event_title, event_time, event_type, context, impact_analysis, tags }
+ */
+function formatEventItem(item: any): string {
+  if (typeof item === "string") return item;
+  if (!item || typeof item !== "object") return String(item);
+
+  const title = item.event_title || item.title || "";
+  const time = item.event_time || "";
+  const context = item.context || "";
+  const impact = item.impact_analysis || "";
+
+  if (!title && !context) return JSON.stringify(item);
+
+  let result = "";
+  if (time) result += `[${time}] `;
+  result += title;
+  if (impact) result += ` -- ${impact}`;
+
+  return result;
+}
+
+/**
+ * 格式化消息面数据板块内容（各提示词函数共用）
+ * newsData 结构: { [symbol]: { news: items[], announcements: items[], events: items[], sentiment: { pos, neu, neg, direction } } }
+ */
+function formatNewsContent(newsData: Record<string, any>): string {
+  if (!newsData || Object.keys(newsData).length === 0) return "";
+
+  let content = "";
+
+  for (const [symbol, data] of Object.entries(newsData)) {
+    if (!data) continue;
+
+    const hasNews = data.news && data.news.length > 0;
+    const hasAnnouncements = data.announcements && data.announcements.length > 0;
+    const hasEvents = data.events && data.events.length > 0;
+    const hasSentiment = data.sentiment;
+
+    if (!hasNews && !hasAnnouncements && !hasEvents && !hasSentiment) continue;
+
+    if (hasNews) {
+      content += `【${symbol} 相关快讯】\n`;
+      for (const item of data.news) {
+        content += `- ${formatNewsItem(item)}\n`;
+      }
+      content += "\n";
+    }
+
+    if (hasAnnouncements) {
+      content += `【${symbol} 交易所公告】\n`;
+      for (const item of data.announcements) {
+        content += `- ${formatNewsItem(item)}\n`;
+      }
+      content += "\n";
+    }
+
+    if (hasEvents) {
+      content += `【${symbol} 事件异动】\n`;
+      for (const item of data.events) {
+        content += `- ${formatEventItem(item)}\n`;
+      }
+      content += "\n";
+    }
+
+    if (hasSentiment) {
+      content += `【${symbol} 消息面情绪】\n`;
+      content += `- 综合倾向: ${data.sentiment.direction}`;
+      content += ` (利好${data.sentiment.pos}条, 中性${data.sentiment.neu}条, 利空${data.sentiment.neg}条)\n`;
+      content += "\n";
+    }
+  }
+
+  return content;
+}
+
+/**
  * 生成Alpha Beta策略的交易提示词
  * 结合策略规则（来自alphaBeta.ts）和周期数据
  */
@@ -89,12 +196,13 @@ function generateAlphaBetaPromptForCycle(data: {
   iteration: number;
   intervalMinutes: number;
   marketData: any;
+  newsData?: Record<string, any>;
   accountInfo: any;
   positions: any[];
   tradeHistory?: any[];
   recentDecisions?: any[];
 }): string {
-  const { minutesElapsed, iteration, intervalMinutes, marketData, accountInfo, positions, tradeHistory, recentDecisions } = data;
+  const { minutesElapsed, iteration, intervalMinutes, marketData, newsData, accountInfo, positions, tradeHistory, recentDecisions } = data;
   const currentTime = formatChinaTime();
   const params = getStrategyParams('alpha-beta');
   
@@ -267,6 +375,18 @@ RSI(7): ${(data?.rsi7 ?? 0).toFixed(1)}
     }
   }
 
+  // 输出消息面数据
+  if (newsData && Object.keys(newsData).length > 0) {
+    const newsContent = formatNewsContent(newsData);
+    if (newsContent) {
+      dataPrompt += `---
+【消息面数据】
+---
+
+${newsContent}`;
+    }
+  }
+
   // 输出历史交易记录
   if (tradeHistory && tradeHistory.length > 0) {
     dataPrompt += `---
@@ -335,8 +455,11 @@ ${longRate > 80 ? '\n** 警告：做空比例过低，请认真检查做空机�
 
 - openPosition: 开仓（symbol, side, leverage, amountUsdt）
 - closePosition: 平仓（symbol, closePercent）
+- getCryptoNews: 获取币种最新快讯（coin, limit）
+- getExchangeAnnouncements: 获取交易所公告（coin, limit）
+- getLatestEvents: 获取最新事件异动（coin, limit）
 
-现在请按照策略规则进行分析和决策。
+现在请按照策略规则进行分析和决策。消息面数据已预加载，如需更多实时信息可使用上述工具查询。
 `;
 
   return strategyPrompt + dataPrompt;
@@ -350,12 +473,13 @@ function generateAiAutonomousPromptForCycle(data: {
   iteration: number;
   intervalMinutes: number;
   marketData: any;
+  newsData?: Record<string, any>;
   accountInfo: any;
   positions: any[];
   tradeHistory?: any[];
   recentDecisions?: any[];
 }): string {
-  const { minutesElapsed, iteration, intervalMinutes, marketData, accountInfo, positions, tradeHistory, recentDecisions } = data;
+  const { minutesElapsed, iteration, intervalMinutes, marketData, newsData, accountInfo, positions, tradeHistory, recentDecisions } = data;
   const currentTime = formatChinaTime();
   
   let prompt = `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -544,6 +668,18 @@ function generateAiAutonomousPromptForCycle(data: {
     }
   }
 
+  // 输出消息面数据（如果有）
+  if (newsData && Object.keys(newsData).length > 0) {
+    const newsContent = formatNewsContent(newsData);
+    if (newsContent) {
+      prompt += `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+【消息面数据】
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+${newsContent}`;
+    }
+  }
+
   // 输出历史交易记录（如果有）
   if (tradeHistory && tradeHistory.length > 0) {
     prompt += `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -673,6 +809,10 @@ function generateAiAutonomousPromptForCycle(data: {
   - 参数: symbol（币种）, closePercent（平仓百分比，默认100%）
   - 手续费: 约 0.05%
 
+• getCryptoNews: 获取币种最新快讯（coin, limit）
+• getExchangeAnnouncements: 获取交易所公告（coin, limit）
+• getLatestEvents: 获取最新事件异动（coin, limit）
+
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 【开始交易】
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -706,13 +846,14 @@ export function generateTradingPrompt(data: {
   iteration: number;
   intervalMinutes: number;
   marketData: any;
+  newsData?: Record<string, any>;
   accountInfo: any;
   positions: any[];
   tradeHistory?: any[];
   recentDecisions?: any[];
   positionCount?: number;
 }): string {
-  const { minutesElapsed, iteration, intervalMinutes, marketData, accountInfo, positions, tradeHistory, recentDecisions, positionCount } = data;
+  const { minutesElapsed, iteration, intervalMinutes, marketData, newsData, accountInfo, positions, tradeHistory, recentDecisions, positionCount } = data;
   const currentTime = formatChinaTime();
   
   // 获取当前策略参数（用于每周期强调风控规则）
@@ -825,6 +966,7 @@ ${isCodeLevelProtectionEnabled ? (allowAiOverride ? `│                        
 【数据说明】
 本提示词已预加载所有必需数据：
 • 所有币种的市场数据和技术指标（多时间框架）
+• 消息面数据（快讯、交易所公告、社交情绪）
 • 账户信息（余额、收益率、夏普比率）
 • 当前持仓状态（盈亏、持仓时间、杠杆）
 • 历史交易记录（最近10笔）
@@ -923,6 +1065,15 @@ ${isCodeLevelProtectionEnabled ? (allowAiOverride ? `│                        
         }
       }
       prompt += `\n`;
+    }
+  }
+
+  // 消息面数据（如果有）
+  if (newsData && Object.keys(newsData).length > 0) {
+    const newsContent = formatNewsContent(newsData);
+    if (newsContent) {
+      prompt += `\n消息面数据（快讯/公告/社交情绪）\n\n`;
+      prompt += newsContent;
     }
   }
 
@@ -1121,6 +1272,7 @@ ${strategyDesc}
 
 你拥有的能力：
 - 分析多时间框架的市场数据（价格、技术指标、成交量等）
+- 获取消息面数据（加密货币快讯、交易所公告、社交情绪）辅助决策
 - 开仓（做多或做空）
 - 平仓（部分或全部）
 - 自主决定交易策略、风险管理、仓位大小、杠杆倍数
@@ -1664,6 +1816,7 @@ ${strategySpecificContent}
 
 可用工具：
 - 市场数据：getMarketPrice、getTechnicalIndicators、getFundingRate、getOrderBook
+- 消息面数据：getCryptoNews（快讯）、getExchangeAnnouncements（公告）、getLatestEvents（事件异动）
 - 持仓管理：openPosition（市价单）、closePosition（市价单）、cancelOrder
 - 账户信息：getAccountBalance、getPositions、getOpenOrders
 - 风险分析：calculateRisk、checkOrderStatus
@@ -1804,6 +1957,9 @@ export async function createTradingAgent(intervalMinutes: number = 5, marketData
       tradingTools.checkOrderStatusTool,
       tradingTools.calculateRiskTool,
       tradingTools.syncPositionsTool,
+      tradingTools.getCryptoNewsTool,
+      tradingTools.getExchangeAnnouncementsTool,
+      tradingTools.getLatestEventsTool,
     ],
     subAgents,
     memory,

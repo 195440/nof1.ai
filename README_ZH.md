@@ -62,8 +62,9 @@ open-nof1.ai 是一个 AI 驱动的加密货币自动交易系统，将大语言
 │    Trading Tools   │            │   Gate.io API Client  │
 │                    │            │                       │
 │ - Market Data      │◄───────────┤ - Order Management    │
-│ - Account Info     │            │ - Position Query      │
-│ - Trade Execution  │            │ - Market Data Stream  │
+│ - News Data        │            │ - Position Query      │
+│ - Account Info     │            │ - Market Data Stream  │
+│ - Trade Execution  │            │                       │
 └─────────┬──────────┘            └───────────────────────┘
           │
 ┌─────────┴──────────┐
@@ -131,6 +132,13 @@ open-nof1.ai 是一个 AI 驱动的加密货币自动交易系统，将大语言
 - **杠杆控制**: 可配置的最大杠杆
 - **交易节流**: 交易之间的最小间隔
 - **审计追踪**: 完整的数据库日志记录
+
+### 消息面数据集成
+
+- **数据来源**: 通过 Gate MCP News 端点获取实时加密货币快讯、交易所公告、社交情绪数据
+- **并行采集**: 消息面数据与技术面数据并行采集，每周期与市场数据同时获取，为 AI 决策提供更全面的信息维度
+- **AI 工具**: 支持 3 个 AI 工具：getCryptoNews、getExchangeAnnouncements、getSocialSentiment
+- **故障隔离**: 消息面数据获取失败不影响交易主流程
 
 ### 生产就绪部署
 
@@ -342,6 +350,10 @@ nof1.ai/
 | `ACCOUNT_DRAWDOWN_NO_NEW_POSITION_PERCENT` | 禁止开仓阈值：停止开新仓位，只允许平仓(%) | 30 | 否 |
 | `ACCOUNT_DRAWDOWN_FORCE_CLOSE_PERCENT` | 强制平仓阈值：自动平掉所有仓位，保护剩余资金(%) | 50 | 否 |
 | `ACCOUNT_RECORD_INTERVAL_MINUTES` | 账户资产记录间隔(分钟) | 1 | 否 |
+| `GATE_NEWS_MCP_ENABLED` | 是否启用 Gate MCP News 消息面数据 | true | 否 |
+| `GATE_NEWS_MCP_URL` | Gate MCP News 端点地址 | https://api.gatemcp.ai/mcp/news | 否 |
+
+> **Gate MCP News 配置说明**: 以上两个配置项均有默认值，无需额外配置即可使用。如需关闭消息面数据，可将 `GATE_NEWS_MCP_ENABLED` 设为 `false`。
 
 ### 交易策略说明
 
