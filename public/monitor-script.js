@@ -115,12 +115,6 @@ class TradingMonitor {
                 unrealisedPnlEl.className = 'detail-value ' + (data.unrealisedPnl >= 0 ? 'positive' : 'negative');
             }
 
-            // 更新累计手续费
-            const totalFeesEl = document.getElementById('total-fees');
-            if (totalFeesEl) {
-                totalFeesEl.textContent = (data.totalFees || 0).toFixed(2);
-            }
-
             // 更新返佣比例
             const rebatePercentEl = document.getElementById('rebate-percent');
             if (rebatePercentEl) {

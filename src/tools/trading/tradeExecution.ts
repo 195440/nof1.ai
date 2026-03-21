@@ -108,6 +108,167 @@ async function getProfitProtectionStopPercent(currentPnlPercent: number): Promis
   return 0;
 }
 
+const MIN_SAME_SYMBOL_COOLDOWN_CYCLES = 3;
+const configuredSameSymbolCooldownCycles = Number.parseFloat(
+  process.env.SAME_SYMBOL_COOLDOWN_CYCLES || `${MIN_SAME_SYMBOL_COOLDOWN_CYCLES}`,
+);
+const SAME_SYMBOL_COOLDOWN_CYCLES = Number.isFinite(configuredSameSymbolCooldownCycles)
+  ? Math.max(MIN_SAME_SYMBOL_COOLDOWN_CYCLES, configuredSameSymbolCooldownCycles)
+  : MIN_SAME_SYMBOL_COOLDOWN_CYCLES;
+
+interface TrendIndicatorSnapshot {
+  currentPrice: number;
+  ema20: number;
+  ema50: number;
+  macd: number;
+  rsi7: number;
+  rsi14: number;
+}
+
+function calculateTrendEma(prices: number[], period: number): number {
+  if (prices.length === 0) {
+    return 0;
+  }
+
+  const multiplier = 2 / (period + 1);
+  let ema = prices[0];
+
+  for (let i = 1; i < prices.length; i++) {
+    ema = prices[i] * multiplier + ema * (1 - multiplier);
+  }
+
+  return Number.isFinite(ema) ? ema : 0;
+}
+
+function calculateTrendMacd(prices: number[]): number {
+  if (prices.length < 26) {
+    return 0;
+  }
+
+  return calculateTrendEma(prices, 12) - calculateTrendEma(prices, 26);
+}
+
+function calculateTrendRsi(prices: number[], period: number): number {
+  if (prices.length < period + 1) {
+    return 50;
+  }
+
+  let gains = 0;
+  let losses = 0;
+
+  for (let i = prices.length - period; i < prices.length; i++) {
+    if (i === 0) {
+      continue;
+    }
+
+    const change = prices[i] - prices[i - 1];
+    if (change > 0) {
+      gains += change;
+    } else {
+      losses -= change;
+    }
+  }
+
+  if (losses === 0) {
+    return gains > 0 ? 100 : 50;
+  }
+
+  const relativeStrength = (gains / period) / (losses / period);
+  const rsi = 100 - 100 / (1 + relativeStrength);
+  return Number.isFinite(rsi) ? Math.min(100, Math.max(0, rsi)) : 50;
+}
+
+function extractCandleClose(candle: any): number | null {
+  if (candle && typeof candle === "object" && "c" in candle) {
+    const close = Number.parseFloat(candle.c);
+    return Number.isFinite(close) ? close : null;
+  }
+
+  if (Array.isArray(candle)) {
+    const close = Number.parseFloat(candle[2]);
+    return Number.isFinite(close) ? close : null;
+  }
+
+  return null;
+}
+
+async function getTrendIndicatorSnapshot(
+  client: ReturnType<typeof createExchangeClient>,
+  contract: string,
+  interval: "5m" | "15m",
+  limit: number = 80,
+): Promise<TrendIndicatorSnapshot> {
+  const candles = await client.getFuturesCandles(contract, interval, limit);
+  const prices = candles
+    .map((candle: any) => extractCandleClose(candle))
+    .filter((price): price is number => price !== null);
+
+  if (prices.length === 0) {
+    throw new Error(`无法获取 ${contract} ${interval} 技术指标`);
+  }
+
+  return {
+    currentPrice: prices.at(-1) || 0,
+    ema20: calculateTrendEma(prices, 20),
+    ema50: calculateTrendEma(prices, 50),
+    macd: calculateTrendMacd(prices),
+    rsi7: calculateTrendRsi(prices, 7),
+    rsi14: calculateTrendRsi(prices, 14),
+  };
+}
+
+async function checkReversalTradeConfirmation(
+  client: ReturnType<typeof createExchangeClient>,
+  contract: string,
+  side: "long" | "short",
+): Promise<{ ok: boolean; message?: string }> {
+  const fast = await getTrendIndicatorSnapshot(client, contract, "5m");
+  const confirm = await getTrendIndicatorSnapshot(client, contract, "15m");
+
+  const trendAlignedOn15m = side === "long"
+    ? confirm.currentPrice >= confirm.ema20 && confirm.ema20 >= confirm.ema50 && confirm.macd >= 0
+    : confirm.currentPrice <= confirm.ema20 && confirm.ema20 <= confirm.ema50 && confirm.macd <= 0;
+
+  if (trendAlignedOn15m) {
+    return { ok: true };
+  }
+
+  const checks = side === "long"
+    ? [
+        { label: "5m价格重新站回EMA20", passed: fast.currentPrice >= fast.ema20 },
+        { label: "5m EMA20上穿/站稳EMA50", passed: fast.ema20 >= fast.ema50 },
+        { label: "5m MACD转正", passed: fast.macd >= 0 },
+        { label: "15m RSI脱离极弱区", passed: confirm.rsi7 >= 35 || confirm.rsi14 >= 40 },
+        { label: "15m价格或MACD确认转强", passed: confirm.currentPrice >= confirm.ema20 || confirm.macd >= 0 },
+      ]
+    : [
+        { label: "5m价格跌回EMA20下方", passed: fast.currentPrice <= fast.ema20 },
+        { label: "5m EMA20跌破/压制EMA50", passed: fast.ema20 <= fast.ema50 },
+        { label: "5m MACD转负", passed: fast.macd <= 0 },
+        { label: "15m RSI脱离过热区", passed: confirm.rsi7 <= 65 || confirm.rsi14 <= 60 },
+        { label: "15m价格或MACD确认转弱", passed: confirm.currentPrice <= confirm.ema20 || confirm.macd <= 0 },
+      ];
+
+  const passedChecks = checks.filter((check) => check.passed);
+
+  if (passedChecks.length >= 4) {
+    logger.info(
+      `✅ ${contract} ${side} 识别为反转单，但已通过确认过滤 (${passedChecks.length}/${checks.length})`,
+    );
+    return { ok: true };
+  }
+
+  return {
+    ok: false,
+    message:
+      `拒绝开仓 ${contract.replace("_USDT", "")}：当前属于反转交易，但确认不足（${passedChecks.length}/${checks.length}）。` +
+      ` 已满足：${passedChecks.map((check) => check.label).join("、") || "无"}。` +
+      ` 5m: price=${fast.currentPrice.toFixed(4)}, ema20=${fast.ema20.toFixed(4)}, ema50=${fast.ema50.toFixed(4)}, macd=${fast.macd.toFixed(4)}, rsi7=${fast.rsi7.toFixed(1)}。` +
+      ` 15m: price=${confirm.currentPrice.toFixed(4)}, ema20=${confirm.ema20.toFixed(4)}, ema50=${confirm.ema50.toFixed(4)}, macd=${confirm.macd.toFixed(4)}, rsi7=${confirm.rsi7.toFixed(1)}, rsi14=${confirm.rsi14.toFixed(1)}。` +
+      " 反转单不能只凭 RSI 极值开仓，请等待结构确认后再交易。",
+  };
+}
+
 /**
  * 开仓工具
  */
@@ -196,18 +357,17 @@ export const openPositionTool = createTool({
         const now = Date.now();
         const minutesSinceClose = (now - closeTime) / (1000 * 60);
         const intervalMinutes = Number.parseInt(process.env.TRADING_INTERVAL_MINUTES || "5");
-        const cooldownMinutes = intervalMinutes / 2; // 冷静期调整为半个周期
+        const cooldownMinutes = intervalMinutes * SAME_SYMBOL_COOLDOWN_CYCLES;
 
-        
-        // 如果距离上次平仓时间不足半个交易周期，拒绝开仓
+        // 如果距离上次平仓时间不足 3 个交易周期，拒绝开仓
         if (minutesSinceClose < cooldownMinutes) {
           return {
             success: false,
-            message: `拒绝开仓 ${symbol}：该币种在 ${minutesSinceClose.toFixed(1)} 分钟前刚平仓，需要等待至少 ${cooldownMinutes.toFixed(1)} 分钟（半个交易周期）后才能重新开仓。这是为了防止频繁反复交易，造成不必要的手续费损失。`,
+            message: `拒绝开仓 ${symbol}：该币种在 ${minutesSinceClose.toFixed(1)} 分钟前刚平仓，需要等待至少 ${cooldownMinutes.toFixed(1)} 分钟（${SAME_SYMBOL_COOLDOWN_CYCLES} 个交易周期）后才能重新开仓。这是为了防止同一币种短时间内连续试错。`,
           };
         }
         
-        logger.info(`${symbol} 距离上次平仓已 ${minutesSinceClose.toFixed(1)} 分钟，通过冷静期检查（冷静期：${cooldownMinutes.toFixed(1)}分钟）`);
+        logger.info(`${symbol} 距离上次平仓已 ${minutesSinceClose.toFixed(1)} 分钟，通过冷静期检查（冷静期：${cooldownMinutes.toFixed(1)}分钟 / ${SAME_SYMBOL_COOLDOWN_CYCLES}个周期）`);
       }
       
       // 4. 获取账户信息
@@ -221,6 +381,19 @@ export const openPositionTool = createTool({
           success: false,
           message: `账户可用资金异常: ${availableBalance} USDT`,
         };
+      }
+
+      const positionSizeMinPercent = Math.max(
+        0,
+        Math.min(currentStrategyParams.positionSizeMin || 0, currentStrategyParams.positionSizeMax || 100),
+      );
+      const minSinglePosition = totalBalance * (positionSizeMinPercent / 100);
+
+      if (amountUsdt < minSinglePosition) {
+        logger.info(
+          `提升 ${symbol} 开仓金额 ${amountUsdt.toFixed(2)} → ${minSinglePosition.toFixed(2)} USDT，匹配 ${currentStrategyParams.name} 策略最小仓位 ${positionSizeMinPercent}%`,
+        );
+        amountUsdt = minSinglePosition;
       }
       
       // 5. 检查账户回撤（从峰值回撤超过阈值时禁止开仓）
@@ -244,6 +417,15 @@ export const openPositionTool = createTool({
 
       if (drawdownFromPeak >= RISK_PARAMS.ACCOUNT_DRAWDOWN_WARNING_PERCENT) {
         logger.warn(`⚠️ 账户回撤 ${drawdownFromPeak.toFixed(2)}% 已达警告阈值 ${RISK_PARAMS.ACCOUNT_DRAWDOWN_WARNING_PERCENT}%，请谨慎交易`);
+      }
+
+      // 6.5 反转单确认过滤：不允许只凭 RSI 极值逆势开仓
+      const reversalConfirmation = await checkReversalTradeConfirmation(client, contract, side);
+      if (!reversalConfirmation.ok) {
+        return {
+          success: false,
+          message: reversalConfirmation.message,
+        };
       }
       
       // 6. 检查总敞口（不超过账户净值的15倍）
@@ -407,7 +589,10 @@ export const openPositionTool = createTool({
       } else if (volatilityLevel === "low") {
         const adjustment = strategyParams.volatilityAdjustment.lowVolatility;
         adjustedLeverage = Math.min(effectiveMaxLeverage, Math.max(currentStrategyParams.leverageMin, Math.round(leverage * adjustment.leverageFactor)));
-        adjustedAmountUsdt = Math.min(totalBalance * 0.32, amountUsdt * adjustment.positionFactor);
+        adjustedAmountUsdt = Math.min(
+          totalBalance * ((currentStrategyParams.positionSizeMax || 32) / 100),
+          amountUsdt * adjustment.positionFactor,
+        );
         logger.info(`🌊 低波动市场 (ATR ${atrPercent.toFixed(2)}%)：杠杆 ${leverage}x → ${adjustedLeverage}x，仓位 ${amountUsdt.toFixed(0)} → ${adjustedAmountUsdt.toFixed(0)} USDT`);
       } else {
         logger.info(`🌊 正常波动市场 (ATR ${atrPercent.toFixed(2)}%)：保持原始参数`);

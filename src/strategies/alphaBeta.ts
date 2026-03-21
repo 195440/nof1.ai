@@ -53,13 +53,13 @@ export function getAlphaBetaStrategy(maxLeverage: number): StrategyParams {
     },
     
     // ==================== 仓位配置 ====================
-    positionSizeMin: 1,
-    positionSizeMax: 30,  // 降低单笔最大仓位到30%
-    maxTotalMarginPercent: 50,
+    positionSizeMin: 12,
+    positionSizeMax: 40,
+    maxTotalMarginPercent: 60,
     positionSizeRecommend: {
-      normal: "8-10%（良好信号，70-80分）",
-      good: "10-15%（优秀信号，80-90分）",
-      strong: "15-20%（完美信号，90-100分）",
+      normal: "12-15%（确认后的普通机会）",
+      good: "18-24%（确认充分的高质量机会）",
+      strong: "28-35%（多维共振的强机会）",
     },
     
     // ==================== 止损配置 ====================
@@ -90,13 +90,13 @@ export function getAlphaBetaStrategy(maxLeverage: number): StrategyParams {
     volatilityAdjustment: {
       highVolatility: { leverageFactor: 1.0, positionFactor: 1.0 },
       normalVolatility: { leverageFactor: 1.0, positionFactor: 1.0 },
-      lowVolatility: { leverageFactor: 1.0, positionFactor: 1.0 },
+      lowVolatility: { leverageFactor: 1.0, positionFactor: 1.15 },
     },
     
     // ==================== 策略规则描述 ====================
-    entryCondition: "技术面+消息面综合判断，AI独立决策是否开仓",
-    riskTolerance: "严格止损-3%，最大单笔仓位30%，总保证金≤50%",
-    tradingStyle: "低频精选，2小时内最多1次，多空平等评估，消息面可一票否决",
+    entryCondition: "技术面+消息面综合判断，反转单必须等待5m/15m确认后再开仓",
+    riskTolerance: "严格止损-3%，最大单笔仓位40%，总保证金≤60%，同币种平仓后至少等待3个周期",
+    tradingStyle: "低频精选，5分钟复盘但低频执行，反转单必须确认，多空平等评估，消息面可一票否决",
     
     // ==================== 代码级保护开关 ====================
     enableCodeLevelProtection: true,
@@ -151,6 +151,12 @@ export function generateAlphaBetaPrompt(
    - 不要幻想"会回来的"
    - 亏损-3%立即平仓，没有例外
 
+5. **反转单必须确认，不能只看 RSI 极值**
+   - RSI 超买/超卖只能说明市场极端，不等于立即反转
+   - 做多反转至少要看到 5m 重新站回 EMA20，且 5m/15m 动能不再继续走弱
+   - 做空反转至少要看到 5m 跌回 EMA20 下方，且 5m/15m 动能开始转弱
+   - 如果只是“感觉该反转了”，但结构没有确认，继续观望
+
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 二、分析框架（辅助思考，不是机械评分）
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -200,17 +206,19 @@ export function generateAlphaBetaPrompt(
 
 - **止损**：亏损 -3% 立即平仓，不讨价还价
 - **尾仓保护**：一旦做过分批止盈，剩余仓位必须按保护止损管理，优先保本或锁定小幅利润，禁止把整笔交易从已锁利拖回净亏
-- **仓位上限**：单笔 ≤ 账户总资金的30%，总保证金 ≤ 50%
+- **反转确认**：反转单禁止只凭 RSI 极值逆势开仓，必须写明 5m/15m 的确认信号
+- **仓位上限**：单笔 ≤ 账户总资金的40%，总保证金 ≤ 60%
 - **杠杆**：${params.leverageMin}-${params.leverageMax}倍，建议从${params.leverageMin}倍起步，根据信号强度逐步提高
 - **频率**：2小时内最多开仓1次，1天最多6次
+- **同币种冷却**：同币种平仓后，至少等待 3 个交易周期才能重新开仓
 - **持仓数**：最多同时${context.maxPositions}个
 - **最大持仓时间**：${context.maxHoldingHours}小时
 - **仓位金额 = 账户总资金 × 仓位比例**，禁止固定金额开仓
 
 仓位比例参考（根据你的信心程度动态调整）：
-- 一般机会：8-10%
-- 较好机会：10-15%
-- 优秀机会：15-20%
+- 一般机会：12-15%
+- 较好机会：18-24%
+- 优秀机会：28-35%
 
 代码级自动保护（安全网，在你没有主动操作时保护你）：
 - 止损：低杠杆${params.stopLoss.low}% / 中杠杆${params.stopLoss.mid}% / 高杠杆${params.stopLoss.high}%
@@ -237,6 +245,11 @@ export function generateAlphaBetaPrompt(
 **【3. 深入分析】**（仅对有机会的币种展开）
 从A-F六个维度展开分析，用你自己的话描述你的判断逻辑。
 不需要逐条打分，但每个维度的关键发现必须提到。
+
+如果这是反转单，必须额外说明：
+- 5m 的确认是什么？（站回/跌破 EMA20、MACD 翻正/翻负、短线结构改变）
+- 15m 的确认是什么？（价格与 EMA 关系变化、MACD 方向变化、RSI 脱离极端区）
+- 如果缺少这些确认，结论只能是继续观望
 
 **特别强调**：消息面分析不能跳过。如果有消息面数据，你必须评估：
 - 这条消息对价格的影响方向和力度
