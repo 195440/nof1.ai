@@ -125,6 +125,11 @@ interface TrendIndicatorSnapshot {
   rsi14: number;
 }
 
+interface ConfirmationCheck {
+  label: string;
+  passed: boolean;
+}
+
 function calculateTrendEma(prices: number[], period: number): number {
   if (prices.length === 0) {
     return 0;
@@ -233,25 +238,32 @@ async function checkReversalTradeConfirmation(
     return { ok: true };
   }
 
-  const checks = side === "long"
+  const checks: ConfirmationCheck[] = side === "long"
     ? [
         { label: "5m价格重新站回EMA20", passed: fast.currentPrice >= fast.ema20 },
-        { label: "5m EMA20上穿/站稳EMA50", passed: fast.ema20 >= fast.ema50 },
         { label: "5m MACD转正", passed: fast.macd >= 0 },
-        { label: "15m RSI脱离极弱区", passed: confirm.rsi7 >= 35 || confirm.rsi14 >= 40 },
+        { label: "15m RSI脱离极弱区", passed: confirm.rsi7 >= 32 || confirm.rsi14 >= 38 },
         { label: "15m价格或MACD确认转强", passed: confirm.currentPrice >= confirm.ema20 || confirm.macd >= 0 },
+        { label: "5m EMA20开始支撑价格", passed: fast.currentPrice >= fast.ema20 * 0.998 },
       ]
     : [
         { label: "5m价格跌回EMA20下方", passed: fast.currentPrice <= fast.ema20 },
-        { label: "5m EMA20跌破/压制EMA50", passed: fast.ema20 <= fast.ema50 },
         { label: "5m MACD转负", passed: fast.macd <= 0 },
-        { label: "15m RSI脱离过热区", passed: confirm.rsi7 <= 65 || confirm.rsi14 <= 60 },
+        { label: "15m RSI从过热区回落", passed: confirm.rsi7 <= 70 || confirm.rsi14 <= 65 },
         { label: "15m价格或MACD确认转弱", passed: confirm.currentPrice <= confirm.ema20 || confirm.macd <= 0 },
+        { label: "5m EMA20开始压制价格", passed: fast.currentPrice <= fast.ema20 * 1.002 },
       ];
 
   const passedChecks = checks.filter((check) => check.passed);
+  const requiredPassedChecks = 3;
+  const hasFastConfirmation = side === "long"
+    ? fast.currentPrice >= fast.ema20 || fast.macd >= 0
+    : fast.currentPrice <= fast.ema20 || fast.macd <= 0;
+  const hasHigherTimeframeConfirmation = side === "long"
+    ? confirm.currentPrice >= confirm.ema20 || confirm.macd >= 0 || confirm.rsi7 >= 32 || confirm.rsi14 >= 38
+    : confirm.currentPrice <= confirm.ema20 || confirm.macd <= 0 || confirm.rsi7 <= 70 || confirm.rsi14 <= 65;
 
-  if (passedChecks.length >= 4) {
+  if (passedChecks.length >= requiredPassedChecks && hasFastConfirmation && hasHigherTimeframeConfirmation) {
     logger.info(
       `✅ ${contract} ${side} 识别为反转单，但已通过确认过滤 (${passedChecks.length}/${checks.length})`,
     );
@@ -261,11 +273,11 @@ async function checkReversalTradeConfirmation(
   return {
     ok: false,
     message:
-      `拒绝开仓 ${contract.replace("_USDT", "")}：当前属于反转交易，但确认不足（${passedChecks.length}/${checks.length}）。` +
+      `拒绝开仓 ${contract.replace("_USDT", "")}：当前属于反转交易，但确认不足（${passedChecks.length}/${checks.length}，需要至少${requiredPassedChecks}项）。` +
       ` 已满足：${passedChecks.map((check) => check.label).join("、") || "无"}。` +
       ` 5m: price=${fast.currentPrice.toFixed(4)}, ema20=${fast.ema20.toFixed(4)}, ema50=${fast.ema50.toFixed(4)}, macd=${fast.macd.toFixed(4)}, rsi7=${fast.rsi7.toFixed(1)}。` +
       ` 15m: price=${confirm.currentPrice.toFixed(4)}, ema20=${confirm.ema20.toFixed(4)}, ema50=${confirm.ema50.toFixed(4)}, macd=${confirm.macd.toFixed(4)}, rsi7=${confirm.rsi7.toFixed(1)}, rsi14=${confirm.rsi14.toFixed(1)}。` +
-      " 反转单不能只凭 RSI 极值开仓，请等待结构确认后再交易。",
+      " 反转单只要求看到5m首轮结构变化，并且15m至少出现一项配合信号，不必死等所有慢指标完全翻向。",
   };
 }
 
