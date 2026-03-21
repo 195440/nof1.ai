@@ -44,11 +44,11 @@ export function getAlphaBetaStrategy(maxLeverage: number): StrategyParams {
     description: "AI独立决策，按配置周期运行，技术面+消息面综合判断，低频精选交易",
     
     // ==================== 杠杆配置 ====================
-    leverageMin: 8,
+    leverageMin: 6,
     leverageMax: maxLeverage,
     leverageRecommend: {
-      normal: "8倍（良好信号）",
-      good: "10-12倍（优秀信号）",
+      normal: "6倍（良好信号）",
+      good: "8-12倍（优秀信号）",
       strong: "13-15倍（完美信号，谨慎使用）",
     },
     
