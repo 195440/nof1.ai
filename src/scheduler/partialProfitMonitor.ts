@@ -55,6 +55,15 @@ const dbClient = createClient({
   url: process.env.DATABASE_URL || "file:./.voltagent/trading.db",
 });
 
+function parseNullableNumber(value: unknown): number | null {
+  if (value === null || value === undefined || value === "") {
+    return null;
+  }
+
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
 /**
  * 计算持仓盈利百分比（考虑杠杆）
  */
@@ -63,6 +72,33 @@ function calculatePnlPercent(entryPrice: number, currentPrice: number, side: str
     ? ((currentPrice - entryPrice) / entryPrice * 100 * (side === 'long' ? 1 : -1))
     : 0;
   return priceChangePercent * leverage;
+}
+
+function getProfitProtectionStopPercent(currentPnlPercent: number): number {
+  const strategy = getTradingStrategy();
+  const params = getStrategyParams(strategy);
+
+  if (currentPnlPercent >= params.trailingStop.level3.trigger) {
+    return params.trailingStop.level3.stopAt;
+  }
+
+  if (currentPnlPercent >= params.trailingStop.level2.trigger) {
+    return params.trailingStop.level2.stopAt;
+  }
+
+  if (currentPnlPercent >= params.trailingStop.level1.trigger) {
+    return params.trailingStop.level1.stopAt;
+  }
+
+  if (currentPnlPercent >= 1.5) {
+    return 0.5;
+  }
+
+  if (currentPnlPercent >= 0.5) {
+    return 0.2;
+  }
+
+  return 0;
 }
 
 /**
@@ -270,12 +306,36 @@ async function executePartialClose(
         orderFilled ? "filled" : "pending",
       ],
     });
+
+    const fullyClosed = actualQuantity >= totalQuantity - 1e-8 || totalClosedPercent >= 100;
+    const effectiveClosedPercent = fullyClosed ? 100 : totalClosedPercent;
     
-    // 4. 更新数据库中的 partial_close_percentage
-    await dbClient.execute({
-      sql: "UPDATE positions SET partial_close_percentage = ? WHERE symbol = ?",
-      args: [totalClosedPercent, symbol],
-    });
+    // 4. 更新数据库中的分批止盈进度，并为剩余仓位收紧保护止损
+    if (!fullyClosed) {
+      const positionResult = await dbClient.execute({
+        sql: "SELECT stop_loss, peak_pnl_percent FROM positions WHERE symbol = ? LIMIT 1",
+        args: [symbol],
+      });
+
+      const positionRow = positionResult.rows[0] as any;
+      const currentStopLoss = parseNullableNumber(positionRow?.stop_loss);
+      const currentPeakPnl = parseNullableNumber(positionRow?.peak_pnl_percent) ?? 0;
+      const profitProtectionStop = getProfitProtectionStopPercent(pnlPercent);
+      const nextStopLoss =
+        currentStopLoss !== null ? Math.max(currentStopLoss, profitProtectionStop) : profitProtectionStop;
+      const nextPeakPnl = Math.max(currentPeakPnl, pnlPercent);
+
+      await dbClient.execute({
+        sql: `UPDATE positions
+              SET partial_close_percentage = ?, stop_loss = ?, peak_pnl_percent = ?
+              WHERE symbol = ?`,
+        args: [effectiveClosedPercent, nextStopLoss, nextPeakPnl, symbol],
+      });
+
+      logger.info(
+        `【自动尾仓保护】${symbol} 已累计分批 ${effectiveClosedPercent.toFixed(2)}%，剩余仓位保护止损提升至 ${nextStopLoss.toFixed(2)}%`,
+      );
+    }
     
     // 5. 记录决策信息到agent_decisions表
     const decisionText = `【分批止盈触发 - ${stage}】${symbol} ${side === 'long' ? '做多' : '做空'}
@@ -283,7 +343,7 @@ async function executePartialClose(
 当前盈利: ${pnlPercent.toFixed(2)}%
 平仓比例: ${closePercent}%
 平仓数量: ${actualQuantity}/${totalQuantity} 张
-累计平仓: ${totalClosedPercent}%
+累计平仓: ${effectiveClosedPercent}%
 平仓价格: ${actualExitPrice.toFixed(2)}
 平仓盈亏: ${pnl >= 0 ? '+' : ''}${pnl.toFixed(2)} USDT
 
@@ -296,7 +356,7 @@ async function executePartialClose(
       args: [
         getChinaTimeISO(),
         0, // 由分批止盈触发，非AI周期
-        JSON.stringify({ trigger: "partial_profit", symbol, pnlPercent, closePercent, totalClosedPercent }),
+        JSON.stringify({ trigger: "partial_profit", symbol, pnlPercent, closePercent, totalClosedPercent: effectiveClosedPercent }),
         decisionText,
         JSON.stringify([{ action: "partial_close", symbol, percentage: closePercent, reason: "partial_profit" }]),
         0, // 稍后更新
@@ -304,8 +364,8 @@ async function executePartialClose(
       ],
     });
     
-    // 6. 如果已经全部平仓（100%），从数据库删除持仓记录
-    if (totalClosedPercent >= 100) {
+    // 6. 如果已经全部平仓，从数据库删除持仓记录
+    if (fullyClosed) {
       await dbClient.execute({
         sql: "DELETE FROM positions WHERE symbol = ?",
         args: [symbol],
@@ -515,4 +575,3 @@ export function stopPartialProfitMonitor() {
   
   logger.info("分批止盈监控已停止");
 }
-

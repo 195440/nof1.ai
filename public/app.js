@@ -220,10 +220,12 @@ async function loadPositionsData() {
                         <div class="label">强平价</div>
                         <div class="value">${pos.liquidationPrice.toFixed(4)}</div>
                     </div>
-                    ${pos.stopLoss ? `
+                    ${pos.stopLoss !== null && pos.stopLoss !== undefined ? `
                     <div class="position-field">
                         <div class="label">止损</div>
-                        <div class="value">${pos.stopLoss.toFixed(4)}</div>
+                        <div class="value">${pos.stopLossMode === 'pnl_percent'
+                            ? `${pos.stopLoss >= 0 ? '+' : ''}${pos.stopLoss.toFixed(2)}%`
+                            : pos.stopLoss.toFixed(4)}</div>
                     </div>
                     ` : ''}
                     ${pos.profitTarget ? `

@@ -124,13 +124,13 @@ export interface StrategyParams {
     level3: { trigger: number; stopAt: number };
   };
   
-  /** 分批止盈配置，逐步锁定利润（由AI主动执行） */
+  /** 分批止盈配置，逐步锁定利润（closePercent 为累计平仓百分比） */
   partialTakeProfit: {
-    /** 第一阶段：盈利达到trigger%时，平仓closePercent%的仓位 */
+    /** 第一阶段：盈利达到trigger%时，累计平仓closePercent%的原始仓位 */
     stage1: { trigger: number; closePercent: number };
-    /** 第二阶段：盈利达到trigger%时，平仓closePercent%的仓位 */
+    /** 第二阶段：盈利达到trigger%时，累计平仓closePercent%的原始仓位 */
     stage2: { trigger: number; closePercent: number };
-    /** 第三阶段：盈利达到trigger%时，平仓closePercent%的仓位（通常是100%全部清仓） */
+    /** 第三阶段：盈利达到trigger%时，累计平仓closePercent%的原始仓位（通常是100%全部清仓） */
     stage3: { trigger: number; closePercent: number };
   };
   
@@ -211,4 +211,3 @@ export interface StrategyParams {
    */
   maxIdleHours?: number;
 }
-

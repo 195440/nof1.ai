@@ -57,11 +57,26 @@ const dbClient = createClient({
   url: process.env.DATABASE_URL || "file:./.voltagent/trading.db",
 });
 
+type StopLossThresholdInfo = {
+  threshold: number;
+  level: string;
+  description: string;
+};
+
+function parseNullableNumber(value: unknown): number | null {
+  if (value === null || value === undefined || value === "") {
+    return null;
+  }
+
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
 /**
  * 根据杠杆倍数确定止损阈值
  * 直接使用策略的 stopLoss 配置，根据杠杆范围映射到 low/mid/high
  */
-function getStopLossThreshold(leverage: number): { threshold: number; level: string; description: string } {
+function getStrategyStopLossThreshold(leverage: number): StopLossThresholdInfo {
   const strategy = getTradingStrategy();
   const params = getStrategyParams(strategy);
   
@@ -97,6 +112,25 @@ function getStopLossThreshold(leverage: number): { threshold: number; level: str
       description: `${levMin}-${lowThreshold}倍杠杆，亏损 ${params.stopLoss.low}% 时止损`,
     };
   }
+}
+
+function getStopLossThreshold(
+  leverage: number,
+  stopLossOverride: number | null,
+  partialClosePercentage: number,
+): StopLossThresholdInfo {
+  if (stopLossOverride !== null) {
+    return {
+      threshold: stopLossOverride,
+      level: partialClosePercentage > 0 ? "尾仓利润保护" : "自定义止损",
+      description:
+        partialClosePercentage > 0
+          ? `已累计分批止盈 ${partialClosePercentage.toFixed(2)}%，剩余仓位回落至 ${stopLossOverride}% 时保护性平仓`
+          : `仓位自定义止损线 ${stopLossOverride}%`,
+    };
+  }
+
+  return getStrategyStopLossThreshold(leverage);
 }
 
 // 持仓监控记录：symbol -> { checkCount, lastCheckTime }
@@ -509,9 +543,16 @@ async function checkStopLoss() {
       history.checkCount++;
       history.lastCheckTime = now;
       
+      const dbResult = await dbClient.execute({
+        sql: "SELECT stop_loss, partial_close_percentage FROM positions WHERE symbol = ? LIMIT 1",
+        args: [symbol],
+      });
+      const dbPosition = dbResult.rows[0] as any;
+      const stopLossOverride = parseNullableNumber(dbPosition?.stop_loss);
+      const partialClosePercentage = parseNullableNumber(dbPosition?.partial_close_percentage) ?? 0;
+
       // 3. 检查止损条件
-      // 根据杠杆倍数确定止损阈值
-      const thresholdInfo = getStopLossThreshold(leverage);
+      const thresholdInfo = getStopLossThreshold(leverage, stopLossOverride, partialClosePercentage);
       
       // 检查是否触发止损（亏损达到或超过止损线）
       if (pnlPercent <= thresholdInfo.threshold) {
@@ -622,5 +663,3 @@ export function stopStopLossMonitor() {
   positionMonitorHistory.clear();
   logger.info("止损监控已停止");
 }
-
-

@@ -794,13 +794,19 @@ async function getPositions(cachedGatePositions?: any[]) {
     // 如果提供了缓存数据，使用缓存；否则重新获取
     const gatePositions = cachedGatePositions || await exchangeClient.getPositions();
     
-    // 从数据库获取持仓的开仓时间、峰值盈利和杠杆数（数据库中保存了正确的数据）
-    const dbResult = await dbClient.execute("SELECT symbol, opened_at, peak_pnl_percent, leverage FROM positions");
+    // 从数据库获取持仓的开仓时间、峰值盈利、分批状态和保护止损
+    const dbResult = await dbClient.execute(
+      "SELECT symbol, opened_at, peak_pnl_percent, leverage, partial_close_percentage, stop_loss FROM positions"
+    );
     const dbDataMap = new Map(
       dbResult.rows.map((row: any) => [row.symbol, {
         opened_at: row.opened_at,
         peak_pnl_percent: Number.parseFloat(row.peak_pnl_percent as string || "0"),
-        leverage: Number.parseInt(row.leverage as string || "1")
+        leverage: Number.parseInt(row.leverage as string || "1"),
+        partial_close_percentage: Number.parseFloat(row.partial_close_percentage as string || "0"),
+        stop_loss: row.stop_loss === null || row.stop_loss === undefined
+          ? null
+          : Number.parseFloat(row.stop_loss as string),
       }])
     );
     
@@ -815,6 +821,8 @@ async function getPositions(cachedGatePositions?: any[]) {
         const dbData = dbDataMap.get(symbol);
         let openedAt = dbData?.opened_at;
         const peakPnlPercent = dbData?.peak_pnl_percent || 0;
+        const partialClosePercentage = dbData?.partial_close_percentage || 0;
+        const stopLossOverride = dbData?.stop_loss ?? null;
         const gateLeverage = Number.parseInt(p.leverage || "1");
         
         // 🔧 修复：优先使用数据库中记录的杠杆数（开仓时的杠杆数），而不是 Gate.io 的实时杠杆数
@@ -857,6 +865,8 @@ async function getPositions(cachedGatePositions?: any[]) {
           margin: Number.parseFloat(p.margin || "0"),
           opened_at: openedAt,
           peak_pnl_percent: peakPnlPercent, // 添加峰值盈利字段
+          partial_close_percentage: partialClosePercentage,
+          stop_loss: stopLossOverride,
         };
       });
     
@@ -1827,4 +1837,3 @@ export function setTradingStartTime(time: Date) {
 export function setIterationCount(count: number) {
   iterationCount = count;
 }
-

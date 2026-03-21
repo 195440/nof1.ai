@@ -580,10 +580,18 @@ async function checkPeakPnlAndTrailingStop(autoCloseEnabled: boolean) {
       return;
     }
     
-    // 3. 从数据库获取持仓信息（获取开仓时间）
-    const dbResult = await dbClient.execute("SELECT symbol, opened_at FROM positions");
-    const dbOpenedAtMap = new Map(
-      dbResult.rows.map((row: any) => [row.symbol, row.opened_at])
+    // 3. 从数据库恢复持仓元数据，避免重启后丢失峰值上下文
+    const dbResult = await dbClient.execute(
+      "SELECT symbol, opened_at, peak_pnl_percent FROM positions"
+    );
+    const dbPositionMap = new Map(
+      dbResult.rows.map((row: any) => [
+        row.symbol,
+        {
+          openedAt: row.opened_at,
+          peakPnlPercent: Number.parseFloat(row.peak_pnl_percent as string || "0"),
+        },
+      ])
     );
     
     // 4. 检查每个持仓
@@ -605,16 +613,21 @@ async function checkPeakPnlAndTrailingStop(autoCloseEnabled: boolean) {
       // 计算盈利百分比（考虑杠杆）
       const pnlPercent = calculatePnlPercent(entryPrice, currentPrice, side, leverage);
       
+      const dbPosition = dbPositionMap.get(symbol);
+      const persistedPeakPnl = dbPosition?.peakPnlPercent || 0;
+
       // 获取或初始化盈利历史记录
       let history = positionPnlHistory.get(symbol);
       if (!history) {
         history = {
-          peakPnlPercent: pnlPercent,
+          peakPnlPercent: Math.max(persistedPeakPnl, pnlPercent),
           lastCheckTime: now,
           checkCount: 0,
         };
         positionPnlHistory.set(symbol, history);
-        logger.info(`${symbol} 开始跟踪峰值盈利${autoCloseEnabled ? '和移动止盈' : '（仅更新峰值）'}，初始盈利: ${pnlPercent.toFixed(2)}%`);
+        logger.info(
+          `${symbol} 开始跟踪峰值盈利${autoCloseEnabled ? '和移动止盈' : '（仅更新峰值）'}，当前盈利: ${pnlPercent.toFixed(2)}%，恢复峰值: ${history.peakPnlPercent.toFixed(2)}%`
+        );
       }
       
       // 增加检查次数
@@ -787,5 +800,4 @@ export function stopTrailingStopMonitor() {
   positionPnlHistory.clear();
   logger.info("移动止盈监控已停止");
 }
-
 

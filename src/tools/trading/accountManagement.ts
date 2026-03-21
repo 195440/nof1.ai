@@ -305,6 +305,12 @@ export const syncPositionsTool = createTool({
     
     try {
       const positions = await client.getPositions();
+      const existingResult = await dbClient.execute(
+        "SELECT symbol, profit_target, stop_loss, tp_order_id, sl_order_id, entry_order_id, opened_at, peak_pnl_percent, partial_close_percentage FROM positions"
+      );
+      const existingPositionMap = new Map(
+        existingResult.rows.map((row: any) => [row.symbol, row])
+      );
       
       // 清空本地持仓表
       await dbClient.execute("DELETE FROM positions");
@@ -317,12 +323,14 @@ export const syncPositionsTool = createTool({
         
         const symbol = pos.contract?.replace("_USDT", "") || "";
         const side = size > 0 ? "long" : "short";
+        const existing = existingPositionMap.get(symbol);
         
         await dbClient.execute({
           sql: `INSERT INTO positions 
-                (symbol, quantity, entry_price, current_price, liquidation_price, unrealized_pnl, 
-                 leverage, side, entry_order_id, opened_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                (symbol, quantity, entry_price, current_price, liquidation_price, unrealized_pnl,
+                 leverage, side, profit_target, stop_loss, tp_order_id, sl_order_id,
+                 entry_order_id, opened_at, peak_pnl_percent, partial_close_percentage)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
           args: [
             symbol,
             Math.abs(size),
@@ -332,8 +340,14 @@ export const syncPositionsTool = createTool({
             Number.parseFloat(pos.unrealisedPnl || "0"),
             Number.parseInt(pos.leverage || "1"),
             side,
-            "synced",
-            new Date().toISOString(),
+            existing?.profit_target ?? null,
+            existing?.stop_loss ?? null,
+            existing?.tp_order_id ?? null,
+            existing?.sl_order_id ?? null,
+            existing?.entry_order_id || "synced",
+            existing?.opened_at || new Date().toISOString(),
+            existing?.peak_pnl_percent ?? 0,
+            existing?.partial_close_percentage ?? 0,
           ],
         });
       }
@@ -352,4 +366,3 @@ export const syncPositionsTool = createTool({
     }
   },
 });
-

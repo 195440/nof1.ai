@@ -165,6 +165,12 @@ class TradingMonitor {
                 const protectionMode = data.enableCodeLevelProtection ? '代码级' : 'AI';
                 strategyInfoInline.textContent = `${data.intervalMinutes}分 | ${data.leverageRange} | ${data.positionSizeRange} | ${protectionMode}`;
             }
+
+            // 更新模型名称
+            const modelName = document.getElementById('model-name');
+            if (modelName) {
+                modelName.textContent = data.modelName || '-';
+            }
             
         } catch (error) {
             console.error('加载策略数据失败:', error);

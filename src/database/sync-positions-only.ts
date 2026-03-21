@@ -80,6 +80,12 @@ async function syncPositionsOnly() {
     const exchangeClient = createExchangeClient();
     const positions = await exchangeClient.getPositions();
     const activePositions = positions.filter(p => Number.parseInt(p.size || "0") !== 0);
+    const existingResult = await client.execute(
+      "SELECT symbol, profit_target, stop_loss, tp_order_id, sl_order_id, entry_order_id, opened_at, peak_pnl_percent, partial_close_percentage FROM positions"
+    );
+    const existingPositionMap = new Map(
+      existingResult.rows.map((row: any) => [row.symbol, row])
+    );
     
     logger.info(`\n📊 ${exchangeName} 当前持仓数: ${activePositions.length}`);
     
@@ -103,12 +109,14 @@ async function syncPositionsOnly() {
         const quantity = Math.abs(size);
         const pnl = Number.parseFloat(pos.unrealisedPnl || "0");
         const liqPrice = Number.parseFloat(pos.liqPrice || "0");
+        const existing = existingPositionMap.get(symbol);
         
         await client.execute({
           sql: `INSERT INTO positions 
-                (symbol, quantity, entry_price, current_price, liquidation_price, unrealized_pnl, 
-                 leverage, side, entry_order_id, opened_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                (symbol, quantity, entry_price, current_price, liquidation_price, unrealized_pnl,
+                 leverage, side, profit_target, stop_loss, tp_order_id, sl_order_id,
+                 entry_order_id, opened_at, peak_pnl_percent, partial_close_percentage)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
           args: [
             symbol,
             quantity,
@@ -118,8 +126,14 @@ async function syncPositionsOnly() {
             pnl,
             leverage,
             side,
-            "synced",
-            new Date().toISOString(),
+            existing?.profit_target ?? null,
+            existing?.stop_loss ?? null,
+            existing?.tp_order_id ?? null,
+            existing?.sl_order_id ?? null,
+            existing?.entry_order_id || "synced",
+            existing?.opened_at || new Date().toISOString(),
+            existing?.peak_pnl_percent ?? 0,
+            existing?.partial_close_percentage ?? 0,
           ],
         });
         
@@ -140,4 +154,3 @@ async function syncPositionsOnly() {
 
 // 执行同步
 syncPositionsOnly();
-

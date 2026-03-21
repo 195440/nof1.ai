@@ -138,7 +138,8 @@ export function createApiRoutes() {
             side: size > 0 ? "long" : "short",
             openValue,
             profitTarget: dbPos?.profit_target ? Number(dbPos.profit_target) : null,
-            stopLoss: dbPos?.stop_loss ? Number(dbPos.stop_loss) : null,
+            stopLoss: dbPos?.stop_loss !== null && dbPos?.stop_loss !== undefined ? Number(dbPos.stop_loss) : null,
+            stopLossMode: dbPos?.stop_loss !== null && dbPos?.stop_loss !== undefined ? "pnl_percent" : null,
             openedAt: p.create_time || new Date().toISOString(),
           };
         });
@@ -382,6 +383,7 @@ export function createApiRoutes() {
       return c.json({
         strategy,
         strategyName: strategyNames[strategy] || strategy,
+        modelName: process.env.AI_MODEL_NAME || "deepseek/deepseek-v3.2-exp",
         intervalMinutes,
         maxLeverage: RISK_PARAMS.MAX_LEVERAGE,
         maxPositions: RISK_PARAMS.MAX_POSITIONS,
@@ -578,4 +580,3 @@ export function createApiRoutes() {
 
   return app;
 }
-

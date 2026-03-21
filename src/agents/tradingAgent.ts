@@ -266,6 +266,8 @@ function generateAlphaBetaPromptForCycle(data: {
   当前价: ${currentPrice.toFixed(2)}
   盈亏: ${pnlPercent >= 0 ? '+' : ''}${pnlPercent.toFixed(2)}% (${unrealizedPnl >= 0 ? '+' : ''}${unrealizedPnl.toFixed(2)} USDT)
   持仓时间: ${holdingHours} 小时
+  已分批止盈: ${((pos.partial_close_percentage ?? 0) as number).toFixed(2)}%
+  当前保护止损线: ${pos.stop_loss !== null && pos.stop_loss !== undefined ? `${(pos.stop_loss as number) >= 0 ? '+' : ''}${(pos.stop_loss as number).toFixed(2)}%` : '无'}
 
 `;
     }
@@ -1151,6 +1153,14 @@ ${isCodeLevelProtectionEnabled ? (allowAiOverride ? `│                        
         } else if (drawdownFromPeak >= params.peakDrawdownProtection * 0.7) {
           prompt += `  提醒: 峰值回撤接近保护阈值 (当前${drawdownFromPeak.toFixed(2)}%，阈值${params.peakDrawdownProtection}%)，需要密切关注！\n`;
         }
+      }
+
+      if ((pos.partial_close_percentage || 0) > 0) {
+        prompt += `  已分批止盈: ${pos.partial_close_percentage.toFixed(2)}%（尾仓，不可再让整笔交易转亏）\n`;
+      }
+
+      if (pos.stop_loss !== null && pos.stop_loss !== undefined) {
+        prompt += `  当前保护止损线: ${pos.stop_loss >= 0 ? "+" : ""}${pos.stop_loss.toFixed(2)}%\n`;
       }
       
       prompt += `  开仓价: ${pos.entry_price.toFixed(2)}\n`;
