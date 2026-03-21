@@ -60,7 +60,7 @@
 | `rebate-farming` | リベートファーミング | 5分 | 10-60分 | 中 | 高額な手数料リベートを持つユーザー |
 | `ai-autonomous` | AI自律 | 柔軟 | AIが決定 | AIが決定 | AIの完全自律的な意思決定能力を信頼するユーザー |
 | `multi-agent-consensus` | **マルチエージェント陪審団** | **5-10分** | **数時間~数日** | **中** | **堅実な意思決定とリスク管理を重視する投資家** |
-| `alpha-beta` | **Alpha Beta** | **柔軟** | **AIが決定** | **AIが決定** | **ゼロ戦略ガイダンス、強制自己レビュー付きAI完全自律** |
+| `alpha-beta` | **Alpha Beta（デフォルト）** | **5分** | **AIが決定** | **中** | **AI独立判断、テクニカル+ニュース総合分析、反転確認フィルター、システムデフォルト戦略** |
 
 ---
 
@@ -713,6 +713,7 @@ GATE_USE_TESTNET=true                  # テストネットを使用
    - 保守的: `src/strategies/conservative.ts` → `getConservativeStrategy()`
    - バランス: `src/strategies/balanced.ts` → `getBalancedStrategy()`
    - 積極的: `src/strategies/aggressive.ts` → `getAggressiveStrategy()`
+   - **Alpha Beta（デフォルト）**: `src/strategies/alphaBeta.ts` → `getAlphaBetaStrategy()`
 
 2. **プロンプト生成**: 各戦略ファイルには`generateXxxPrompt()`関数が含まれており、AIに対して戦略固有の決定プロンプトを生成します
    - 超短期: `generateUltraShortPrompt()`
@@ -720,6 +721,7 @@ GATE_USE_TESTNET=true                  # テストネットを使用
    - 保守的: `generateConservativePrompt()`
    - バランス: `generateBalancedPrompt()`
    - 積極的: `generateAggressivePrompt()`
+   - **Alpha Beta（デフォルト）**: `generateAlphaBetaPrompt()`
 
 3. **統一エクスポート**: すべての戦略は`src/strategies/index.ts`を通じて統一的にエクスポートされ、システム呼び出しを容易にします
 
@@ -743,8 +745,10 @@ export function getStrategyParams(strategy: TradingStrategy, maxLeverage: number
       return getBalancedStrategy(maxLeverage);
     case "aggressive":
       return getAggressiveStrategy(maxLeverage);
+    case "alpha-beta":
+      return getAlphaBetaStrategy(maxLeverage);
     default:
-      return getBalancedStrategy(maxLeverage);
+      return getAlphaBetaStrategy(maxLeverage);  // デフォルト: Alpha Beta戦略
   }
 }
 ```
@@ -772,11 +776,13 @@ export function getStrategyParams(strategy: TradingStrategy, maxLeverage: number
   - AI主導の意思決定、最小限の制約と最大限の自由度
   - 中長期安定リターンを追求（月間目標25-50%）
   - 頻度よりも品質を重視
-- **Alpha Beta戦略を追加**（`alpha-beta`）
-  - ゼロ戦略ガイダンス、AI完全自律的意思決定
-  - 強制自己レビューメカニズム（コア機能）
+- **Alpha Beta戦略を追加**（`alpha-beta`）-- システムデフォルト戦略
+  - AI独立判断、テクニカル+ニュース総合分析
+  - 反転確認フィルター（コードレベルのハード制限、5m/15m二重確認）
+  - 同一銘柄クールダウン期間3取引サイクル（コードレベルのハード制限）
+  - 統一ストップロス-3%、ポジションサイズ12-40%、レバレッジ6倍から開始
+  - 強制自己レビューメカニズム
   - 二重防護モード（コード自動 + AI主体的）
-  - 履歴から学習、継続的最適化
 - **戦略総数が9から11に増加**
 - 2つの新戦略の完全な説明で戦略ドキュメントを強化
 - 戦略切り替えガイドと使用シナリオを更新

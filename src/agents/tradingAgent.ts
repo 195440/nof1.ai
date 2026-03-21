@@ -72,7 +72,7 @@ const logger = createLogger({
  * 从环境变量读取交易策略
  */
 export function getTradingStrategy(): TradingStrategy {
-  const strategy = process.env.TRADING_STRATEGY || "balanced";
+  const strategy = process.env.TRADING_STRATEGY || "alpha-beta";
   if (strategy === "conservative" || strategy === "balanced" || strategy === "aggressive" || strategy === "aggressive-team" || strategy === "ultra-short" || strategy === "swing-trend" || strategy === "medium-long" || strategy === "rebate-farming" || strategy === "ai-autonomous" || strategy === "multi-agent-consensus" || strategy === "alpha-beta") {
     return strategy;
   }

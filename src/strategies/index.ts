@@ -105,7 +105,7 @@ export function getStrategyParams(strategy: TradingStrategy, maxLeverage: number
     case "alpha-beta":
       return getAlphaBetaStrategy(maxLeverage);
     default:
-      return getAiAutonomousStrategy(maxLeverage);
+      return getAlphaBetaStrategy(maxLeverage);
   }
 }
 
@@ -163,7 +163,7 @@ export function generateStrategySpecificPrompt(
     case "alpha-beta":
       return generateAlphaBetaPrompt(params, context);
     default:
-      return generateAiAutonomousPrompt(params, context);
+      return generateAlphaBetaPrompt(params, context);
   }
 }
 
