@@ -457,13 +457,13 @@ class TradingMonitor {
 
     // 启动数据更新
     startDataUpdates() {
-        // 每3秒更新账户和持仓（实时数据）
+        // 每5秒更新账户和持仓（实时数据）
         setInterval(async () => {
             await Promise.all([
                 this.loadAccountData(),
                 this.loadPositionsData()
             ]);
-        }, 3000);
+        }, 5000);
 
         // 每10秒更新价格（实时价格）
         setInterval(async () => {
