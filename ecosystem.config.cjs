@@ -26,12 +26,12 @@ module.exports = {
       script: "./dist/index.js",
       instances: 1,
       exec_mode: "fork",
-      node_args: "--max-old-space-size=300",
+      node_args: "--max-old-space-size=500",
       watch: false,
       autorestart: true,
       max_restarts: 10,
       min_uptime: "10s",
-      max_memory_restart: "300M",
+      max_memory_restart: "500M",
       env: {
         NODE_ENV: "production",
         // 从 .env 文件加载所有环境变量
