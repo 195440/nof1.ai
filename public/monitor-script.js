@@ -115,6 +115,32 @@ class TradingMonitor {
                 unrealisedPnlEl.className = 'detail-value ' + (data.unrealisedPnl >= 0 ? 'positive' : 'negative');
             }
 
+            // 更新累计手续费
+            const totalFeesEl = document.getElementById('total-fees');
+            if (totalFeesEl) {
+                totalFeesEl.textContent = (data.totalFees || 0).toFixed(2);
+            }
+
+            // 更新返佣比例
+            const rebatePercentEl = document.getElementById('rebate-percent');
+            if (rebatePercentEl) {
+                rebatePercentEl.textContent = data.feeRebatePercent || 60;
+            }
+
+            // 更新返佣金额
+            const rebateAmountEl = document.getElementById('rebate-amount');
+            if (rebateAmountEl) {
+                const rebate = data.rebateAmount || 0;
+                rebateAmountEl.textContent = '+' + rebate.toFixed(2);
+            }
+
+            // 更新返佣后理论总资产 = 总资产(含未实现盈亏) + 返佣金额
+            const rebateTotalEl = document.getElementById('rebate-total-assets');
+            if (rebateTotalEl) {
+                const rebateTotalAssets = totalBalanceWithPnl + (data.rebateAmount || 0);
+                rebateTotalEl.textContent = rebateTotalAssets.toFixed(2);
+            }
+
             // 更新收益（总资产 - 初始资金）
         const valueChangeEl = document.getElementById('value-change');
         const valuePercentEl = document.getElementById('value-percent');

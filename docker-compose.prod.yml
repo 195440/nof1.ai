@@ -28,10 +28,10 @@ services:
       resources:
         limits:
           cpus: '2'
-          memory: 1G
+          memory: 200M
         reservations:
           cpus: '0.5'
-          memory: 512M
+          memory: 100M
     logging:
       driver: "json-file"
       options:

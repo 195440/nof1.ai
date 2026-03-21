@@ -25,7 +25,7 @@
   "scripts": {
     "dev": "tsx watch --env-file=.env ./src",
     "build": "tsdown",
-    "start": "node dist/index.js",
+    "start": "node --max-old-space-size=200 dist/index.js",
     "lint": "biome check ./src",
     "lint:fix": "biome check --write ./src",
     "typecheck": "tsc --noEmit",

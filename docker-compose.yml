@@ -7,6 +7,8 @@ services:
       dockerfile: Dockerfile
     container_name: open-nof1.ai
     restart: unless-stopped
+    mem_limit: 200m
+    memswap_limit: 200m
     ports:
       - "${PORT:-3100}:3100"
     env_file:
