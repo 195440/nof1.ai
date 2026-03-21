@@ -124,7 +124,7 @@ class TradingMonitor {
             // 更新返佣比例
             const rebatePercentEl = document.getElementById('rebate-percent');
             if (rebatePercentEl) {
-                rebatePercentEl.textContent = data.feeRebatePercent || 60;
+                rebatePercentEl.textContent = data.feeRebatePercent || 20;
             }
 
             // 更新返佣金额

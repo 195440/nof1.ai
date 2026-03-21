@@ -91,8 +91,8 @@ export function createApiRoutes() {
       );
       const totalFees = Number.parseFloat(feeResult.rows[0]?.total_fee as string || "0");
 
-      // 返佣比例（从环境变量读取，默认60%）
-      const feeRebatePercent = Number.parseFloat(process.env.FEE_REBATE_PERCENT || "60");
+      // 返佣比例（从环境变量读取，默认20%）
+      const feeRebatePercent = Number.parseFloat(process.env.FEE_REBATE_PERCENT || "20");
       const rebateAmount = totalFees * (feeRebatePercent / 100);
 
       return c.json({
