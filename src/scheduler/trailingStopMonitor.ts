@@ -64,6 +64,7 @@ import { createExchangeClient } from "../services/exchangeClient";
 import { getChinaTimeISO } from "../utils/timeUtils";
 import { getQuantoMultiplier } from "../utils/contractUtils";
 import { getTradingStrategy, getStrategyParams } from "../agents/tradingAgent";
+import { normalizeFuturesAccount } from "../utils/accountUtils";
 import { recordAccountAssets } from "./accountRecorder";
 
 const logger = createLogger({
@@ -523,11 +524,9 @@ async function checkPeakPnlAndTrailingStop(autoCloseEnabled: boolean) {
     try {
       accountCheckCount++;
       
-      // 获取账户信息
       const account = await exchangeClient.getFuturesAccount();
-      const accountTotal = Number.parseFloat(account.total || "0");
-      const unrealisedPnl = Number.parseFloat(account.unrealisedPnl || "0");
-      const totalBalance = accountTotal + unrealisedPnl; // 包含未实现盈亏的真实总资产
+      const balances = normalizeFuturesAccount(account);
+      const totalBalance = balances.equityBalance;
       
       // 初始化峰值（首次运行）
       if (accountPeakBalance === 0) {
@@ -800,4 +799,3 @@ export function stopTrailingStopMonitor() {
   positionPnlHistory.clear();
   logger.info("移动止盈监控已停止");
 }
-

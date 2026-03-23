@@ -27,6 +27,7 @@ import { createLogger } from "../../utils/loggerUtils";
 import { getChinaTimeISO } from "../../utils/timeUtils";
 import { RISK_PARAMS } from "../../config/riskParams";
 import { getQuantoMultiplier } from "../../utils/contractUtils";
+import { normalizeFuturesAccount } from "../../utils/accountUtils";
 
 const logger = createLogger({
   name: "trade-execution",
@@ -219,9 +220,9 @@ export const openPositionTool = createTool({
       
       // 4. 获取账户信息
       const account = await client.getFuturesAccount();
-      const unrealisedPnl = Number.parseFloat(account.unrealisedPnl || "0");
-      const totalBalance = Number.parseFloat(account.total || "0") - unrealisedPnl;
-      const availableBalance = Number.parseFloat(account.available || "0");
+      const balances = normalizeFuturesAccount(account);
+      const totalBalance = balances.equityBalance;
+      const availableBalance = balances.availableBalance;
       
       if (!Number.isFinite(availableBalance) || availableBalance <= 0) {
         return {
@@ -1001,7 +1002,7 @@ export const closePositionTool = createTool({
       
       // 获取账户信息用于记录当前总资产
       const account = await client.getFuturesAccount();
-      const totalBalance = Number.parseFloat(account.total || "0");
+      const totalBalance = normalizeFuturesAccount(account).equityBalance;
       
       //  计算总手续费（开仓 + 平仓）用于数据库记录
       // 需要获取合约乘数

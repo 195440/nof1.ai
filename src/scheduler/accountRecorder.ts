@@ -25,6 +25,7 @@ import { createLogger } from "../utils/loggerUtils";
 import { createClient } from "@libsql/client";
 import { createExchangeClient } from "../services/exchangeClient";
 import { getChinaTimeISO } from "../utils/timeUtils";
+import { calculateReturnPercent, normalizeFuturesAccount } from "../utils/accountUtils";
 
 const logger = createLogger({
   name: "account-recorder",
@@ -43,19 +44,8 @@ const dbClient = createClient({
 export async function recordAccountAssets(skipLog: boolean = false) {
   try {
     const exchangeClient = createExchangeClient();
-    
-    // Get account information from Gate.io
     const account = await exchangeClient.getFuturesAccount();
-    
-    // Extract account data
-    // Gate.io 的 account.total 不包含未实现盈亏
-    // 需要主动加上 unrealisedPnl 才是真实的总资产
-    const accountTotal = Number.parseFloat(account.total || "0");
-    const availableBalance = Number.parseFloat(account.available || "0");
-    const unrealisedPnl = Number.parseFloat(account.unrealisedPnl || "0");
-    
-    // Total balance = account.total + unrealisedPnl (包含未实现盈亏的总资产)
-    const totalBalance = accountTotal + unrealisedPnl;
+    const balances = normalizeFuturesAccount(account);
     
     // Get initial balance from database
     const initialResult = await dbClient.execute(
@@ -63,13 +53,10 @@ export async function recordAccountAssets(skipLog: boolean = false) {
     );
     const initialBalance = initialResult.rows[0]
       ? Number.parseFloat(initialResult.rows[0].total_value as string)
-      : totalBalance; // Use current balance as initial if no history exists
-    
-    // Calculate realized PnL and return percentage
-    const realizedPnl = totalBalance - initialBalance;
-    const returnPercent = initialBalance > 0 
-      ? (realizedPnl / initialBalance) * 100 
-      : 0;
+      : balances.equityBalance;
+
+    const realizedPnl = balances.cashBalance - initialBalance;
+    const returnPercent = calculateReturnPercent(balances.equityBalance, initialBalance);
     
     // Save to database
     await dbClient.execute({
@@ -78,9 +65,9 @@ export async function recordAccountAssets(skipLog: boolean = false) {
             VALUES (?, ?, ?, ?, ?, ?)`,
       args: [
         getChinaTimeISO(),
-        totalBalance,
-        availableBalance,
-        unrealisedPnl,
+        balances.equityBalance,
+        balances.availableBalance,
+        balances.unrealisedPnl,
         realizedPnl,
         returnPercent,
       ],
@@ -88,14 +75,22 @@ export async function recordAccountAssets(skipLog: boolean = false) {
     
     if (!skipLog) {
       logger.info(
-        `📊 Account recorded: Total=${totalBalance.toFixed(2)} USDT, ` +
-        `Available=${availableBalance.toFixed(2)} USDT, ` +
-        `Unrealized PnL=${unrealisedPnl >= 0 ? '+' : ''}${unrealisedPnl.toFixed(2)} USDT, ` +
+        `📊 Account recorded: Total=${balances.equityBalance.toFixed(2)} USDT, ` +
+        `Cash=${balances.cashBalance.toFixed(2)} USDT, ` +
+        `Available=${balances.availableBalance.toFixed(2)} USDT, ` +
+        `Unrealized PnL=${balances.unrealisedPnl >= 0 ? '+' : ''}${balances.unrealisedPnl.toFixed(2)} USDT, ` +
         `Return=${returnPercent >= 0 ? '+' : ''}${returnPercent.toFixed(2)}%`
       );
     }
     
-    return { totalBalance, availableBalance, unrealisedPnl, returnPercent };
+    return {
+      cashBalance: balances.cashBalance,
+      totalBalance: balances.equityBalance,
+      availableBalance: balances.availableBalance,
+      unrealisedPnl: balances.unrealisedPnl,
+      realizedPnl,
+      returnPercent,
+    };
   } catch (error) {
     logger.error("Failed to record account assets:", error as any);
     return null;
@@ -124,4 +119,3 @@ export function startAccountRecorder() {
   
   logger.info(`Account recorder scheduled: ${cronExpression}`);
 }
-

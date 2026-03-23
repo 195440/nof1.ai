@@ -258,6 +258,10 @@ function generateAlphaBetaPromptForCycle(data: {
           pnlPercent = ((entryPrice - currentPrice) / entryPrice) * 100 * (pos.leverage ?? 1);
         }
       }
+
+      const holdingCycles = Math.floor(holdingMinutes / intervalMinutes);
+      const feeThreshold = 0.1 * (pos.leverage ?? 1);
+      const feeCovered = pnlPercent > feeThreshold;
       
       dataPrompt += `${pos.contract} ${pos.side === 'long' ? '做多' : '做空'}:
   持仓量: ${pos.quantity ?? 0} 张
@@ -266,6 +270,9 @@ function generateAlphaBetaPromptForCycle(data: {
   当前价: ${currentPrice.toFixed(2)}
   盈亏: ${pnlPercent >= 0 ? '+' : ''}${pnlPercent.toFixed(2)}% (${unrealizedPnl >= 0 ? '+' : ''}${unrealizedPnl.toFixed(2)} USDT)
   持仓时间: ${holdingHours} 小时
+  持仓周期: ${holdingCycles} 个
+  往返手续费门槛: ${feeThreshold.toFixed(2)}%
+  是否已覆盖手续费: ${feeCovered ? '是' : '否'}
   已分批止盈: ${((pos.partial_close_percentage ?? 0) as number).toFixed(2)}%
   当前保护止损线: ${pos.stop_loss !== null && pos.stop_loss !== undefined ? `${(pos.stop_loss as number) >= 0 ? '+' : ''}${(pos.stop_loss as number).toFixed(2)}%` : '无'}
 

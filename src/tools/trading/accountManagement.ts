@@ -25,6 +25,7 @@ import { createExchangeClient } from "../../services/exchangeClient";
 import { createClient } from "@libsql/client";
 import { RISK_PARAMS } from "../../config/riskParams";
 import { getQuantoMultiplier } from "../../utils/contractUtils";
+import { calculateReturnPercent, normalizeFuturesAccount } from "../../utils/accountUtils";
 
 const dbClient = createClient({
   url: process.env.DATABASE_URL || "file:./.voltagent/trading.db",
@@ -42,14 +43,17 @@ export const getAccountBalanceTool = createTool({
     
     try {
       const account = await client.getFuturesAccount();
+      const balances = normalizeFuturesAccount(account);
       
       return {
         currency: account.currency,
-        totalBalance: Number.parseFloat(account.total || "0"),
-        availableBalance: Number.parseFloat(account.available || "0"),
-        positionMargin: Number.parseFloat(account.positionMargin || "0"),
-        orderMargin: Number.parseFloat(account.orderMargin || "0"),
-        unrealisedPnl: Number.parseFloat(account.unrealisedPnl || "0"),
+        cashBalance: balances.cashBalance,
+        equityBalance: balances.equityBalance,
+        totalBalance: balances.totalBalance,
+        availableBalance: balances.availableBalance,
+        positionMargin: balances.positionMargin,
+        orderMargin: balances.orderMargin,
+        unrealisedPnl: balances.unrealisedPnl,
         timestamp: new Date().toISOString(),
       };
     } catch (error: any) {
@@ -206,11 +210,7 @@ export const calculateRiskTool = createTool({
         client.getFuturesAccount(),
         client.getPositions(),
       ]);
-      
-      // account.total 包含了未实现盈亏，需要减去以得到实际总资产
-      const unrealisedPnl = Number.parseFloat(account.unrealisedPnl || "0");
-      const totalBalance = Number.parseFloat(account.total || "0") - unrealisedPnl;
-      const availableBalance = Number.parseFloat(account.available || "0");
+      const balances = normalizeFuturesAccount(account);
       
       // 计算每个持仓的风险（需要异步获取合约乘数）
       const activePositions = positions.filter((p: any) => Number.parseFloat(p.size || "0") !== 0);
@@ -250,7 +250,7 @@ export const calculateRiskTool = createTool({
       
       const totalNotional = positionRisks.reduce((sum: number, p: any) => sum + p.notionalValue, 0);
       const totalMargin = positionRisks.reduce((sum: number, p: any) => sum + p.margin, 0);
-      const usedMarginPercent = totalBalance > 0 ? (totalMargin / totalBalance) * 100 : 0;
+      const usedMarginPercent = balances.equityBalance > 0 ? (totalMargin / balances.equityBalance) * 100 : 0;
       
       // 从数据库获取初始资金
       const initialBalanceResult = await dbClient.execute(
@@ -260,9 +260,7 @@ export const calculateRiskTool = createTool({
         ? Number.parseFloat(initialBalanceResult.rows[0].total_value as string)
         : 100;
       
-      const returnPercent = initialBalance > 0 
-        ? ((totalBalance - initialBalance) / initialBalance) * 100 
-        : 0;
+      const returnPercent = calculateReturnPercent(balances.equityBalance, initialBalance);
       
       let riskLevel = "low";
       if (usedMarginPercent > 80) {
@@ -272,9 +270,11 @@ export const calculateRiskTool = createTool({
       }
 
       return {
-        totalBalance,
-        availableBalance,
-        unrealisedPnl,
+        cashBalance: balances.cashBalance,
+        equityBalance: balances.equityBalance,
+        totalBalance: balances.totalBalance,
+        availableBalance: balances.availableBalance,
+        unrealisedPnl: balances.unrealisedPnl,
         totalNotional,
         totalMargin,
         usedMarginPercent,

@@ -28,6 +28,7 @@ import { getTradingStrategy, getStrategyParams } from "../agents/tradingAgent";
 import { RISK_PARAMS } from "../config/riskParams";
 import { getChinaTimeISO } from "../utils/timeUtils";
 import { getQuantoMultiplier } from "../utils/contractUtils";
+import { calculateReturnPercent, normalizeFuturesAccount } from "../utils/accountUtils";
 import { ipBlacklistMiddleware } from "../middleware/ipBlacklist";
 
 const logger = createLogger({
@@ -51,22 +52,15 @@ export function createApiRoutes() {
   /**
    * 获取账户总览
    * 
-   * Gate.io 账户结构：
-   * - account.total = available + positionMargin
-   * - account.total 不包含未实现盈亏
-   * - 真实总资产 = account.total + unrealisedPnl
-   * 
-   * API返回说明：
-   * - totalBalance: 不包含未实现盈亏的总资产（用于计算已实现收益）
-   * - unrealisedPnl: 当前持仓的未实现盈亏
-   * 
-   * 前端显示：
-   * - 总资产显示 = totalBalance + unrealisedPnl（实时反映持仓盈亏）
+   * 统一账户口径：
+   * - cashBalance: 现金余额（不含未实现盈亏）
+   * - totalBalance / equityBalance: 真实总资产（含未实现盈亏）
    */
   app.get("/api/account", async (c) => {
     try {
       const exchangeClient = createExchangeClient();
       const account = await exchangeClient.getFuturesAccount();
+      const balances = normalizeFuturesAccount(account);
       
       // 从数据库获取初始资金
       const initialResult = await dbClient.execute(
@@ -76,14 +70,7 @@ export function createApiRoutes() {
         ? Number.parseFloat(initialResult.rows[0].total_value as string)
         : 100;
       
-      // Gate.io 的 account.total 不包含未实现盈亏
-      // 总资产（不含未实现盈亏）= account.total
-      const unrealisedPnl = Number.parseFloat(account.unrealisedPnl || "0");
-      const totalBalance = Number.parseFloat(account.total || "0");
-
-      // 收益率 = (总资产 - 初始资金) / 初始资金 * 100
-      // 总资产不包含未实现盈亏，收益率反映已实现盈亏
-      const returnPercent = ((totalBalance - initialBalance) / initialBalance) * 100;
+      const returnPercent = calculateReturnPercent(balances.equityBalance, initialBalance);
 
       // 查询累计手续费（所有已平仓交易的手续费总和）
       const feeResult = await dbClient.execute(
@@ -96,15 +83,18 @@ export function createApiRoutes() {
       const rebateAmount = totalFees * (feeRebatePercent / 100);
 
       return c.json({
-        totalBalance,  // 总资产（不包含未实现盈亏）
-        availableBalance: Number.parseFloat(account.available || "0"),
-        positionMargin: Number.parseFloat(account.positionMargin || "0"),
-        unrealisedPnl,
-        returnPercent,  // 收益率（不包含未实现盈亏）
+        cashBalance: balances.cashBalance,
+        equityBalance: balances.equityBalance,
+        totalBalance: balances.totalBalance,
+        availableBalance: balances.availableBalance,
+        positionMargin: balances.positionMargin,
+        orderMargin: balances.orderMargin,
+        unrealisedPnl: balances.unrealisedPnl,
+        returnPercent,
         initialBalance,
-        totalFees,           // 累计手续费
-        feeRebatePercent,    // 返佣比例（%）
-        rebateAmount,        // 返佣金额
+        totalFees,
+        feeRebatePercent,
+        rebateAmount,
         timestamp: new Date().toISOString(),
       });
     } catch (error: any) {

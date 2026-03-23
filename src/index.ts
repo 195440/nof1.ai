@@ -108,8 +108,19 @@ async function main() {
                          ' (AI主导控制)';
   
   logger.info(`交易策略: ${params.name}${protectionMode}`);
+  logger.info(`策略标识: ${strategy}`);
   logger.info(`交易间隔: ${process.env.TRADING_INTERVAL_MINUTES || 5} 分钟`);
   logger.info(`账户记录间隔: ${process.env.ACCOUNT_RECORD_INTERVAL_MINUTES || 10} 分钟`);
+  logger.info(`模型: ${process.env.AI_MODEL_NAME || "default"}`);
+  logger.info(`\n⚙️ 生效策略参数:`);
+  logger.info(`  • 杠杆范围: ${params.leverageMin}-${params.leverageMax}x`);
+  logger.info(`  • 仓位范围: ${params.positionSizeMin}-${params.positionSizeMax}%`);
+  logger.info(`  • 总保证金上限: ${params.maxTotalMarginPercent ?? "未设置"}%`);
+  logger.info(`  • 止损: low ${params.stopLoss.low}% / mid ${params.stopLoss.mid}% / high ${params.stopLoss.high}%`);
+  logger.info(`  • 移动止盈: ${params.trailingStop.level1.trigger}%→${params.trailingStop.level1.stopAt}%, ${params.trailingStop.level2.trigger}%→${params.trailingStop.level2.stopAt}%, ${params.trailingStop.level3.trigger}%→${params.trailingStop.level3.stopAt}%`);
+  logger.info(`  • 分批止盈: ${params.partialTakeProfit.stage1.trigger}%/${params.partialTakeProfit.stage1.closePercent}%, ${params.partialTakeProfit.stage2.trigger}%/${params.partialTakeProfit.stage2.closePercent}%, ${params.partialTakeProfit.stage3.trigger}%/${params.partialTakeProfit.stage3.closePercent}%`);
+  logger.info(`  • 代码级保护: ${params.enableCodeLevelProtection ? "开启" : "关闭"}`);
+  logger.info(`  • AI 可覆盖保护: ${params.allowAiOverrideProtection ? "开启" : "关闭"}`);
   
   if (isCodeLevelEnabled) {
     // 动态生成止损描述

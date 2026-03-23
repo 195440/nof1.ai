@@ -21,3 +21,4 @@
  */
 export * from './timeUtils';
 export * from './encodingUtils';
+export * from './accountUtils';

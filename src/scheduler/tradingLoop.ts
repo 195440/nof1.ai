@@ -27,6 +27,7 @@ import { createExchangeClient } from "../services/exchangeClient";
 import { getChinaTimeISO } from "../utils/timeUtils";
 import { RISK_PARAMS } from "../config/riskParams";
 import { getQuantoMultiplier } from "../utils/contractUtils";
+import { calculateReturnPercent, normalizeFuturesAccount } from "../utils/accountUtils";
 import { initNewsClient, fetchCryptoNews, fetchExchangeAnnouncements, fetchLatestEvents, aggregateSentiment } from "../services/newsClient";
 
 const logger = createLogger({
@@ -68,6 +69,297 @@ function ensureRange(value: number, min: number, max: number, defaultValue?: num
   if (value < min) return min;
   if (value > max) return max;
   return value;
+}
+
+interface AgentActionRecord {
+  action: string;
+  toolName: string;
+  stepIndex: number;
+  toolCallId?: string;
+  input?: unknown;
+  result?: unknown;
+  success?: boolean;
+  orderId?: string;
+  symbol?: string;
+  side?: string;
+  message?: string;
+  error?: string;
+}
+
+function isPlainObject(value: unknown): value is Record<string, any> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function toSnakeCase(value: string): string {
+  return value
+    .replace(/([a-z0-9])([A-Z])/g, "$1_$2")
+    .replace(/[\s-]+/g, "_")
+    .toLowerCase();
+}
+
+function sanitizeActionPayload(value: unknown, depth: number = 0): unknown {
+  if (value === null || value === undefined) {
+    return undefined;
+  }
+
+  if (typeof value === "string" || typeof value === "number" || typeof value === "boolean") {
+    return value;
+  }
+
+  if (depth >= 2) {
+    return Array.isArray(value) ? `[array(${value.length})]` : "[object]";
+  }
+
+  if (Array.isArray(value)) {
+    return value
+      .slice(0, 5)
+      .map((item) => sanitizeActionPayload(item, depth + 1))
+      .filter((item) => item !== undefined);
+  }
+
+  if (!isPlainObject(value)) {
+    return String(value);
+  }
+
+  const preferredKeys = [
+    "symbol",
+    "side",
+    "leverage",
+    "amountUsdt",
+    "percentage",
+    "orderId",
+    "success",
+    "message",
+    "error",
+    "pnl",
+    "fee",
+    "price",
+    "entryPrice",
+    "exitPrice",
+    "size",
+    "closedSize",
+    "contractAmount",
+    "actualMargin",
+  ];
+
+  const sanitized: Record<string, unknown> = {};
+  for (const key of preferredKeys) {
+    if (value[key] !== undefined && value[key] !== null) {
+      sanitized[key] = sanitizeActionPayload(value[key], depth + 1);
+    }
+  }
+
+  if (Object.keys(sanitized).length > 0) {
+    return sanitized;
+  }
+
+  for (const [key, item] of Object.entries(value).slice(0, 6)) {
+    const sanitizedItem = sanitizeActionPayload(item, depth + 1);
+    if (sanitizedItem !== undefined) {
+      sanitized[key] = sanitizedItem;
+    }
+  }
+
+  return Object.keys(sanitized).length > 0 ? sanitized : undefined;
+}
+
+function extractToolName(entry: any): string | undefined {
+  const candidates = [
+    entry?.toolName,
+    entry?.tool_name,
+    entry?.name,
+    entry?.tool?.name,
+    entry?.toolCall?.toolName,
+    entry?.tool_call?.name,
+  ];
+
+  return candidates.find((candidate) => typeof candidate === "string" && candidate.length > 0);
+}
+
+function extractToolCallId(entry: any): string | undefined {
+  const candidates = [
+    entry?.toolCallId,
+    entry?.tool_call_id,
+    entry?.callId,
+    entry?.call_id,
+    entry?.id,
+  ];
+
+  const match = candidates.find(
+    (candidate) => typeof candidate === "string" || typeof candidate === "number",
+  );
+
+  return match !== undefined ? String(match) : undefined;
+}
+
+function extractToolInput(entry: any): unknown {
+  return (
+    entry?.input ??
+    entry?.args ??
+    entry?.arguments ??
+    entry?.parameters ??
+    entry?.toolInput ??
+    entry?.tool_input ??
+    entry?.toolCall?.input ??
+    entry?.tool_call?.arguments
+  );
+}
+
+function extractToolOutput(entry: any): unknown {
+  return (
+    entry?.output ??
+    entry?.result ??
+    entry?.value ??
+    entry?.response ??
+    entry?.toolResult ??
+    entry?.tool_result
+  );
+}
+
+function dedupeToolEntries(entries: any[], kind: "call" | "result"): any[] {
+  const seen = new Set<string>();
+  const deduped: any[] = [];
+
+  for (const entry of entries) {
+    const toolName = extractToolName(entry) || "";
+    const toolCallId = extractToolCallId(entry) || "";
+    const payload =
+      kind === "call" ? sanitizeActionPayload(extractToolInput(entry)) : sanitizeActionPayload(extractToolOutput(entry));
+    const key = `${kind}:${toolCallId}:${toolName}:${JSON.stringify(payload ?? null)}`;
+
+    if (seen.has(key)) {
+      continue;
+    }
+
+    seen.add(key);
+    deduped.push(entry);
+  }
+
+  return deduped;
+}
+
+function findLatestActionRecord(
+  actions: AgentActionRecord[],
+  predicate: (action: AgentActionRecord) => boolean,
+): AgentActionRecord | undefined {
+  for (let index = actions.length - 1; index >= 0; index--) {
+    if (predicate(actions[index])) {
+      return actions[index];
+    }
+  }
+
+  return undefined;
+}
+
+function extractActionsTakenFromSteps(steps: any[]): AgentActionRecord[] {
+  const actions: AgentActionRecord[] = [];
+
+  for (let index = 0; index < steps.length; index++) {
+    const step = steps[index];
+    const contentItems = Array.isArray(step?.content) ? step.content : [];
+
+    const toolCalls = dedupeToolEntries(
+      [
+        ...(Array.isArray(step?.toolCalls) ? step.toolCalls : []),
+        ...(Array.isArray(step?.tool_calls) ? step.tool_calls : []),
+        ...contentItems.filter((item: any) => {
+          const type = typeof item?.type === "string" ? item.type.toLowerCase() : "";
+          return type.includes("tool") && type.includes("call");
+        }),
+      ],
+      "call",
+    );
+
+    const toolResults = dedupeToolEntries(
+      [
+        ...(Array.isArray(step?.toolResults) ? step.toolResults : []),
+        ...(Array.isArray(step?.tool_results) ? step.tool_results : []),
+        ...contentItems.filter((item: any) => {
+          const type = typeof item?.type === "string" ? item.type.toLowerCase() : "";
+          return type.includes("tool") && type.includes("result");
+        }),
+      ],
+      "result",
+    );
+
+    for (const toolCall of toolCalls) {
+      const toolName = extractToolName(toolCall);
+      if (!toolName) {
+        continue;
+      }
+
+      const input = sanitizeActionPayload(extractToolInput(toolCall));
+      const actionRecord: AgentActionRecord = {
+        action: toSnakeCase(toolName),
+        toolName,
+        stepIndex: index + 1,
+      };
+
+      const toolCallId = extractToolCallId(toolCall);
+      if (toolCallId) {
+        actionRecord.toolCallId = toolCallId;
+      }
+
+      if (input !== undefined) {
+        actionRecord.input = input;
+      }
+
+      actions.push(actionRecord);
+    }
+
+    for (const toolResult of toolResults) {
+      const toolName = extractToolName(toolResult);
+      if (!toolName) {
+        continue;
+      }
+
+      const toolCallId = extractToolCallId(toolResult);
+      let actionRecord =
+        (toolCallId
+          ? findLatestActionRecord(actions, (action) => action.toolCallId === toolCallId)
+          : undefined) || findLatestActionRecord(actions, (action) => action.toolName === toolName);
+
+      if (!actionRecord) {
+        actionRecord = {
+          action: toSnakeCase(toolName),
+          toolName,
+          stepIndex: index + 1,
+        };
+        if (toolCallId) {
+          actionRecord.toolCallId = toolCallId;
+        }
+        actions.push(actionRecord);
+      }
+
+      const output = sanitizeActionPayload(extractToolOutput(toolResult));
+      if (output !== undefined) {
+        actionRecord.result = output;
+      }
+
+      if (isPlainObject(output)) {
+        if (typeof output.success === "boolean") {
+          actionRecord.success = output.success;
+        }
+        if (output.orderId !== undefined) {
+          actionRecord.orderId = String(output.orderId);
+        }
+        if (output.symbol !== undefined) {
+          actionRecord.symbol = String(output.symbol);
+        }
+        if (output.side !== undefined) {
+          actionRecord.side = String(output.side);
+        }
+        if (output.message !== undefined) {
+          actionRecord.message = String(output.message);
+        }
+        if (output.error !== undefined) {
+          actionRecord.error = String(output.error);
+        }
+      }
+    }
+  }
+
+  return actions;
 }
 
 /**
@@ -605,13 +897,9 @@ async function calculateSharpeRatio(): Promise<number> {
 /**
  * 获取账户信息
  * 
- * Gate.io 的 account.total 不包含未实现盈亏
- * 总资产（不含未实现盈亏）= account.total = available + positionMargin
- * 
- * 因此：
- * - totalBalance 不包含未实现盈亏
- * - returnPercent 反映已实现盈亏
- * - 前端显示时需加上 unrealisedPnl
+ * 统一账户口径：
+ * - cashBalance: 现金余额（不含未实现盈亏）
+ * - totalBalance: 真实总资产（含未实现盈亏）
  */
 async function getAccountInfo() {
   const exchangeClient = createExchangeClient();
@@ -635,34 +923,26 @@ async function getAccountInfo() {
       ? Number.parseFloat(peakResult.rows[0].peak as string)
       : initialBalance;
     
-    // 从 Gate.io API 返回的数据中提取字段
-    const accountTotal = Number.parseFloat(account.total || "0");
-    const availableBalance = Number.parseFloat(account.available || "0");
-    const unrealisedPnl = Number.parseFloat(account.unrealisedPnl || "0");
-    
-    // Gate.io 的 account.total 不包含未实现盈亏
-    // totalBalance 直接使用 account.total（不包含未实现盈亏）
-    const totalBalance = accountTotal;
-    
-    // 实时收益率 = (总资产 - 初始资金) / 初始资金 * 100
-    // 总资产不包含未实现盈亏，收益率反映已实现盈亏
-    const returnPercent = ((totalBalance - initialBalance) / initialBalance) * 100;
+    const balances = normalizeFuturesAccount(account);
+    const returnPercent = calculateReturnPercent(balances.equityBalance, initialBalance);
     
     // 计算 Sharpe Ratio
     const sharpeRatio = await calculateSharpeRatio();
     
     return {
-      totalBalance,      // 总资产（不包含未实现盈亏）
-      availableBalance,  // 可用余额
-      unrealisedPnl,     // 未实现盈亏
-      returnPercent,     // 收益率（不包含未实现盈亏）
-      sharpeRatio,       // 夏普比率
-      initialBalance,    // 初始净值（用于计算回撤）
-      peakBalance,       // 峰值净值（用于计算回撤）
+      cashBalance: balances.cashBalance,
+      totalBalance: balances.equityBalance,
+      availableBalance: balances.availableBalance,
+      unrealisedPnl: balances.unrealisedPnl,
+      returnPercent,
+      sharpeRatio,
+      initialBalance,
+      peakBalance,
     };
   } catch (error) {
     logger.error("获取账户信息失败:", error as any);
     return {
+      cashBalance: 0,
       totalBalance: 0,
       availableBalance: 0,
       unrealisedPnl: 0,
@@ -1297,7 +1577,6 @@ async function executeTradingDecision() {
       const leverage = pos.leverage;
       const entryPrice = pos.entry_price;
       const currentPrice = pos.current_price;
-      
       // 计算盈亏百分比（考虑杠杆）
       const priceChangePercent = entryPrice > 0 
         ? ((currentPrice - entryPrice) / entryPrice * 100 * (side === 'long' ? 1 : -1))
@@ -1356,7 +1635,7 @@ async function executeTradingDecision() {
         logger.error(`${closeReason}`);
       }
       
-      // c) 超短线策略专属风控规则
+      // c) 超短线专属风控规则
       const strategy = getTradingStrategy();
       if (strategy === 'ultra-short' && !shouldClose) {
         const holdingMinutes = holdingHours * 60;
@@ -1622,6 +1901,7 @@ async function executeTradingDecision() {
       
       // 从响应中提取AI的完整回复，不进行任何切分
       let decisionText = "";
+      let actionsTaken: AgentActionRecord[] = [];
       
       // 添加调试日志，查看响应的原始结构
       logger.debug(`响应类型: ${typeof response}`);
@@ -1629,6 +1909,7 @@ async function executeTradingDecision() {
         logger.debug(`响应结构: ${JSON.stringify(Object.keys(response))}`);
         const steps = (response as any).steps || [];
         logger.debug(`步骤数量: ${steps.length}`);
+        actionsTaken = extractActionsTakenFromSteps(steps);
       }
       
       if (typeof response === 'string') {
@@ -1697,6 +1978,13 @@ async function executeTradingDecision() {
       logger.info("=".repeat(80));
       logger.info(decisionText || "无决策输出");
       logger.info("=".repeat(80) + "\n");
+
+      if (actionsTaken.length > 0) {
+        logger.info("【输出 - AI 动作】");
+        logger.info("=".repeat(80));
+        logger.info(JSON.stringify(actionsTaken, null, 2));
+        logger.info("=".repeat(80) + "\n");
+      }
       
       // 保存决策记录
       await dbClient.execute({
@@ -1708,7 +1996,7 @@ async function executeTradingDecision() {
           iterationCount,
           JSON.stringify(marketData),
           decisionText,
-          "[]",
+          JSON.stringify(actionsTaken),
           accountInfo.totalBalance,
           positions.length,
         ],

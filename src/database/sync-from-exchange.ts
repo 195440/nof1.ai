@@ -25,6 +25,7 @@ import { createClient } from "@libsql/client";
 import { CREATE_TABLES_SQL } from "./schema";
 import { createLogger } from "../utils/loggerUtils";
 import { createExchangeClient, getExchangeType } from "../services/exchangeClient";
+import { normalizeFuturesAccount } from "../utils/accountUtils";
 import * as fs from "node:fs";
 import * as path from "node:path";
 
@@ -43,20 +44,14 @@ async function syncFromExchange() {
     // 1. 连接交易所获取当前账户余额
     const exchangeClient = createExchangeClient();
     const account = await exchangeClient.getFuturesAccount();
-    
-    const accountTotal = Number.parseFloat(account.total || "0");
-    const availableBalance = Number.parseFloat(account.available || "0");
-    const unrealizedPnl = Number.parseFloat(account.unrealisedPnl || "0");
-    
-    // 交易所的 account.total 可能不包含未实现盈亏（视交易所而定）
-    // 真实总资产 = account.total + unrealisedPnl
-    const currentBalance = accountTotal + unrealizedPnl;
+    const balances = normalizeFuturesAccount(account);
+    const currentBalance = balances.equityBalance;
     
     logger.info(`\n📊 ${exchangeName} 当前账户状态:`);
-    logger.info(`   账户余额: ${accountTotal} USDT`);
-    logger.info(`   未实现盈亏: ${unrealizedPnl >= 0 ? '+' : ''}${unrealizedPnl} USDT`);
+    logger.info(`   现金余额: ${balances.cashBalance} USDT`);
+    logger.info(`   未实现盈亏: ${balances.unrealisedPnl >= 0 ? '+' : ''}${balances.unrealisedPnl} USDT`);
     logger.info(`   总资产(含盈亏): ${currentBalance} USDT`);
-    logger.info(`   可用资金: ${availableBalance} USDT`);
+    logger.info(`   可用资金: ${balances.availableBalance} USDT`);
     
     // 2. 获取持仓信息
     const positions = await exchangeClient.getPositions();
@@ -116,8 +111,8 @@ async function syncFromExchange() {
       args: [
         new Date().toISOString(),
         currentBalance,
-        availableBalance,
-        unrealizedPnl,
+        balances.availableBalance,
+        balances.unrealisedPnl,
         0, // realized_pnl 从 0 开始
         0, // return_percent 从 0% 开始
       ],
@@ -207,8 +202,8 @@ async function syncFromExchange() {
     logger.info(`\n📊 新的初始状态:`);
     logger.info(`   交易所: ${exchangeName}`);
     logger.info(`   总资产: ${currentBalance} USDT`);
-    logger.info(`   可用资金: ${availableBalance} USDT`);
-    logger.info(`   未实现盈亏: ${unrealizedPnl} USDT`);
+    logger.info(`   可用资金: ${balances.availableBalance} USDT`);
+    logger.info(`   未实现盈亏: ${balances.unrealisedPnl} USDT`);
     logger.info(`   已实现盈亏: 0 USDT`);
     logger.info(`   总收益率: 0%`);
     logger.info(`   持仓数: ${activePositions.length}`);
@@ -229,4 +224,3 @@ async function syncFromExchange() {
 
 // 执行同步
 syncFromExchange();
-
